@@ -4,6 +4,10 @@ Role-based web app where a company's fleet, drivers, inspections, daily use, exp
 
 Stack: Next.js (App Router, TypeScript) · Supabase (Postgres, Auth, Storage, Realtime, pg_cron) · Nodemailer (SMTP) · shadcn/ui · Tailwind CSS · TanStack Table · React Hook Form + Zod · Recharts. Installable PWA for drivers. All UI text lives in `src/i18n/en.json` (Swahili can be added in `sw.json`).
 
+## Production
+
+Step-by-step server setup (CloudPanel, self-hosted Supabase in Docker, PM2, SSL, cron): see [docs/DEPLOY.md](docs/DEPLOY.md). Updates: `bash scripts/deploy.sh` (app) and `bash scripts/migrate.sh` (database).
+
 ## 1. Setup
 
 Requirements: Node 20.9+, npm, the Supabase CLI, Docker (for a local Supabase) or a self-hosted Supabase on your VPS.
