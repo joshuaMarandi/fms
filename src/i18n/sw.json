@@ -1,0 +1,23 @@
+{
+  "app.name": "Mfumo wa Usimamizi wa Magari wa MDV",
+  "app.short_name": "MDV FMS",
+  "nav.dashboard": "Dashibodi",
+  "nav.settings": "Mipangilio",
+  "nav.sign_out": "Toka",
+  "nav.my_profile": "Wasifu wangu",
+  "nav.notifications": "Arifa",
+  "common.save": "Hifadhi",
+  "common.cancel": "Ghairi",
+  "common.delete": "Futa",
+  "common.edit": "Hariri",
+  "common.search": "Tafuta",
+  "common.yes": "Ndiyo",
+  "common.no": "Hapana",
+  "status.draft": "Rasimu",
+  "status.submitted": "Imewasilishwa",
+  "status.approved": "Imeidhinishwa",
+  "status.rejected": "Imekataliwa",
+  "status.completed": "Imekamilika",
+  "status.open": "Wazi",
+  "status.closed": "Imefungwa"
+}
