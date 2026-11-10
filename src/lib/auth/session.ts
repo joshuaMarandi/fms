@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Grant, PermissionContextValue, Resource } from "@/lib/permissions";
 import { can, permissionScope, type PermissionAction } from "@/lib/permissions";
+import { logoUrlFor, type CompanyBrand } from "@/lib/branding";
 
 export type Profile = {
   id: string;
@@ -43,6 +44,7 @@ export type SessionContext = {
   profile: Profile;
   roles: RoleSummary[];
   company: { id: string; name: string; logo_url: string | null; settings: Record<string, unknown> } | null;
+  brand: CompanyBrand | null;
   subscription: Subscription | null;
   companies: { id: string; name: string }[];
   permissions: PermissionContextValue;
@@ -81,6 +83,14 @@ export const getSession = cache(async (): Promise<SessionContext | null> => {
       package_id: string | null;
       active: boolean;
       package: null | { id: string; name: string; price: number; currency: string; billing_period: string; max_vehicles: number };
+      logo_version: number | null;
+      address: string | null;
+      city: string | null;
+      country: string | null;
+      phone: string | null;
+      email: string | null;
+      tax_number: string | null;
+      website: string | null;
     };
     package_keys: string[];
     companies: { id: string; name: string }[];
@@ -92,7 +102,20 @@ export const getSession = cache(async (): Promise<SessionContext | null> => {
 
   let company: SessionContext["company"] = null;
   let subscription: Subscription | null = null;
+  let brand: CompanyBrand | null = null;
   if (c.company) {
+    brand = {
+      id: c.company.id,
+      name: c.company.name,
+      logoUrl: logoUrlFor(c.company.id, c.company.logo_version),
+      address: c.company.address ?? null,
+      city: c.company.city ?? null,
+      country: c.company.country ?? null,
+      phone: c.company.phone ?? null,
+      email: c.company.email ?? null,
+      taxNumber: c.company.tax_number ?? null,
+      website: c.company.website ?? null,
+    };
     company = { id: c.company.id, name: c.company.name, logo_url: c.company.logo_url, settings: c.company.settings ?? {} };
     const pkg = c.company.package;
     subscription = {
@@ -130,6 +153,7 @@ export const getSession = cache(async (): Promise<SessionContext | null> => {
     profile: profile as unknown as Profile,
     roles,
     company,
+    brand,
     subscription,
     companies,
     permissions,

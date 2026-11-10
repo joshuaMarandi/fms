@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusChip } from "./status-chip";
+import { useSession } from "@/components/permissions/provider";
 import { exportCsv, exportExcel, exportPdf, type ExportColumn } from "@/lib/export";
 import { startNavigationProgress } from "@/components/shell/navigation-progress";
 import { cn } from "@/lib/utils";
@@ -86,6 +87,7 @@ export function DataTable<T extends Record<string, unknown>>({
   dense,
 }: DataTableProps<T>) {
   const router = useRouter();
+  const session = useSession();
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
@@ -163,8 +165,11 @@ export function DataTable<T extends Record<string, unknown>>({
     });
     const rows = table.getFilteredRowModel().rows.map((r) => Object.fromEntries(visible.map((c) => [c.id, r.getValue(c.id)])));
     if (kind === "csv") exportCsv(cols, rows, exportName);
-    else if (kind === "xlsx") await exportExcel(cols, rows, exportName);
-    else await exportPdf(cols, rows, exportName, exportTitle);
+    else {
+      const ctx = { brand: session.brand, printedBy: session.fullName };
+      if (kind === "xlsx") await exportExcel(cols, rows, exportName, exportTitle, ctx);
+      else await exportPdf(cols, rows, exportName, exportTitle, ctx);
+    }
   }
 
   const filtered = table.getFilteredRowModel().rows.length;

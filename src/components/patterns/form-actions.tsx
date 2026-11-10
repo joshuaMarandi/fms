@@ -72,7 +72,7 @@ export function FormActions({
         ? createPortal(
             <div
               className={cn(
-                "fixed inset-x-0 z-40 flex items-center gap-2 border-t bg-card px-4 py-3 md:hidden",
+                "no-print fixed inset-x-0 z-40 flex items-center gap-2 border-t bg-card px-4 py-3 md:hidden",
                 session.isDriverOnly ? "bottom-[calc(56px+env(safe-area-inset-bottom))]" : "bottom-0 pb-[calc(0.75rem+env(safe-area-inset-bottom))]",
               )}
             >

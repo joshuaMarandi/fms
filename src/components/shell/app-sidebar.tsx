@@ -87,9 +87,14 @@ export function AppSidebar({ counts }: { counts: SidebarCounts; companies?: { id
     <Sidebar collapsible="icon" className="border-r-0">
       <SidebarHeader className="gap-2">
         <Link href={session.platformMode ? "/platform" : "/dashboard"} className="flex items-center gap-2 rounded-md px-1 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring" onClick={() => setOpenMobile(false)}>
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <Truck className="size-4" aria-hidden="true" />
-          </span>
+          {session.brand?.logoUrl && !session.platformMode ? (
+            // eslint-disable-next-line @next/next/no-img-element -- small company logo from our own API, cached by the browser
+            <img src={session.brand.logoUrl} alt="" className="size-8 shrink-0 rounded-md bg-white object-contain p-0.5" />
+          ) : (
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+              <Truck className="size-4" aria-hidden="true" />
+            </span>
+          )}
           <span className="min-w-0 group-data-[collapsible=icon]:hidden">
             <span className="block truncate text-sm font-semibold leading-tight">{session.platformMode ? t("platform.sidebar_title") : session.companyName ?? t("app.short_name")}</span>
             <span className="block truncate text-xs opacity-75">{session.platformMode ? t("platform.sidebar_subtitle") : t("app.name")}</span>
@@ -150,7 +155,7 @@ export function AppSidebar({ counts }: { counts: SidebarCounts; companies?: { id
                                   <LinkPending />
                                 </Link>
                               </SidebarMenuSubButton>
-                              {child.children.filter((g) => g.path).length > 0 ? (
+                              {child.key !== "daily_use.trip_requests" && child.children.filter((g) => g.path).length > 0 ? (
                                 <SidebarMenuSub className="mr-0 gap-1 border-l-0 pl-4">
                                   {child.children
                                     .filter((g) => g.path)

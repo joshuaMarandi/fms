@@ -7,6 +7,7 @@ import { SchemaForm } from "@/components/patterns/schema-form";
 import { AttachmentsBox } from "@/components/patterns/attachments-box";
 import { KmReminderChip, ReminderChip, StatusChip } from "@/components/patterns/status-chip";
 import { RecordTitle } from "@/components/modules/record-title";
+import { PrintButton } from "@/components/shell/print-frame";
 import { RemarksThread } from "./remarks-thread";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
@@ -55,6 +56,7 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
         description={`${v.make} ${v.model}${v.yom ? `, ${v.yom}` : ""} · ${formatNumber(v.odometer_km as number)} km`}
         actions={
           <>
+            <PrintButton />
             <StatusChip status={v.status as string} />
             {safe?.not_safe_for_use ? <StatusChip status="not_safe" /> : null}
             {safe && safe.open_anomalies > 0 ? (

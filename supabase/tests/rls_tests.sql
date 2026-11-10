@@ -429,4 +429,24 @@ begin
   perform pg_temp.as_admin();
 end $$;
 
+
+-- Company branding
+do $$
+declare j jsonb; v_ok boolean;
+begin
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  update public.companies set logo_data = 'data:image/png;base64,iVBORw0KGgo=', address = 'Plot 12, Nyerere Road', tax_number = '123-456-789'
+  where id = '11111111-1111-1111-1111-111111111111';
+  j := public.session_context();
+  perform pg_temp.check('session carries the logo version', (j->'company'->>'logo_version') is not null);
+  perform pg_temp.check('session carries company details', j->'company'->>'address' = 'Plot 12, Nyerere Road' and j->'company'->>'tax_number' = '123-456-789');
+  begin
+    update public.companies set logo_data = 'javascript:alert(1)' where id = '11111111-1111-1111-1111-111111111111';
+    v_ok := false;
+  exception when others then v_ok := true;
+  end;
+  perform pg_temp.check('only image data is accepted as a logo', v_ok);
+  perform pg_temp.as_admin();
+end $$;
+
 select 'ALL TESTS PASSED' as result;

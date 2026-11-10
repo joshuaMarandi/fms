@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { AttachmentsBox } from "@/components/patterns/attachments-box";
+import { LogoField } from "./logo-field";
 import { FormActions } from "@/components/patterns/form-actions";
 import { createClient } from "@/lib/supabase/client";
 import { useSession } from "@/components/permissions/provider";
@@ -20,11 +20,22 @@ type Price = { id: string; category: string; price_tzs: number };
 type Category = { id: string; name: string; counts_against_balance: boolean };
 type Vehicle = { id: string; registration: string; make: string; model: string; target_km_per_l: number | null };
 
-export function CompanyClient({ company, sites, prices, categories, vehicles, canEdit }: { company: { id: string; name: string; logo_url: string | null; settings: Record<string, unknown> }; sites: Site[]; prices: Price[]; categories: Category[]; vehicles: Vehicle[]; canEdit: boolean }) {
+type CompanyDetails = { id: string; name: string; logo_url: string | null; settings: Record<string, unknown>; address: string | null; city: string | null; country: string | null; contact_phone: string | null; contact_email: string | null; tax_number: string | null; website: string | null };
+
+export function CompanyClient({ company, sites, prices, categories, vehicles, canEdit }: { company: CompanyDetails; sites: Site[]; prices: Price[]; categories: Category[]; vehicles: Vehicle[]; canEdit: boolean }) {
   const router = useRouter();
   const session = useSession();
   const supabase = createClient();
   const [name, setName] = React.useState(company.name);
+  const [details, setDetails] = React.useState({
+    address: company.address ?? "",
+    city: company.city ?? "",
+    country: company.country ?? "",
+    contact_phone: company.contact_phone ?? "",
+    contact_email: company.contact_email ?? "",
+    tax_number: company.tax_number ?? "",
+    website: company.website ?? "",
+  });
   // The per-litre price now lives in the Fuel price card; keep the legacy setting unchanged.
   const fuelPrice = String(company.settings.fuel_price_per_litre ?? "");
   const [defaultTarget, setDefaultTarget] = React.useState(String(company.settings.default_target_km_per_l ?? ""));
@@ -39,7 +50,7 @@ export function CompanyClient({ company, sites, prices, categories, vehicles, ca
     try {
       const { error: e1 } = await supabase
         .from("companies")
-        .update({ name, settings: { ...company.settings, fuel_price_per_litre: fuelPrice === "" ? null : Number(fuelPrice), default_target_km_per_l: defaultTarget === "" ? null : Number(defaultTarget) } })
+        .update({ name, ...Object.fromEntries(Object.entries(details).map(([k, v]) => [k, v.trim() || null])), settings: { ...company.settings, fuel_price_per_litre: fuelPrice === "" ? null : Number(fuelPrice), default_target_km_per_l: defaultTarget === "" ? null : Number(defaultTarget) } })
         .eq("id", company.id);
       if (e1) throw e1;
 
@@ -124,8 +135,27 @@ export function CompanyClient({ company, sites, prices, categories, vehicles, ca
             </div>
             <div>
               <p className="mb-2 text-sm font-medium">{t("settings.company.logo")}</p>
-              <AttachmentsBox table="companies" rowId={company.id} resource="settings.company" bucket="forms" labels={[t("settings.company.logo")]} multiple={false} readOnly={ro || !session.companyId} />
+              <LogoField companyId={company.id} logoUrl={session.brand?.logoUrl ?? null} readOnly={ro} />
             </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {(
+                [
+                  ["address", "settings.company.address", "text"],
+                  ["city", "settings.company.city", "text"],
+                  ["country", "settings.company.country", "text"],
+                  ["contact_phone", "settings.company.phone", "tel"],
+                  ["contact_email", "settings.company.email", "email"],
+                  ["website", "settings.company.website", "url"],
+                  ["tax_number", "settings.company.tax_number", "text"],
+                ] as const
+              ).map(([key, label, type]) => (
+                <Field key={key}>
+                  <FieldLabel htmlFor={`c-${key}`}>{t(label)}</FieldLabel>
+                  <Input id={`c-${key}`} type={type} className="h-10" value={details[key]} disabled={ro} onChange={(e) => setDetails((d) => ({ ...d, [key]: e.target.value }))} />
+                </Field>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">{t("settings.company.details_hint")}</p>
           </CardContent>
         </Card>
 

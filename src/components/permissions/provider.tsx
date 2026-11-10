@@ -11,6 +11,7 @@ import {
 } from "@/lib/permissions";
 import type { Locale } from "@/i18n";
 import { setLocale } from "@/i18n";
+import type { CompanyBrand } from "@/lib/branding";
 
 export type SessionLite = {
   userId: string;
@@ -19,6 +20,7 @@ export type SessionLite = {
   avatarUrl: string | null;
   companyId: string | null;
   companyName: string | null;
+  brand: CompanyBrand | null;
   driverId: string | null;
   locale: Locale;
   roleNames: string[];

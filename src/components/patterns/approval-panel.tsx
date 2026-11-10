@@ -71,6 +71,8 @@ export function ApprovalPanel({
   const [errors, setErrors] = React.useState<Record<string, string>>({});
 
   const canApprove = can(resource, "approve") && request.status === "submitted";
+  // A request raised by someone who may approve it is approved straight away, once the follow-up details are filled.
+  const canSelfApprove = can(resource, "approve") && (request.status === "draft" || request.status === "rejected");
   const mayEdit = canSubmit ?? can(resource, "edit");
 
   async function submit() {
@@ -82,6 +84,32 @@ export function ApprovalPanel({
       toast.success(t("common.submitted"));
       router.refresh();
     }
+  }
+
+  function validateExtras() {
+    const errs: Record<string, string> = {};
+    for (const f of extraFields ?? []) if (f.required && !extra[f.name]) errs[f.name] = t("form.required");
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  }
+
+  async function selfApprove() {
+    if (!validateExtras()) {
+      toast.error(t("form.fix_errors"));
+      return;
+    }
+    setBusy(true);
+    const submitted = await callRpc("submit_request", { p_table: table, p_id: request.id }, revalidate);
+    if (!submitted.ok) {
+      setBusy(false);
+      toast.error(submitted.error);
+      return;
+    }
+    const res = await callRpc("approve_request", { p_table: table, p_id: request.id, p_signature: signature, p_extra: Object.fromEntries(Object.entries(extra).filter(([, v]) => v !== "")) }, revalidate);
+    setBusy(false);
+    if (!res.ok) toast.error(res.error);
+    else toast.success(t("approval.self_done"));
+    router.refresh();
   }
 
   async function decide() {
@@ -104,6 +132,26 @@ export function ApprovalPanel({
       router.refresh();
     }
   }
+
+  const approveInputs = (
+    <>
+      {(extraFields ?? []).map((f) => (
+        <Field key={f.name} data-invalid={!!errors[f.name]}>
+          <FieldLabel htmlFor={`extra-${f.name}`}>
+            {f.label}
+            {f.required ? <span className="text-danger"> *</span> : null}
+          </FieldLabel>
+          {f.control === "select" ? (
+            <SearchSelect id={`extra-${f.name}`} value={extra[f.name] ?? ""} onChange={(v) => setExtra({ ...extra, [f.name]: v })} options={f.options} invalid={!!errors[f.name]} />
+          ) : (
+            <Input id={`extra-${f.name}`} type={f.control} inputMode={f.control === "number" ? "decimal" : undefined} className="h-10" value={extra[f.name] ?? ""} onChange={(e) => setExtra({ ...extra, [f.name]: e.target.value })} />
+          )}
+          {errors[f.name] ? <FieldError>{errors[f.name]}</FieldError> : null}
+        </Field>
+      ))}
+      <SignatureField value={signature} onChange={setSignature} label={t("approval.signature")} />
+    </>
+  );
 
   const timeline: { label: string; date?: string | null; state: "done" | "danger" | "pending" }[] = [
     { label: t("status.draft"), date: request.created_at, state: "done" },
@@ -160,7 +208,23 @@ export function ApprovalPanel({
           </div>
         ) : null}
 
-        {(request.status === "draft" || request.status === "rejected") && mayEdit ? (
+        {canSelfApprove ? (
+          <div className="space-y-4 rounded-lg border border-success/40 bg-success-bg/40 p-4">
+            <div>
+              <p className="text-sm font-semibold">{t("approval.self_title")}</p>
+              <p className="text-xs text-muted-foreground">{t("approval.self_description")}</p>
+            </div>
+            <div className="space-y-3">{approveInputs}</div>
+            <Button type="button" size="lg" className="w-full" onClick={selfApprove} disabled={busy}>
+              {busy ? t("common.saving") : t("approval.self_approve")}
+            </Button>
+            {mayEdit ? (
+              <button type="button" className="w-full text-center text-xs text-muted-foreground underline-offset-4 hover:underline" onClick={submit} disabled={busy}>
+                {t("approval.self_other")}
+              </button>
+            ) : null}
+          </div>
+        ) : (request.status === "draft" || request.status === "rejected") && mayEdit ? (
           <Button type="button" size="lg" className="w-full" onClick={submit} disabled={busy}>
             <Send /> {t("approval.submit_for_approval")}
           </Button>
@@ -181,21 +245,7 @@ export function ApprovalPanel({
 
             {decision === "approved" ? (
               <div className="space-y-3">
-                {(extraFields ?? []).map((f) => (
-                  <Field key={f.name} data-invalid={!!errors[f.name]}>
-                    <FieldLabel htmlFor={`extra-${f.name}`}>
-                      {f.label}
-                      {f.required ? <span className="text-danger"> *</span> : null}
-                    </FieldLabel>
-                    {f.control === "select" ? (
-                      <SearchSelect id={`extra-${f.name}`} value={extra[f.name] ?? ""} onChange={(v) => setExtra({ ...extra, [f.name]: v })} options={f.options} invalid={!!errors[f.name]} />
-                    ) : (
-                      <Input id={`extra-${f.name}`} type={f.control} inputMode={f.control === "number" ? "decimal" : undefined} className="h-10" value={extra[f.name] ?? ""} onChange={(e) => setExtra({ ...extra, [f.name]: e.target.value })} />
-                    )}
-                    {errors[f.name] ? <FieldError>{errors[f.name]}</FieldError> : null}
-                  </Field>
-                ))}
-                <SignatureField value={signature} onChange={setSignature} label={t("approval.signature")} />
+                {approveInputs}
               </div>
             ) : null}
 

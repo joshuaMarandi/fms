@@ -6,6 +6,7 @@ import { SchemaForm } from "@/components/patterns/schema-form";
 import { AttachmentsBox } from "@/components/patterns/attachments-box";
 import { ReminderChip, StatusChip } from "@/components/patterns/status-chip";
 import { RecordTitle } from "@/components/modules/record-title";
+import { PrintButton } from "@/components/shell/print-frame";
 import { Button } from "@/components/ui/button";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
@@ -41,7 +42,12 @@ export default async function DriverPage({ params, searchParams }: PageProps<"/d
       <PageHeader
         title={d.full_name as string}
         description={[d.job_title, d.employer, d.phone].filter(Boolean).join(" · ")}
-        actions={<StatusChip status={d.is_active ? "active" : "inactive"} />}
+        actions={
+          <>
+            <PrintButton />
+            <StatusChip status={d.is_active ? "active" : "inactive"} />
+          </>
+        }
       />
       <Tabs defaultValue={tab} className="space-y-4">
         <TabsList className="flex w-full flex-wrap justify-start overflow-x-auto">

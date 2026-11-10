@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/shell/page-header";
 import { SchemaForm } from "@/components/patterns/schema-form";
 import { ApprovalPanel, type RequestLike } from "@/components/patterns/approval-panel";
 import { RecordTitle } from "./record-title";
+import { PrintButton } from "@/components/shell/print-frame";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { loadOptions } from "@/lib/data/records";
@@ -54,7 +55,7 @@ export async function ModuleRecordPage({ moduleKey, id }: { moduleKey: string; i
   return (
     <>
       <RecordTitle title={record ? title : null} />
-      <PageHeader title={title} description={t(def.description)} />
+      <PageHeader title={title} description={t(def.description)} actions={record ? <PrintButton /> : undefined} />
       <div className={showApproval ? "grid gap-6 lg:grid-cols-3" : undefined}>
         <div className={showApproval ? "lg:col-span-2" : undefined}>
           <SchemaForm

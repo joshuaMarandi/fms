@@ -16,6 +16,7 @@ import { SearchSelect } from "@/components/patterns/search-select";
 import { DataTable } from "@/components/patterns/data-table";
 import { MonthlyBarChart, MonthlyLineChart, Widget } from "@/app/(app)/dashboard/charts";
 import { createClient } from "@/lib/supabase/client";
+import { useSession } from "@/components/permissions/provider";
 import { exportCsv, exportExcel, exportPdf } from "@/lib/export";
 import { formatDate, formatNumber, humanize } from "@/lib/utils";
 import { t } from "@/i18n";
@@ -27,6 +28,7 @@ const DATE_KEYS = new Set(["date", "month", "from", "to", "due_date", "date_comp
 
 export function ReportBuilder({ types, presets, vehicles, drivers, canExport, companyId }: { types: string[]; presets: Preset[]; vehicles: { id: string; registration: string }[]; drivers: { id: string; full_name: string }[]; canExport: boolean; companyId: string }) {
   const router = useRouter();
+  const session = useSession();
   const today = new Date();
   const [type, setType] = React.useState(types[0] ?? "fuel");
   const [from, setFrom] = React.useState(new Date(today.getFullYear(), today.getMonth() - 5, 1).toISOString().slice(0, 10));
@@ -112,6 +114,13 @@ export function ReportBuilder({ types, presets, vehicles, drivers, canExport, co
   }, [rows, keys]);
 
   const exportCols = keys.map((k) => ({ key: k, header: humanize(k) }));
+  const vehicleName = vehicles.find((v) => v.id === vehicle)?.registration;
+  const driverName = drivers.find((d) => d.id === driver)?.full_name;
+  const docCtx = {
+    brand: session.brand,
+    printedBy: session.fullName,
+    subtitle: [`${formatDate(from)} to ${formatDate(to)}`, vehicleName, driverName].filter(Boolean).join("  |  "),
+  };
   const name = `${type}-report-${from}-${to}`;
 
   return (
@@ -161,8 +170,8 @@ export function ReportBuilder({ types, presets, vehicles, drivers, canExport, co
               </DropdownMenuTrigger>
               <DropdownMenuContent>
                 <DropdownMenuItem onSelect={() => exportCsv(exportCols, rows, name)}>{t("common.export_csv")}</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => exportExcel(exportCols, rows, name)}>{t("common.export_excel")}</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => exportPdf(exportCols, rows, name, t(`expenses.reports.type.${type}`))}>{t("common.export_pdf")}</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => exportExcel(exportCols, rows, name, t(`expenses.reports.type.${type}`), docCtx)}>{t("common.export_excel")}</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => exportPdf(exportCols, rows, name, t(`expenses.reports.type.${type}`), docCtx)}>{t("common.export_pdf")}</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           ) : null}

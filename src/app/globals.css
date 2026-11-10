@@ -189,3 +189,115 @@
     color: #1f567a;
   }
 }
+
+/* ------------------------------------------------------------------------------------------
+   Printed documents: letterhead with logo and company details, quiet footer on every page,
+   app navigation and buttons hidden. Flat colours only.
+   ------------------------------------------------------------------------------------------ */
+.print-only {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm 12mm 18mm;
+  }
+  html,
+  body {
+    background: #ffffff !important;
+    font-size: 11px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .print-only {
+    display: block !important;
+  }
+  /* App chrome */
+  [data-slot="sidebar"],
+  [data-slot="sidebar-gap"],
+  [data-slot="sidebar-container"],
+  header.sticky,
+  nav[aria-label="Driver navigation"],
+  [data-sonner-toaster],
+  .no-print,
+  [role="progressbar"] {
+    display: none !important;
+  }
+  /* Interactive controls do not belong on paper */
+  button,
+  [data-slot="tabs-list"],
+  input[type="file"] {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+  .page-card,
+  [data-slot="card"] {
+    border-color: #dddcd4 !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+  a {
+    color: inherit !important;
+    text-decoration: none !important;
+  }
+  input,
+  select,
+  textarea {
+    border-color: #dddcd4 !important;
+    background: #ffffff !important;
+  }
+  /* Every tab of a record prints, not only the visible one */
+  [data-slot="tabs-content"][hidden] {
+    display: block !important;
+  }
+
+  .print-letterhead {
+    margin-bottom: 14px;
+  }
+  .print-letterhead-bar {
+    height: 4px;
+    background: #0f3d34;
+    margin-bottom: 12px;
+  }
+  .print-letterhead-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .print-logo {
+    max-height: 56px;
+    max-width: 140px;
+    object-fit: contain;
+  }
+  .print-company-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: #17211e;
+    margin: 0 0 2px;
+  }
+  .print-company-line {
+    font-size: 10px;
+    color: #55625e;
+    margin: 0;
+  }
+  .print-rule {
+    height: 1.5px;
+    background: #0f5c4d;
+    margin-top: 10px;
+  }
+  .print-footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex !important;
+    justify-content: space-between;
+    border-top: 0.5px solid #dddcd4;
+    padding-top: 4px;
+    font-size: 8px;
+    color: #969e9b;
+  }
+}

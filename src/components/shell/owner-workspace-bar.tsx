@@ -11,7 +11,7 @@ import { t } from "@/i18n";
 export function OwnerWorkspaceBar({ companyName }: { companyName: string }) {
   const [pending, start] = React.useTransition();
   return (
-    <div className="flex flex-wrap items-center gap-3 border-b bg-sidebar px-4 py-2 text-sm text-sidebar-foreground md:px-6">
+    <div className="no-print flex flex-wrap items-center gap-3 border-b bg-sidebar px-4 py-2 text-sm text-sidebar-foreground md:px-6">
       <Building2 className="size-4 shrink-0" aria-hidden="true" />
       <span className="min-w-0 flex-1 truncate">
         {t("platform.workspace.viewing")} <span className="font-semibold">{companyName}</span>
