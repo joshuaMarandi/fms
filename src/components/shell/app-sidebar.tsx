@@ -24,6 +24,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { usePermissions } from "@/components/permissions/provider";
 import { buildResourceTree, filterTree, type ResourceNode } from "@/lib/permissions";
 import { DynamicIcon } from "./icon";
+import { LinkPending } from "./link-pending";
 import { CompanySwitcher } from "./company-switcher";
 import { ProfileBlock } from "./profile-menu";
 import { t, hasKey } from "@/i18n";
@@ -94,6 +95,7 @@ export function AppSidebar({ counts, companies }: { counts: SidebarCounts; compa
                         <Link href={node.path ?? "#"} onClick={() => setOpenMobile(false)}>
                           <DynamicIcon icon={node.icon} />
                           <span>{numbered}</span>
+                          <LinkPending />
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -122,6 +124,7 @@ export function AppSidebar({ counts, companies }: { counts: SidebarCounts; compa
                               <SidebarMenuSubButton asChild isActive={isActive(child.path)} className="h-8 data-active:bg-sidebar-active data-active:text-sidebar-accent-foreground">
                                 <Link href={child.path ?? node.path ?? "#"} onClick={() => setOpenMobile(false)}>
                                   <span>{resourceLabel(child)}</span>
+                                  <LinkPending />
                                 </Link>
                               </SidebarMenuSubButton>
                               {child.children.filter((g) => g.path).length > 0 ? (
@@ -133,6 +136,7 @@ export function AppSidebar({ counts, companies }: { counts: SidebarCounts; compa
                                         <SidebarMenuSubButton asChild size="sm" isActive={isActive(g.path) && pathname === basePath(g.path)} className="h-7 data-active:bg-sidebar-active data-active:text-sidebar-accent-foreground">
                                           <Link href={g.path!} onClick={() => setOpenMobile(false)}>
                                             <span>{resourceLabel(g)}</span>
+                                            <LinkPending />
                                           </Link>
                                         </SidebarMenuSubButton>
                                       </SidebarMenuSubItem>

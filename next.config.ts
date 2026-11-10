@@ -10,6 +10,10 @@ const nextConfig: NextConfig = {
       },
     },
   },
+  experimental: {
+    // Import only what is used from these packages.
+    optimizePackageImports: ["recharts", "date-fns", "radix-ui", "@tanstack/react-table"],
+  },
   images: {
     remotePatterns: [
       {

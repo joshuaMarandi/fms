@@ -56,86 +56,75 @@ export type SessionContext = {
  */
 export const getSession = cache(async (): Promise<SessionContext | null> => {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+  // getClaims verifies the JWT locally (signing keys are cached), so no round trip to the Auth server.
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const claims = claimsData?.claims;
+  if (!claims?.sub) return null;
 
-  const [{ data: profile }, { data: userRoles }, { data: resources }] = await Promise.all([
-    supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
-    supabase.from("user_roles").select("is_primary, roles(id, name, is_owner, is_admin, is_system)").eq("user_id", user.id),
-    supabase.from("resources").select("*").order("sort_order"),
-  ]);
+  const { data: ctx } = await supabase.rpc("session_context");
+  if (!ctx) return null;
+  const c = ctx as {
+    profile: Profile;
+    roles: RoleSummary[];
+    grants: Grant[];
+    resources: Resource[];
+    company: null | {
+      id: string;
+      name: string;
+      logo_url: string | null;
+      settings: Record<string, unknown>;
+      status: Subscription["status"];
+      subscription_start: string | null;
+      subscription_end: string | null;
+      package_id: string | null;
+      active: boolean;
+      package: null | { id: string; name: string; price: number; currency: string; billing_period: string; max_vehicles: number };
+    };
+    package_keys: string[];
+    companies: { id: string; name: string }[];
+  };
 
-  if (!profile) return null;
-
-  const roles: RoleSummary[] = (userRoles ?? [])
-    .map((ur) => {
-      const r = ur.roles as unknown as { id: string; name: string; is_owner: boolean; is_admin: boolean; is_system: boolean } | null;
-      if (!r) return null;
-      return { ...r, is_primary: ur.is_primary };
-    })
-    .filter((r): r is RoleSummary => r !== null)
-    .sort((a, b) => Number(b.is_primary) - Number(a.is_primary));
-
-  const roleIds = roles.map((r) => r.id);
-  const { data: grants } = roleIds.length
-    ? await supabase.from("role_grants").select("role_id, resource_key, actions, scope").in("role_id", roleIds)
-    : { data: [] as Grant[] };
-
+  const roles = c.roles ?? [];
   const isOwner = roles.some((r) => r.is_owner);
   const isAdmin = roles.some((r) => r.is_admin);
+
+  let company: SessionContext["company"] = null;
+  let subscription: Subscription | null = null;
+  if (c.company) {
+    company = { id: c.company.id, name: c.company.name, logo_url: c.company.logo_url, settings: c.company.settings ?? {} };
+    const pkg = c.company.package;
+    subscription = {
+      status: c.company.status,
+      start: c.company.subscription_start,
+      end: c.company.subscription_end,
+      active: c.company.active,
+      packageId: c.company.package_id,
+      packageName: pkg?.name ?? null,
+      price: pkg ? Number(pkg.price) : null,
+      currency: pkg?.currency ?? null,
+      billingPeriod: pkg?.billing_period ?? null,
+      maxVehicles: pkg?.max_vehicles ?? null,
+      packageKeys: c.package_keys ?? [],
+    };
+  }
 
   const permissions: PermissionContextValue = {
     isOwner,
     isAdmin,
-    grants: (grants ?? []) as Grant[],
-    resources: (resources ?? []) as Resource[],
+    grants: c.grants ?? [],
+    resources: c.resources ?? [],
+    packageKeys: subscription?.packageKeys ?? [],
+    companyActive: subscription?.active ?? false,
   };
-
-  let company: SessionContext["company"] = null;
-  let subscription: Subscription | null = null;
-  let companies: SessionContext["companies"] = [];
-  if (profile.company_id) {
-    const { data } = await supabase
-      .from("companies")
-      .select("id, name, logo_url, settings, status, subscription_start, subscription_end, package_id, package:packages(id, name, price, currency, billing_period, max_vehicles)")
-      .eq("id", profile.company_id)
-      .maybeSingle();
-    if (data) {
-      const c = data as Record<string, unknown>;
-      company = { id: c.id as string, name: c.name as string, logo_url: (c.logo_url as string) ?? null, settings: (c.settings as Record<string, unknown>) ?? {} };
-      const pkg = c.package as { id: string; name: string; price: number; currency: string; billing_period: string; max_vehicles: number } | null;
-      const { data: keys } = c.package_id ? await supabase.from("package_resources").select("resource_key").eq("package_id", c.package_id as string) : { data: [] };
-      const end = (c.subscription_end as string) ?? null;
-      const status = c.status as Subscription["status"];
-      subscription = {
-        status,
-        start: (c.subscription_start as string) ?? null,
-        end,
-        active: (status === "active" || status === "trial") && (!end || end >= new Date().toISOString().slice(0, 10)),
-        packageId: (c.package_id as string) ?? null,
-        packageName: pkg?.name ?? null,
-        price: pkg?.price ?? null,
-        currency: pkg?.currency ?? null,
-        billingPeriod: pkg?.billing_period ?? null,
-        maxVehicles: pkg?.max_vehicles ?? null,
-        packageKeys: ((keys ?? []) as { resource_key: string }[]).map((k) => k.resource_key),
-      };
-    }
-  }
-  if (isOwner) {
-    const { data } = await supabase.from("companies").select("id, name").is("deleted_at", null).order("name");
-    companies = data ?? [];
-  }
-  permissions.packageKeys = subscription?.packageKeys ?? [];
-  permissions.companyActive = subscription?.active ?? false;
+  const companies = isOwner ? c.companies ?? [] : [];
+  const profile = c.profile;
+  const user = { id: claims.sub as string, email: (claims.email as string | undefined) ?? profile.email ?? null };
 
   const driverOnly = roles.length > 0 && roles.every((r) => r.name === "Driver");
 
   return {
     userId: user.id,
-    email: user.email ?? null,
+    email: user.email,
     profile: profile as unknown as Profile,
     roles,
     company,

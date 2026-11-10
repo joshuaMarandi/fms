@@ -1,19 +1,97 @@
-"use client";
+import {
+  BadgeCheck,
+  BarChart3,
+  Bell,
+  BriefcaseMedical,
+  Building,
+  Building2,
+  CalendarDays,
+  Car,
+  CircleDot,
+  ClipboardCheck,
+  Clock,
+  Droplets,
+  File,
+  FileText,
+  Folder,
+  Fuel,
+  Gauge,
+  GraduationCap,
+  HeartPulse,
+  IdCard,
+  Inbox,
+  KeyRound,
+  LayoutDashboard,
+  LayoutGrid,
+  MapPin,
+  MessageSquare,
+  Package,
+  Receipt,
+  Route,
+  ScrollText,
+  SearchCheck,
+  Settings,
+  Shield,
+  Siren,
+  Sun,
+  Truck,
+  User,
+  UserCog,
+  Users,
+  Wrench,
+  type LucideIcon,
+  type LucideProps,
+} from "lucide-react";
 
-import { icons, type LucideProps } from "lucide-react";
+/**
+ * Icons by the kebab-case name stored on resources.icon. Listed explicitly so only these ship to the
+ * browser (importing lucide's full "icons" map added every icon to every page). Add new names here.
+ */
+const ICONS: Record<string, LucideIcon> = {
+  "badge-check": BadgeCheck,
+  "bar-chart-3": BarChart3,
+  bell: Bell,
+  "briefcase-medical": BriefcaseMedical,
+  building: Building,
+  "building-2": Building2,
+  "calendar-days": CalendarDays,
+  car: Car,
+  "circle-dot": CircleDot,
+  "clipboard-check": ClipboardCheck,
+  clock: Clock,
+  droplets: Droplets,
+  file: File,
+  "file-text": FileText,
+  folder: Folder,
+  fuel: Fuel,
+  gauge: Gauge,
+  "graduation-cap": GraduationCap,
+  "heart-pulse": HeartPulse,
+  "id-card": IdCard,
+  inbox: Inbox,
+  "key-round": KeyRound,
+  "layout-dashboard": LayoutDashboard,
+  "layout-grid": LayoutGrid,
+  "map-pin": MapPin,
+  "message-square": MessageSquare,
+  package: Package,
+  receipt: Receipt,
+  route: Route,
+  "scroll-text": ScrollText,
+  "search-check": SearchCheck,
+  settings: Settings,
+  shield: Shield,
+  siren: Siren,
+  sun: Sun,
+  truck: Truck,
+  user: User,
+  "user-cog": UserCog,
+  users: Users,
+  wrench: Wrench,
+};
 
-function toPascal(name: string) {
-  return name
-    .split("-")
-    .map((p) => (p ? p[0]!.toUpperCase() + p.slice(1) : ""))
-    .join("");
-}
-
-/** Renders a lucide line icon by its kebab-case name (as stored on resources.icon). */
-export function DynamicIcon({ icon, ...props }: { icon: string | null | undefined } & Omit<LucideProps, "name"> ) {
+export function DynamicIcon({ icon, ...props }: { icon: string | null | undefined } & Omit<LucideProps, "name">) {
   if (!icon) return null;
-  const key = toPascal(icon) as keyof typeof icons;
-  const Cmp = icons[key];
-  if (!Cmp) return null;
+  const Cmp = ICONS[icon] ?? File;
   return <Cmp aria-hidden="true" {...props} />;
 }

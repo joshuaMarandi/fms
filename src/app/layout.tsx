@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { RegisterServiceWorker } from "@/components/pwa/register-sw";
+import { NavigationProgress } from "@/components/shell/navigation-progress";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -44,6 +45,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
+        <NavigationProgress />
         <TooltipProvider delayDuration={300}>{children}</TooltipProvider>
         <Toaster position="top-right" richColors={false} closeButton />
         <RegisterServiceWorker />

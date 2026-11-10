@@ -31,6 +31,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusChip } from "./status-chip";
 import { exportCsv, exportExcel, exportPdf, type ExportColumn } from "@/lib/export";
+import { startNavigationProgress } from "@/components/shell/navigation-progress";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 
@@ -278,8 +279,8 @@ export function DataTable<T extends Record<string, unknown>>({
                   <TableRow
                     key={row.id}
                     className={href ? "cursor-pointer" : undefined}
-                    onClick={href ? () => router.push(href) : undefined}
-                    onKeyDown={href ? (e) => { if (e.key === "Enter") router.push(href); } : undefined}
+                    onClick={href ? () => { startNavigationProgress(); router.push(href); } : undefined}
+                    onKeyDown={href ? (e) => { if (e.key === "Enter") { startNavigationProgress(); router.push(href); } } : undefined}
                     tabIndex={href ? 0 : undefined}
                   >
                     {row.getVisibleCells().map((cell) => (

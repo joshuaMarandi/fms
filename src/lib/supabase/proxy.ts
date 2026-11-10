@@ -24,9 +24,9 @@ export async function updateSession(request: NextRequest) {
   );
 
   // Refreshes the session cookie when needed. Do not add logic between the client creation and this call.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Verifies the JWT locally with the cached signing keys and refreshes the cookie when needed.
+  const { data } = await supabase.auth.getClaims();
+  const user = data?.claims?.sub ? data.claims : null;
 
   const { pathname } = request.nextUrl;
   const isPublic = PUBLIC_PATHS.some((p) => pathname === p || (p !== "/" && pathname.startsWith(p + "/")));

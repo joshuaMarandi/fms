@@ -348,4 +348,28 @@ begin
   perform pg_temp.check('registration marked approved', (select status from public.company_registrations where id = v_reg) = 'approved');
 end $$;
 
+
+-- Fast session and shell RPCs
+do $$
+declare j jsonb;
+begin
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000005');
+  j := public.session_context();
+  perform pg_temp.check('session_context returns the driver profile', j->'profile'->>'id' = '33333333-3333-3333-3333-000000000005');
+  perform pg_temp.check('session_context returns the driver role', j->'roles'->0->>'name' = 'Driver');
+  perform pg_temp.check('session_context returns grants and resources', jsonb_array_length(j->'grants') > 5 and jsonb_array_length(j->'resources') > 40);
+  perform pg_temp.check('session_context returns package keys', jsonb_array_length(j->'package_keys') >= 1);
+  perform pg_temp.check('driver sees no company list', jsonb_array_length(j->'companies') = 0);
+  j := public.shell_counts();
+  perform pg_temp.check('driver has no approvals badge', (j->>'pending_approvals')::int = 0);
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  j := public.shell_counts();
+  perform pg_temp.check('admin approvals badge counts submitted requests', (j->>'pending_approvals')::int > 0);
+  perform pg_temp.check('admin sees open anomalies', (j->>'open_anomalies')::int >= 1);
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000001');
+  j := public.session_context();
+  perform pg_temp.check('owner gets the company list', jsonb_array_length(j->'companies') >= 2);
+  perform pg_temp.as_admin();
+end $$;
+
 select 'ALL TESTS PASSED' as result;

@@ -30,6 +30,7 @@ import {
   type FormComputeContext,
   type FormSchema,
 } from "@/lib/forms/schema";
+import { startNavigationProgress } from "@/components/shell/navigation-progress";
 import { cn, formatDate, formatNumber, formatTzs } from "@/lib/utils";
 import { getSchema } from "@/modules/schemas";
 import { hasKey, t } from "@/i18n";
@@ -108,6 +109,7 @@ export function SchemaForm({ schemaKey, record, options = {}, afterSavePath, can
     toast.success(t("common.saved"));
     onSaved?.(res.data.id);
     if (afterSavePath) {
+      startNavigationProgress();
       router.push(`${afterSavePath}/${res.data.id}`);
       router.refresh();
     } else {
