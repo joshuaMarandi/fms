@@ -30,6 +30,8 @@ export const QUICK_ACTIONS: { prefix: string; resource: string; href: string; la
   { prefix: "/expenses/leave/requests", resource: "expenses.leave.requests", href: "/expenses/leave/requests/new", label: "expenses.leave.requests.new" },
   { prefix: "/expenses/leave/balances", resource: "expenses.leave.balances", href: "/expenses/leave/balances/new", label: "expenses.leave.balances.new" },
   { prefix: "/expenses/safety/incidents", resource: "expenses.safety.incidents", href: "/expenses/safety/incidents/new", label: "expenses.safety.incidents.new" },
+  { prefix: "/platform/companies", resource: "platform.companies", href: "/platform/companies/new", label: "platform.companies.new" },
+  { prefix: "/platform/packages", resource: "platform.packages", href: "/platform/packages/new", label: "platform.packages.new" },
   { prefix: "/settings/users", resource: "settings.users", href: "/settings/users?invite=1", label: "settings.users.invite" },
   { prefix: "/settings/roles", resource: "settings.roles", href: "/settings/roles?add=1", label: "settings.roles.add" },
 ];

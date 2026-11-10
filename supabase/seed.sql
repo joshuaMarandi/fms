@@ -55,6 +55,11 @@ insert into public.resources (key, parent_key, name, label_prefix, path, icon, s
   ('expenses.safety.incidents', 'expenses.safety', 'Incident and accident records', null, '/expenses/safety/incidents', null, 519, false, false),
   ('expenses.safety.reports', 'expenses.safety', 'Safety reports', null, '/expenses/safety/reports', null, 520, false, false),
   ('expenses.reports', 'expenses', 'Fleet data reports', 'j', '/expenses/reports', 'bar-chart-3', 521, false, false),
+  ('platform', null, 'Platform', null, '/platform', 'building', 50, false, false),
+  ('platform.overview', 'platform', 'Overview', null, '/platform', 'layout-grid', 51, false, false),
+  ('platform.companies', 'platform', 'Companies', null, '/platform/companies', 'building-2', 52, false, false),
+  ('platform.packages', 'platform', 'Packages', null, '/platform/packages', 'package', 53, false, false),
+  ('platform.registrations', 'platform', 'Registrations', null, '/platform/registrations', 'inbox', 54, false, false),
   ('settings', null, 'Settings', null, '/settings', 'settings', 900, false, false),
   ('settings.users', 'settings', 'Users', null, '/settings/users', 'user-cog', 901, false, false),
   ('settings.roles', 'settings', 'Roles and access', null, '/settings/roles', 'key-round', 902, false, false),
@@ -66,11 +71,55 @@ on conflict (key) do update set
   icon = excluded.icon, sort_order = excluded.sort_order, has_reminders = excluded.has_reminders, is_request = excluded.is_request;
 
 -- ---------------------------------------------------------------------------
+-- Packages (SaaS plans): name, price, modules and vehicle limit
+-- ---------------------------------------------------------------------------
+insert into public.packages (id, name, description, price, currency, billing_period, max_vehicles, is_active, is_public, sort_order) values
+  ('cccccccc-cccc-cccc-cccc-000000000001', 'Starter', 'Fleet database, drivers and inspections for small fleets.', 150000, 'TZS', 'monthly', 5, true, true, 1),
+  ('cccccccc-cccc-cccc-cccc-000000000002', 'Standard', 'Adds daily use, fuel and the core expense modules.', 350000, 'TZS', 'monthly', 25, true, true, 2),
+  ('cccccccc-cccc-cccc-cccc-000000000003', 'Enterprise', 'Every module, HR records, safety and reports.', 900000, 'TZS', 'monthly', 500, true, true, 3)
+on conflict (id) do nothing;
+
+insert into public.package_resources (package_id, resource_key) values
+  ('cccccccc-cccc-cccc-cccc-000000000001', 'fleet'),
+  ('cccccccc-cccc-cccc-cccc-000000000001', 'drivers'),
+  ('cccccccc-cccc-cccc-cccc-000000000001', 'inspections'),
+  ('cccccccc-cccc-cccc-cccc-000000000002', 'fleet'),
+  ('cccccccc-cccc-cccc-cccc-000000000002', 'drivers'),
+  ('cccccccc-cccc-cccc-cccc-000000000002', 'inspections'),
+  ('cccccccc-cccc-cccc-cccc-000000000002', 'daily_use'),
+  ('cccccccc-cccc-cccc-cccc-000000000002', 'expenses.fuel'),
+  ('cccccccc-cccc-cccc-cccc-000000000002', 'expenses.maintenance'),
+  ('cccccccc-cccc-cccc-cccc-000000000002', 'expenses.tyres'),
+  ('cccccccc-cccc-cccc-cccc-000000000002', 'expenses.washing'),
+  ('cccccccc-cccc-cccc-cccc-000000000002', 'expenses.equipment'),
+  ('cccccccc-cccc-cccc-cccc-000000000003', 'fleet'),
+  ('cccccccc-cccc-cccc-cccc-000000000003', 'drivers'),
+  ('cccccccc-cccc-cccc-cccc-000000000003', 'inspections'),
+  ('cccccccc-cccc-cccc-cccc-000000000003', 'daily_use'),
+  ('cccccccc-cccc-cccc-cccc-000000000003', 'expenses')
+on conflict do nothing;
+
+-- ---------------------------------------------------------------------------
 -- Demo company and sites
 -- ---------------------------------------------------------------------------
-insert into public.companies (id, name, settings) values
-  ('11111111-1111-1111-1111-111111111111', 'MDV Demo Company', '{"fuel_price_per_litre": 3150, "default_target_km_per_l": 9, "currency": "TZS"}'::jsonb)
+insert into public.companies (id, name, settings, package_id, status, contact_name, contact_email, contact_phone, city, country, subscription_start, subscription_end) values
+  ('11111111-1111-1111-1111-111111111111', 'MDV Demo Company', '{"fuel_price_per_litre": 3150, "default_target_km_per_l": 9, "currency": "TZS"}'::jsonb,
+   'cccccccc-cccc-cccc-cccc-000000000003', 'active', 'Amani Mushi', 'fleetmanager@mdv.test', '+255700000002', 'Dar es Salaam', 'Tanzania', current_date - 90, current_date + 275)
 on conflict (id) do nothing;
+
+-- The starter-data trigger filled defaults; the demo uses its own fixed rows below.
+delete from public.leave_categories where company_id = '11111111-1111-1111-1111-111111111111';
+delete from public.wash_prices where company_id = '11111111-1111-1111-1111-111111111111';
+delete from public.reminder_settings where company_id = '11111111-1111-1111-1111-111111111111';
+
+-- A second, smaller customer on the Starter package (no users yet) and a pending registration.
+insert into public.companies (id, name, settings, package_id, status, contact_name, contact_email, contact_phone, city, country, subscription_start, subscription_end) values
+  ('11111111-1111-1111-1111-222222222222', 'Kilimanjaro Logistics', '{"currency": "TZS"}'::jsonb,
+   'cccccccc-cccc-cccc-cccc-000000000001', 'trial', 'Esther Lyimo', 'esther@kililogistics.test', '+255700000201', 'Moshi', 'Tanzania', current_date - 10, current_date + 20)
+on conflict (id) do nothing;
+
+insert into public.company_registrations (company_name, contact_name, email, phone, city, country, vehicles_count, package_id, message) values
+  ('Ruvuma Agro Supplies', 'Daudi Ngonyani', 'daudi@ruvuma-agro.test', '+255700000301', 'Songea', 'Tanzania', 12, 'cccccccc-cccc-cccc-cccc-000000000002', 'We run 12 pickups and two trucks and need fuel and maintenance tracking.');
 
 insert into public.sites (id, company_id, name, region) values
   ('11111111-1111-1111-1111-00000000000a', '11111111-1111-1111-1111-111111111111', 'Dar es Salaam HQ', 'Dar es Salaam'),

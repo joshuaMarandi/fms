@@ -28,7 +28,7 @@ import { CompanySwitcher } from "./company-switcher";
 import { ProfileBlock } from "./profile-menu";
 import { t, hasKey } from "@/i18n";
 
-export type SidebarCounts = { pendingApprovals: number; openAnomalies: number };
+export type SidebarCounts = { pendingApprovals: number; openAnomalies: number; pendingRegistrations?: number };
 
 function resourceLabel(node: ResourceNode) {
   const key = `resource.${node.key}`;
@@ -59,6 +59,7 @@ export function AppSidebar({ counts, companies }: { counts: SidebarCounts; compa
   const badgeFor = (key: string) => {
     if (key === "daily_use" || key === "expenses") return counts.pendingApprovals > 0 ? counts.pendingApprovals : null;
     if (key === "inspections") return counts.openAnomalies > 0 ? counts.openAnomalies : null;
+    if (key === "platform") return (counts.pendingRegistrations ?? 0) > 0 ? counts.pendingRegistrations! : null;
     return null;
   };
 

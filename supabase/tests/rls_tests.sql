@@ -14,6 +14,7 @@ create or replace function pg_temp.as_admin() returns void language plpgsql as $
 begin
   perform set_config('role', 'postgres', true);
   perform set_config('request.jwt.claim.sub', '', true);
+  perform set_config('request.jwt.claim.role', '', true);
 end $$;
 
 create or replace function pg_temp.check(p_name text, p_ok boolean) returns void language plpgsql as $$
@@ -243,6 +244,108 @@ begin
   perform pg_temp.check('vehicle with immediate open anomaly is not safe', v = 1);
   select count(*) into n from public.vehicles where status = 'in_garage';
   perform pg_temp.check('open work order puts vehicle in garage', n >= 1);
+end $$;
+
+
+-- SaaS: package modules, vehicle limit, subscription status, public registration
+do $$
+declare n integer; v_ok boolean;
+begin
+  perform pg_temp.as_admin();
+  -- Move the demo company to Starter (fleet, drivers, inspections; 5 vehicles).
+  update public.companies set package_id = 'cccccccc-cccc-cccc-cccc-000000000001' where id = '11111111-1111-1111-1111-111111111111';
+  perform pg_temp.check('starter: coordinator keeps fleet', public.permission_scope_for('33333333-3333-3333-3333-000000000003', 'fleet.details', 'view') = 'all');
+  perform pg_temp.check('starter: coordinator loses daily use', public.permission_scope_for('33333333-3333-3333-3333-000000000003', 'daily_use.km_log', 'view') is null);
+  perform pg_temp.check('starter: admin loses expenses', public.permission_scope_for('33333333-3333-3333-3333-000000000002', 'expenses.tyres', 'approve') is null);
+  perform pg_temp.check('starter: dashboard and settings stay', public.permission_scope_for('33333333-3333-3333-3333-000000000002', 'settings.users', 'view') = 'all');
+  perform pg_temp.check('owner unaffected by package', public.permission_scope_for('33333333-3333-3333-3333-000000000001', 'expenses.tyres', 'delete') = 'all');
+  perform pg_temp.check('platform is owner only', public.permission_scope_for('33333333-3333-3333-3333-000000000002', 'platform.companies', 'view') is null);
+
+  -- Submodule package: only expenses.fuel inside expenses
+  insert into public.package_resources values ('cccccccc-cccc-cccc-cccc-000000000001', 'expenses.fuel');
+  perform pg_temp.check('submodule in package allowed', public.permission_scope_for('33333333-3333-3333-3333-000000000002', 'expenses.fuel', 'view') = 'all');
+  perform pg_temp.check('parent group visible for a packaged child', public.permission_scope_for('33333333-3333-3333-3333-000000000002', 'expenses', 'view') = 'all');
+  perform pg_temp.check('sibling not in package denied', public.permission_scope_for('33333333-3333-3333-3333-000000000002', 'expenses.washing', 'view') is null);
+  delete from public.package_resources where package_id = 'cccccccc-cccc-cccc-cccc-000000000001' and resource_key = 'expenses.fuel';
+
+  -- Vehicle limit (5 vehicles already, Starter allows 5)
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000003');
+  begin
+    insert into public.vehicles (company_id, make, model, registration, status) values ('11111111-1111-1111-1111-111111111111', 'Isuzu', 'D-Max', 'T 999 ZZZ', 'in_service');
+    v_ok := false;
+  exception when others then v_ok := sqlerrm like '%allows 5 vehicles%';
+  end;
+  perform pg_temp.check('vehicle limit enforced', v_ok);
+  perform pg_temp.as_admin();
+
+  -- Admins cannot change their own package or status
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  begin
+    update public.companies set package_id = 'cccccccc-cccc-cccc-cccc-000000000003' where id = '11111111-1111-1111-1111-111111111111';
+    get diagnostics n = row_count;
+    v_ok := n = 0;
+  exception when others then v_ok := true;
+  end;
+  perform pg_temp.check('admin cannot upgrade own package', v_ok);
+  perform pg_temp.as_admin();
+
+  -- Suspended company: no access for its users, owner still has access
+  update public.companies set package_id = 'cccccccc-cccc-cccc-cccc-000000000003', status = 'suspended' where id = '11111111-1111-1111-1111-111111111111';
+  perform pg_temp.check('suspended: coordinator has nothing', public.permission_scope_for('33333333-3333-3333-3333-000000000003', 'fleet.details', 'view') is null);
+  perform pg_temp.check('suspended: owner still has all', public.permission_scope_for('33333333-3333-3333-3333-000000000001', 'fleet.details', 'view') = 'all');
+  update public.companies set status = 'active', subscription_end = current_date - 1 where id = '11111111-1111-1111-1111-111111111111';
+  perform pg_temp.check('expired subscription blocks access', public.permission_scope_for('33333333-3333-3333-3333-000000000003', 'fleet.details', 'view') is null);
+  update public.companies set subscription_end = current_date + 275 where id = '11111111-1111-1111-1111-111111111111';
+  perform pg_temp.check('restored access', public.permission_scope_for('33333333-3333-3333-3333-000000000003', 'fleet.details', 'view') = 'all');
+end $$;
+
+-- Anonymous visitors: may read public packages and submit a registration, nothing else
+do $$
+declare n integer; v_ok boolean;
+begin
+  perform set_config('request.jwt.claim.sub', '', true);
+  perform set_config('request.jwt.claim.role', 'anon', true);
+  perform set_config('role', 'anon', true);
+  perform pg_temp.check('anon is never owner', not public.is_owner());
+  select count(*) into n from public.packages;
+  perform pg_temp.check('anon reads public packages', n = 3);
+  insert into public.company_registrations (company_name, contact_name, email) values ('Test Co', 'Test Person', 'test@example.com');
+  perform pg_temp.check('anon can register', true);
+  begin
+    insert into public.company_registrations (company_name, contact_name, email, status) values ('Sneaky Co', 'X Y', 'x@example.com', 'approved');
+    v_ok := false;
+  exception when others then v_ok := true;
+  end;
+  perform pg_temp.check('anon cannot self-approve', v_ok);
+  begin
+    select count(*) into n from public.company_registrations;
+    v_ok := n = 0;
+  exception when others then v_ok := true;
+  end;
+  perform pg_temp.check('anon cannot read registrations', v_ok);
+  begin
+    select count(*) into n from public.companies;
+    v_ok := n = 0;
+  exception when others then v_ok := true;
+  end;
+  perform pg_temp.check('anon cannot read companies', v_ok);
+  perform pg_temp.as_admin();
+end $$;
+
+-- Owner approves a registration and gets a company with starter data
+do $$
+declare v_company uuid; v_reg uuid; n integer;
+begin
+  select id into v_reg from public.company_registrations where company_name = 'Ruvuma Agro Supplies';
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000001');
+  v_company := public.approve_registration(v_reg, 'cccccccc-cccc-cccc-cccc-000000000002');
+  perform pg_temp.check('approval created company', v_company is not null);
+  select count(*) into n from public.platform_company_stats();
+  perform pg_temp.check('platform stats list every company', n >= 3);
+  perform pg_temp.as_admin();
+  select count(*) into n from public.leave_categories where company_id = v_company;
+  perform pg_temp.check('new company has starter leave categories', n = 5);
+  perform pg_temp.check('registration marked approved', (select status from public.company_registrations where id = v_reg) = 'approved');
 end $$;
 
 select 'ALL TESTS PASSED' as result;

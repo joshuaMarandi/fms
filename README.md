@@ -56,7 +56,7 @@ All passwords: `Password123!`
 
 | Email | Role |
 | --- | --- |
-| owner@mdv.test | Owner |
+| owner@mdv.test | Owner (Platform pages: companies, packages, registrations) |
 | fleetmanager@mdv.test | Admin (Fleet Manager), delegable ceiling: all five modules |
 | coordinator@mdv.test | Fleet coordinator |
 | hod@mdv.test | Head of department |
@@ -76,6 +76,24 @@ Access is data, not code. `resources` holds the module tree (keys like `expenses
 - Client: `useCan()` and `<Can resource action>` hide menu items, tabs, buttons and fields.
 
 A grant on a parent key applies to its children unless a child has its own grant (longest prefix wins). Scopes: `all`, `department`, `own` (created by the user or linked to the user's driver record).
+
+## 4a. SaaS: companies and packages
+
+Each customer company is a tenant. Its Admin manages only that company; the Owner manages the platform.
+
+- **Packages** (Platform, Packages): name, price, currency, billing period, the modules and submodules it unlocks, and the number of vehicles a company may manage. Public, active packages appear on the landing page pricing section.
+- **Companies** (Platform, Companies): package, status (active, trial, pending, suspended, cancelled), subscription start and end, contacts, usage (vehicles against the limit, users, drivers, storage, last activity). The owner can invite the company's Admin, suspend or activate it, and "Open this company" to work inside it.
+- **Registrations** (Platform, Registrations): companies that registered from `/register`. Approving creates the company with starter data and emails the contact an Admin invitation; rejecting needs a reason.
+- **Overview** (Platform): active companies, pending registrations, vehicles and users across tenants, monthly recurring revenue, subscriptions ending soon, companies at their vehicle limit.
+
+Enforcement lives in the database, so the UI cannot be bypassed:
+
+- `permission_scope_for` returns nothing for a module outside the company's package (`package_allows`), or when the company is suspended, pending, cancelled or past its subscription end (`company_access_ok`). Dashboard and Settings are always included. The Owner is never restricted.
+- `vehicles_limit` trigger blocks adding a vehicle once the package limit is reached.
+- `companies_guard` lets only the Owner change a company's package, status or subscription dates; every change is written to the audit log.
+- Anonymous visitors can read public packages and submit a registration, and nothing else.
+
+Billing itself (invoices, payment collection) is not built; prices are shown and used for revenue figures only.
 
 ## 5. Adding a module or submodule
 

@@ -21,6 +21,20 @@ export type Profile = {
   notification_prefs: { email?: boolean; in_app?: boolean };
 };
 
+export type Subscription = {
+  status: "pending" | "trial" | "active" | "suspended" | "cancelled";
+  start: string | null;
+  end: string | null;
+  active: boolean;
+  packageId: string | null;
+  packageName: string | null;
+  price: number | null;
+  currency: string | null;
+  billingPeriod: string | null;
+  maxVehicles: number | null;
+  packageKeys: string[];
+};
+
 export type RoleSummary = { id: string; name: string; is_owner: boolean; is_admin: boolean; is_system: boolean; is_primary: boolean };
 
 export type SessionContext = {
@@ -29,6 +43,7 @@ export type SessionContext = {
   profile: Profile;
   roles: RoleSummary[];
   company: { id: string; name: string; logo_url: string | null; settings: Record<string, unknown> } | null;
+  subscription: Subscription | null;
   companies: { id: string; name: string }[];
   permissions: PermissionContextValue;
   can: (resource: string, action: PermissionAction) => boolean;
@@ -79,15 +94,42 @@ export const getSession = cache(async (): Promise<SessionContext | null> => {
   };
 
   let company: SessionContext["company"] = null;
+  let subscription: Subscription | null = null;
   let companies: SessionContext["companies"] = [];
   if (profile.company_id) {
-    const { data } = await supabase.from("companies").select("id, name, logo_url, settings").eq("id", profile.company_id).maybeSingle();
-    company = (data as SessionContext["company"]) ?? null;
+    const { data } = await supabase
+      .from("companies")
+      .select("id, name, logo_url, settings, status, subscription_start, subscription_end, package_id, package:packages(id, name, price, currency, billing_period, max_vehicles)")
+      .eq("id", profile.company_id)
+      .maybeSingle();
+    if (data) {
+      const c = data as Record<string, unknown>;
+      company = { id: c.id as string, name: c.name as string, logo_url: (c.logo_url as string) ?? null, settings: (c.settings as Record<string, unknown>) ?? {} };
+      const pkg = c.package as { id: string; name: string; price: number; currency: string; billing_period: string; max_vehicles: number } | null;
+      const { data: keys } = c.package_id ? await supabase.from("package_resources").select("resource_key").eq("package_id", c.package_id as string) : { data: [] };
+      const end = (c.subscription_end as string) ?? null;
+      const status = c.status as Subscription["status"];
+      subscription = {
+        status,
+        start: (c.subscription_start as string) ?? null,
+        end,
+        active: (status === "active" || status === "trial") && (!end || end >= new Date().toISOString().slice(0, 10)),
+        packageId: (c.package_id as string) ?? null,
+        packageName: pkg?.name ?? null,
+        price: pkg?.price ?? null,
+        currency: pkg?.currency ?? null,
+        billingPeriod: pkg?.billing_period ?? null,
+        maxVehicles: pkg?.max_vehicles ?? null,
+        packageKeys: ((keys ?? []) as { resource_key: string }[]).map((k) => k.resource_key),
+      };
+    }
   }
   if (isOwner) {
     const { data } = await supabase.from("companies").select("id, name").is("deleted_at", null).order("name");
     companies = data ?? [];
   }
+  permissions.packageKeys = subscription?.packageKeys ?? [];
+  permissions.companyActive = subscription?.active ?? false;
 
   const driverOnly = roles.length > 0 && roles.every((r) => r.name === "Driver");
 
@@ -97,6 +139,7 @@ export const getSession = cache(async (): Promise<SessionContext | null> => {
     profile: profile as unknown as Profile,
     roles,
     company,
+    subscription,
     companies,
     permissions,
     can: (resource, action) => can(permissions, resource, action),

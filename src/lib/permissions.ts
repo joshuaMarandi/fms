@@ -35,6 +35,10 @@ export type PermissionContextValue = {
   isAdmin: boolean;
   grants: Grant[];
   resources: Resource[];
+  /** Resource keys in the company's package. Mirrors public.package_allows. */
+  packageKeys?: string[];
+  /** Company is active or on trial and the subscription has not ended. Mirrors public.company_access_ok. */
+  companyActive?: boolean;
 };
 
 const SCOPE_RANK: Record<GrantScope, number> = { own: 1, department: 2, all: 3 };
@@ -49,8 +53,18 @@ function matches(grantKey: string, resource: string) {
   return grantKey === resource || resource.startsWith(grantKey + ".");
 }
 
+/** Dashboard and Settings are always in a package; Platform never is; a key allows itself, its children and its ancestors. */
+export function packageAllows(packageKeys: string[] | undefined, resource: string): boolean {
+  const top = resource.split(".")[0];
+  if (top === "dashboard" || top === "settings") return true;
+  if (top === "platform") return false;
+  return (packageKeys ?? []).some((k) => k === resource || resource.startsWith(k + ".") || k.startsWith(resource + "."));
+}
+
 export function permissionScope(ctx: PermissionContextValue, resource: string, action: PermissionAction): GrantScope | null {
   if (ctx.isOwner) return "all";
+  if (ctx.companyActive === false) return null;
+  if (!packageAllows(ctx.packageKeys, resource)) return null;
   // Best (longest) grant per role
   const bestByRole = new Map<string, Grant>();
   for (const g of ctx.grants) {

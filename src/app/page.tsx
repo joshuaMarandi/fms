@@ -3,6 +3,7 @@ import Image from "next/image";
 import { ArrowRight, ClipboardCheck, KeyRound, Receipt, Route, Truck, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
+import { loadPublicPackages, PricingCards } from "@/components/landing/pricing";
 import { t } from "@/i18n";
 
 const FEATURES = [
@@ -20,6 +21,7 @@ export default async function LandingPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const packages = await loadPublicPackages();
 
   return (
     <main className="min-h-svh bg-background">
@@ -31,11 +33,21 @@ export default async function LandingPage() {
             </span>
             <span className="font-semibold">{t("app.short_name")}</span>
           </Link>
+          <nav className="flex items-center gap-2">
+          <a href="#pricing" className="hidden px-3 text-sm text-muted-foreground hover:text-foreground sm:inline">
+            {t("landing.pricing_title")}
+          </a>
+          {!user ? (
+            <Button asChild variant="outline" className="hidden h-10 sm:inline-flex">
+              <Link href="/register">{t("landing.register_cta")}</Link>
+            </Button>
+          ) : null}
           <Button asChild className="h-10">
             <Link href={user ? "/dashboard" : "/login"}>
               {user ? t("landing.cta_dashboard") : t("landing.cta_login")} <ArrowRight />
             </Link>
           </Button>
+          </nav>
         </div>
       </header>
 
@@ -52,7 +64,7 @@ export default async function LandingPage() {
                 </Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="h-12 border-sidebar-foreground/40 bg-transparent px-6 text-base text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
-                <a href="#how">{t("landing.how_title")}</a>
+                <Link href={user ? "#how" : "/register"}>{user ? t("landing.how_title") : t("landing.register_cta")}</Link>
               </Button>
             </div>
           </div>
@@ -91,6 +103,18 @@ export default async function LandingPage() {
           })}
         </div>
       </section>
+
+      {packages.length ? (
+        <section id="pricing" className="border-t bg-muted/30">
+          <div className="mx-auto max-w-6xl px-4 py-14 md:px-6">
+            <h2 className="text-2xl font-semibold">{t("landing.pricing_title")}</h2>
+            <p className="mt-2 max-w-2xl text-muted-foreground">{t("landing.pricing_subtitle")}</p>
+            <div className="mt-8">
+              <PricingCards packages={packages} />
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <section className="border-y bg-card">
         <div className="mx-auto grid max-w-6xl gap-8 px-4 py-14 md:grid-cols-[1fr_320px] md:items-center md:px-6">

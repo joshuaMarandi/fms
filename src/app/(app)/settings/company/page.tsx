@@ -2,6 +2,7 @@ import { PageHeader } from "@/components/shell/page-header";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { CompanyClient } from "./company-client";
+import { SubscriptionCard } from "./subscription-card";
 import { t } from "@/i18n";
 
 export default async function CompanyPage() {
@@ -20,6 +21,7 @@ export default async function CompanyPage() {
   return (
     <>
       <PageHeader title={t("settings.company.title")} description={t("settings.company.description")} />
+      <SubscriptionCard subscription={session.subscription} vehiclesUsed={(vehicles ?? []).length} />
       <CompanyClient
         company={company as { id: string; name: string; logo_url: string | null; settings: Record<string, unknown> }}
         sites={(sites ?? []) as { id: string; name: string; region: string | null }[]}

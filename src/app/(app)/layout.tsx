@@ -5,6 +5,7 @@ import { Topbar } from "@/components/shell/topbar";
 import { RecordTitleProvider } from "@/components/shell/breadcrumbs";
 import { DriverBottomNav } from "@/components/shell/driver-bottom-nav";
 import { OfflineBanner } from "@/components/pwa/offline-banner";
+import { SubscriptionBlocked } from "@/components/shell/subscription-blocked";
 import { requireSession } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import type { Locale } from "@/i18n";
@@ -26,14 +27,18 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   const supabase = await createClient();
 
   const approvable = REQUEST_TABLES.filter((tbl) => session.can(REQUEST_RESOURCES[tbl], "approve"));
-  const [pendingCounts, anomalies, notifications, unread] = await Promise.all([
+  const [pendingCounts, anomalies, notifications, unread, registrations] = await Promise.all([
     Promise.all(approvable.map((tbl) => supabase.from(tbl).select("id", { count: "exact", head: true }).eq("status", "submitted").is("deleted_at", null))),
     session.can("inspections", "view")
       ? supabase.from("inspection_anomalies").select("id", { count: "exact", head: true }).eq("status", "open").is("deleted_at", null)
       : Promise.resolve({ count: 0 }),
     supabase.from("notifications").select("id, kind, title, body, link, read_at, created_at").order("created_at", { ascending: false }).limit(10),
     supabase.from("notifications").select("id", { count: "exact", head: true }).is("read_at", null),
+    session.permissions.isOwner
+      ? supabase.from("company_registrations").select("id", { count: "exact", head: true }).eq("status", "pending")
+      : Promise.resolve({ count: 0 }),
   ]);
+  const blocked = !session.permissions.isOwner && !(session.subscription?.active ?? false);
 
   const sessionLite: SessionLite = {
     userId: session.userId,
@@ -57,6 +62,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             counts={{
               pendingApprovals: pendingCounts.reduce((sum, r) => sum + (r.count ?? 0), 0),
               openAnomalies: anomalies.count ?? 0,
+              pendingRegistrations: registrations.count ?? 0,
             }}
             companies={session.companies}
           />
@@ -64,7 +70,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             <Topbar notifications={(notifications.data ?? []) as NotificationRow[]} unread={unread.count ?? 0} />
             <OfflineBanner />
             <main className={`flex-1 p-4 md:p-6 ${session.isDriverOnly ? "pb-24 md:pb-6" : ""}`}>
-              <div className="mx-auto w-full max-w-[1400px] space-y-6">{children}</div>
+              <div className="mx-auto w-full max-w-[1400px] space-y-6">{blocked ? <SubscriptionBlocked subscription={session.subscription} companyName={session.company?.name ?? null} /> : children}</div>
             </main>
             {session.isDriverOnly ? <DriverBottomNav /> : null}
           </SidebarInset>

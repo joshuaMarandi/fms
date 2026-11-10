@@ -24,3 +24,8 @@ Items where the source document (MDV FMS2.pdf and the build prompt) was unclear.
 | 18 | Driver "Company" select | Free text `employer`, defaulting from the company name, since drivers may be contracted | Driver personal |
 | 19 | Incident location "Select (cascading)" | Region is a dropdown of Tanzania regions; district, ward and street are text | `src/modules/expenses.ts` (TZ_REGIONS) |
 | 20 | Car wash cost "visible to coordinators and the Fleet manager" | The wash cost report block shows for anyone whose view scope on Car washing is wider than own | `src/modules/extras.tsx` |
+| 21 | Payment collection for packages | Not built. Price and billing period are stored and used for revenue figures; the owner extends `subscription_end` after payment | Platform, Companies |
+| 22 | What happens when a subscription ends | Access stops the day after `subscription_end` for every user of that company; data is kept; the owner can extend or reactivate | `company_access_ok` |
+| 23 | Downgrading below the current vehicle count | Allowed; existing vehicles stay, adding new ones is blocked until the count is under the limit | `enforce_vehicle_limit` |
+| 24 | Company without a package | Its users only see Dashboard and Settings until the owner assigns a package | `package_allows` |
+| 25 | Self-service sign-up | Registration is a request reviewed by the owner, not an instant account, to avoid spam tenants | `/register`, Platform, Registrations |
