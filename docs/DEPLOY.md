@@ -40,7 +40,7 @@ Find the name of the database container (usually `supabase-db`):
 docker ps --format '{{.Names}}' | grep -i db
 ```
 
-If it is not `supabase-db`, put `DB_CONTAINER=<name>` in front of the commands in step 4.
+If it is not `supabase-db`, use that name in step 4.
 
 ## 2. CloudPanel site for the app
 
@@ -49,33 +49,52 @@ You already created `fms.mdvfleet.co.tz`. In its Settings make sure:
 - App Port: **3010**
 - SSL/TLS: Let's Encrypt certificate issued
 
-## 3. Database: migrations, base data, owner (as root, in the app folder)
+## 3. Get the code from GitHub onto the server
 
-Get the code onto the server first (step 4 clones it), then from the app folder:
+CloudPanel created a Linux user for the site (shown in the site's Settings, for example `mdvfleet-fms`) and a folder for it:
+`/home/<site-user>/htdocs/fms.mdvfleet.co.tz`. The code goes in that folder, owned by that user.
+
+As root, switch to the site user:
+
+```bash
+su - <site-user>
+```
+
+Then, as the site user:
+
+```bash
+cd ~/htdocs/fms.mdvfleet.co.tz
+ls -A                                   # CloudPanel may have put a placeholder file here
+rm -rf ./* ./.[!.]* 2>/dev/null || true # empty the folder: git clone needs an empty folder
+git clone https://github.com/joshuaMarandi/fms.git .
+git log --oneline -1                    # shows the latest commit, so you know the clone worked
+```
+
+The repository is public, so no login is needed. If you make it private later, use a GitHub personal access token:
+`git clone https://<your-github-user>:<token>@github.com/joshuaMarandi/fms.git .`
+
+Type `exit` to go back to root for the next step.
+
+## 4. Database: migrations, base data, owner (as root)
 
 ```bash
 cd /home/<site-user>/htdocs/fms.mdvfleet.co.tz
 bash scripts/migrate.sh --seed-base
 ```
 
-This applies every migration in order, records them in `public.fms_migrations`, and loads the modules, roles and packages. It does not load demo data. It talks to the `supabase-db` container directly, so it must run as a user allowed to use Docker (root).
+This applies every migration in order, records them in `public.fms_migrations`, and loads the modules, roles and packages. It does not load demo data. It talks to the database container directly, so it runs as root (allowed to use Docker). If your container is not called `supabase-db`, run `DB_CONTAINER=<name> bash scripts/migrate.sh --seed-base`.
 
-Create your owner account:
+Create your owner account (change the container name here too if needed):
 
 ```bash
-docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
-  -v email='you@mdvfleet.co.tz' -v name='Your Name' -v password='a-strong-password' \
-  < supabase/create_owner.sql
+docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1   -v email='you@mdvfleet.co.tz' -v name='Your Name' -v password='a-strong-password'   < supabase/create_owner.sql
 ```
 
-## 4. The app (as the CloudPanel site user)
-
-SSH in as the site user CloudPanel created for `fms.mdvfleet.co.tz`, or use `su - <site-user>` from root.
+## 5. Configure, build and start the app (as the site user)
 
 ```bash
+su - <site-user>
 cd ~/htdocs/fms.mdvfleet.co.tz
-rm -rf ./* ./.[!.]* 2>/dev/null || true        # the folder must be empty for git clone
-git clone https://github.com/joshuaMarandi/fms.git .
 cp .env.example .env.local
 nano .env.local
 ```
@@ -94,6 +113,8 @@ MAIL_FROM_NAME=Fleet Management System
 CRON_SECRET=<openssl rand -hex 32>
 ```
 
+Save with Ctrl O, Enter, then Ctrl X.
+
 Install PM2 once, then build and start:
 
 ```bash
@@ -108,9 +129,9 @@ Keep it running after a reboot. Add this to the site user's crontab (`crontab -e
 @reboot cd ~/htdocs/fms.mdvfleet.co.tz && pm2 resurrect
 ```
 
-Open https://fms.mdvfleet.co.tz and sign in with the owner account from step 3.
+Open https://fms.mdvfleet.co.tz and sign in with the owner account from step 4.
 
-## 5. Daily email digest
+## 6. Daily email digest
 
 The reminder check runs inside Postgres every day at 06:00 (pg_cron). Add the digest to the site user's crontab:
 
@@ -120,7 +141,7 @@ The reminder check runs inside Postgres every day at 06:00 (pg_cron). Add the di
 
 Test it once by hand: run the same `curl` without `> /dev/null`. It answers with how many emails were sent.
 
-## 6. Updating later
+## 7. Updating later
 
 From your PC push to GitHub as usual, then on the server:
 
