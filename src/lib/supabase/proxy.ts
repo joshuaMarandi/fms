@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { publicUrl } from "@/lib/public-origin";
 
 const PUBLIC_PATHS = ["/", "/register", "/api/cron", "/api/dev", "/login", "/auth", "/forgot-password", "/reset-password", "/manifest.webmanifest", "/sw.js", "/offline", "/icons"];
 
@@ -32,17 +33,11 @@ export async function updateSession(request: NextRequest) {
   const isPublic = PUBLIC_PATHS.some((p) => pathname === p || (p !== "/" && pathname.startsWith(p + "/")));
 
   if (!user && !isPublic) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    url.searchParams.set("next", pathname);
-    return NextResponse.redirect(url);
+    return NextResponse.redirect(publicUrl(request, `/login?next=${encodeURIComponent(pathname)}`));
   }
 
   if (user && pathname === "/login") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
-    url.search = "";
-    return NextResponse.redirect(url);
+    return NextResponse.redirect(publicUrl(request, "/dashboard"));
   }
 
   return supabaseResponse;

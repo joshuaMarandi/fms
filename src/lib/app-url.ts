@@ -7,6 +7,10 @@ export async function appUrl() {
   if (configured) return configured;
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
+  // Behind nginx the Host can be the internal address; never put that in an email.
+  if (/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host) && process.env.NODE_ENV === "production") {
+    console.warn("[app-url] NEXT_PUBLIC_APP_URL is not set; email links will use", host);
+  }
   const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
   return `${proto}://${host}`;
 }

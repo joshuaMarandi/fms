@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { publicOrigin } from "@/lib/public-origin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendMail, emailConfigured } from "@/lib/email/mailer";
 import { notificationDigestEmail, type DigestItem } from "@/lib/email/templates";
@@ -24,7 +25,7 @@ async function handle(request: NextRequest) {
   }
 
   const admin = createAdminClient();
-  const base = (process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin).replace(/\/+$/, "");
+  const base = publicOrigin(request);
 
   if (request.nextUrl.searchParams.get("reminders") === "1") {
     const { error } = await admin.rpc("process_due_reminders");
