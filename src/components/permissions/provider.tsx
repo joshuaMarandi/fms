@@ -24,6 +24,8 @@ export type SessionLite = {
   roleNames: string[];
   primaryRole: string | null;
   isDriverOnly: boolean;
+  isOwner: boolean;
+  platformMode: boolean;
 };
 
 type Ctx = {

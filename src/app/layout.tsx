@@ -18,15 +18,15 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "MDV Fleet Management System",
-    template: "%s | MDV FMS",
+    default: "Fleet Management System",
+    template: "%s | FMS",
   },
   description: "Fleet, drivers, inspections, daily use, expenses, training, HR records and safety in one place.",
-  applicationName: "MDV FMS",
+  applicationName: "FMS",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "MDV FMS",
+    title: "FMS",
   },
   icons: {
     icon: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],

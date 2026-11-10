@@ -18,7 +18,7 @@ function config() {
     port,
     secure: (process.env.SMTP_SECURE ?? (port === 465 ? "true" : "false")) === "true",
     auth: { user, pass },
-    from: { name: process.env.MAIL_FROM_NAME ?? "MDV Fleet Management", address: process.env.MAIL_FROM ?? user },
+    from: { name: process.env.MAIL_FROM_NAME ?? "Fleet Management System", address: process.env.MAIL_FROM ?? user },
     replyTo: process.env.MAIL_REPLY_TO || undefined,
   };
 }

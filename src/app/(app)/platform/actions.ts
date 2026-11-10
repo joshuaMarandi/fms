@@ -217,6 +217,15 @@ export async function rejectRegistration(id: string, reason: string): Promise<Ac
   }
 }
 
+/** Leave the company workspace and go back to the platform overview. */
+export async function exitToPlatform() {
+  const supabase = await ownerClient();
+  const { error } = await supabase.rpc("switch_company", { p_company: null });
+  if (error) throw new Error(error.message);
+  revalidatePath("/", "layout");
+  redirect("/platform");
+}
+
 /** Switch the owner's session into a company and open its dashboard. */
 export async function enterCompany(id: string) {
   const supabase = await ownerClient();

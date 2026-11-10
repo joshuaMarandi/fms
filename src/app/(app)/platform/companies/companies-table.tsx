@@ -5,6 +5,8 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/patterns/data-table";
 import { ReminderChip, StatusChip } from "@/components/patterns/status-chip";
 import { formatDate } from "@/lib/utils";
+import { startNavigationProgress } from "@/components/shell/navigation-progress";
+import { enterCompany } from "../actions";
 import { t } from "@/i18n";
 
 type Row = {
@@ -27,6 +29,11 @@ type Row = {
 const TONES: Record<string, "success" | "warning" | "danger" | "neutral" | "info"> = { pending: "warning", trial: "info", active: "success", suspended: "danger", cancelled: "neutral" };
 
 export function CompaniesTable({ rows }: { rows: Row[] }) {
+  const [, start] = React.useTransition();
+  const open = (id: string) => {
+    startNavigationProgress();
+    start(() => enterCompany(id));
+  };
   const columns = React.useMemo<ColumnDef<Row, unknown>[]>(
     () => [
       { id: "name", header: t("platform.companies.name"), accessorKey: "name", cell: ({ row }) => <span className="font-medium">{row.original.name}</span> },
@@ -60,7 +67,11 @@ export function CompaniesTable({ rows }: { rows: Row[] }) {
       searchKeys={["name", "package_name", "contact_name", "contact_email", "city"]}
       statusColumn="status"
       statusOptions={["active", "trial", "pending", "suspended", "cancelled"]}
-      rowHref={(r) => `/platform/companies/${r.id}`}
+      onRowClick={(r) => open(r.id)}
+      rowActions={[
+        { label: t("platform.companies.enter"), onSelect: (r) => open(r.id) },
+        { label: t("platform.companies.manage"), href: (r) => `/platform/companies/${r.id}` },
+      ]}
       canExport
       exportName="companies"
       exportTitle={t("platform.companies.title")}

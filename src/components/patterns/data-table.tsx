@@ -52,6 +52,8 @@ export type DataTableProps<T> = {
   statusColumn?: string;
   statusOptions?: string[];
   rowHref?: (row: T) => string | undefined;
+  /** Called on row click when there is no rowHref (for actions such as opening a workspace). */
+  onRowClick?: (row: T) => void;
   rowActions?: RowAction<T>[];
   canExport?: boolean;
   exportName?: string;
@@ -71,6 +73,7 @@ export function DataTable<T extends Record<string, unknown>>({
   statusColumn,
   statusOptions,
   rowHref,
+  onRowClick,
   rowActions,
   canExport,
   exportName = "export",
@@ -275,13 +278,21 @@ export function DataTable<T extends Record<string, unknown>>({
             ) : (
               table.getRowModel().rows.map((row) => {
                 const href = rowHref?.(row.original);
+                const activate = href
+                  ? () => {
+                      startNavigationProgress();
+                      router.push(href);
+                    }
+                  : onRowClick
+                    ? () => onRowClick(row.original)
+                    : undefined;
                 return (
                   <TableRow
                     key={row.id}
-                    className={href ? "cursor-pointer" : undefined}
-                    onClick={href ? () => { startNavigationProgress(); router.push(href); } : undefined}
-                    onKeyDown={href ? (e) => { if (e.key === "Enter") { startNavigationProgress(); router.push(href); } } : undefined}
-                    tabIndex={href ? 0 : undefined}
+                    className={activate ? "cursor-pointer" : undefined}
+                    onClick={activate}
+                    onKeyDown={activate ? (e) => { if (e.key === "Enter") activate(); } : undefined}
+                    tabIndex={activate ? 0 : undefined}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id} className={cn("whitespace-nowrap", dense && "py-1.5")}>

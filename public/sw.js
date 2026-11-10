@@ -1,4 +1,4 @@
-/* MDV FMS service worker: app shell caching for the installable driver app.
+/* FMS service worker: app shell caching for the installable driver app.
    Network first for pages and API; cache first for static assets; offline fallback page. */
 const VERSION = "fms-v1";
 const STATIC = `${VERSION}-static`;

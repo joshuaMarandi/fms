@@ -16,7 +16,7 @@ export default async function CompaniesPage() {
     <>
       <PageHeader
         title={t("platform.companies.title")}
-        description={t("platform.companies.description")}
+        description={`${t("platform.companies.description")} ${t("platform.companies.open_hint")}`}
         actions={
           <Button asChild className="h-10">
             <Link href="/platform/companies/new">

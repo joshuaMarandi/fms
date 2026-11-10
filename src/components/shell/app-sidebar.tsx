@@ -22,10 +22,9 @@ import {
 } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { usePermissions } from "@/components/permissions/provider";
-import { buildResourceTree, filterTree, type ResourceNode } from "@/lib/permissions";
+import { buildResourceTree, filterTree, packageAllows, type ResourceNode } from "@/lib/permissions";
 import { DynamicIcon } from "./icon";
 import { LinkPending } from "./link-pending";
-import { CompanySwitcher } from "./company-switcher";
 import { ProfileBlock } from "./profile-menu";
 import { t, hasKey } from "@/i18n";
 
@@ -40,12 +39,28 @@ function basePath(path: string | null) {
   return path ? path.split("?")[0]! : "";
 }
 
-export function AppSidebar({ counts, companies }: { counts: SidebarCounts; companies: { id: string; name: string }[] }) {
+export function AppSidebar({ counts }: { counts: SidebarCounts; companies?: { id: string; name: string }[] }) {
   const { permissions, session } = usePermissions();
   const pathname = usePathname();
   const { setOpenMobile } = useSidebar();
 
-  const tree = React.useMemo(() => filterTree(permissions, buildResourceTree(permissions.resources)), [permissions]);
+  const tree = React.useMemo(() => {
+    const all = buildResourceTree(permissions.resources);
+    if (session.platformMode) {
+      // Owner on the platform: management pages only, as flat top-level items.
+      const platform = all.find((n) => n.key === "platform");
+      const settings = all.find((n) => n.key === "settings");
+      const items = (platform?.children ?? []).map((c) => ({ ...c, children: [] }));
+      const setting = settings ? [{ ...settings, children: settings.children.filter((c) => c.key === "settings.roles" || c.key === "settings.audit") }] : [];
+      return [...items, ...setting];
+    }
+    const visible = filterTree(permissions, all).filter((n) => n.key !== "platform");
+    if (!session.isOwner) return visible;
+    // Owner inside a company: show exactly the modules in that company's package.
+    const keep = (nodes: ResourceNode[]): ResourceNode[] =>
+      nodes.filter((n) => packageAllows(permissions.packageKeys, n.key)).map((n) => ({ ...n, children: keep(n.children) }));
+    return keep(visible);
+  }, [permissions, session.platformMode, session.isOwner]);
 
   const isActive = (path: string | null) => {
     const p = basePath(path);
@@ -60,23 +75,22 @@ export function AppSidebar({ counts, companies }: { counts: SidebarCounts; compa
   const badgeFor = (key: string) => {
     if (key === "daily_use" || key === "expenses") return counts.pendingApprovals > 0 ? counts.pendingApprovals : null;
     if (key === "inspections") return counts.openAnomalies > 0 ? counts.openAnomalies : null;
-    if (key === "platform") return (counts.pendingRegistrations ?? 0) > 0 ? counts.pendingRegistrations! : null;
+    if (key === "platform.registrations") return (counts.pendingRegistrations ?? 0) > 0 ? counts.pendingRegistrations! : null;
     return null;
   };
 
   return (
     <Sidebar collapsible="icon" className="border-r-0">
       <SidebarHeader className="gap-2">
-        <Link href="/dashboard" className="flex items-center gap-2 rounded-md px-1 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring" onClick={() => setOpenMobile(false)}>
+        <Link href={session.platformMode ? "/platform" : "/dashboard"} className="flex items-center gap-2 rounded-md px-1 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring" onClick={() => setOpenMobile(false)}>
           <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
             <Truck className="size-4" aria-hidden="true" />
           </span>
           <span className="min-w-0 group-data-[collapsible=icon]:hidden">
-            <span className="block truncate text-sm font-semibold leading-tight">{session.companyName ?? t("app.short_name")}</span>
-            <span className="block truncate text-xs opacity-75">{t("app.short_name")}</span>
+            <span className="block truncate text-sm font-semibold leading-tight">{session.platformMode ? t("platform.sidebar_title") : session.companyName ?? t("app.short_name")}</span>
+            <span className="block truncate text-xs opacity-75">{session.platformMode ? t("platform.sidebar_subtitle") : t("app.name")}</span>
           </span>
         </Link>
-        {companies.length > 1 ? <CompanySwitcher companies={companies} current={session.companyId} /> : null}
       </SidebarHeader>
 
       <SidebarContent>
@@ -98,6 +112,11 @@ export function AppSidebar({ counts, companies }: { counts: SidebarCounts; compa
                           <LinkPending />
                         </Link>
                       </SidebarMenuButton>
+                      {badge ? (
+                        <SidebarMenuBadge className="bg-warning-bg text-warning" aria-label={`${badge}`}>
+                          {badge}
+                        </SidebarMenuBadge>
+                      ) : null}
                     </SidebarMenuItem>
                   );
                 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -47,6 +48,7 @@ function months(from: string, to: string) {
 export default async function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
   const sp = await searchParams;
   const session = await requirePermission("dashboard", "view");
+  if (session.platformMode) redirect("/platform");
   const supabase = await createClient();
 
   if (session.isDriverOnly) {

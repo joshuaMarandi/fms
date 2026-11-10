@@ -11,6 +11,9 @@ const nextConfig: NextConfig = {
     },
   },
   experimental: {
+    // Keep visited pages in the browser for 5 minutes so going back to a tab opens it instantly.
+    // Saves call revalidatePath or router.refresh, which clears this cache, so data never goes stale after an edit.
+    staleTimes: { dynamic: 300, static: 300 },
     // Import only what is used from these packages.
     optimizePackageImports: ["recharts", "date-fns", "radix-ui", "@tanstack/react-table"],
   },

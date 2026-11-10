@@ -6,6 +6,7 @@ import { RecordTitleProvider } from "@/components/shell/breadcrumbs";
 import { DriverBottomNav } from "@/components/shell/driver-bottom-nav";
 import { OfflineBanner } from "@/components/pwa/offline-banner";
 import { SubscriptionBlocked } from "@/components/shell/subscription-blocked";
+import { OwnerWorkspaceBar } from "@/components/shell/owner-workspace-bar";
 import { requireSession } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import type { Locale } from "@/i18n";
@@ -31,6 +32,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     roleNames: session.roles.map((r) => r.name),
     primaryRole: session.roles[0]?.name ?? null,
     isDriverOnly: session.isDriverOnly,
+    isOwner: session.permissions.isOwner,
+    platformMode: session.platformMode,
   };
 
   return (
@@ -48,6 +51,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           <SidebarInset className="min-w-0">
             <Topbar notifications={counts.notifications ?? []} unread={counts.unread ?? 0} />
             <OfflineBanner />
+            {session.permissions.isOwner && session.company ? <OwnerWorkspaceBar companyName={session.company.name} /> : null}
             <main className={`flex-1 p-4 md:p-6 ${session.isDriverOnly ? "pb-24 md:pb-6" : ""}`}>
               <div className="mx-auto w-full max-w-[1400px] space-y-6">{blocked ? <SubscriptionBlocked subscription={session.subscription} companyName={session.company?.name ?? null} /> : children}</div>
             </main>

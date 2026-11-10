@@ -11,7 +11,10 @@ export default async function RolesPage({ searchParams }: PageProps<"/settings/r
   const supabase = await createClient();
 
   const [{ data: roles }, { data: grants }, { data: resources }, { data: userRoles }, { data: ceilings }] = await Promise.all([
-    supabase.from("roles").select("id, name, description, is_system, is_owner, is_admin, company_id").order("is_system", { ascending: false }).order("name"),
+    (session.platformMode
+      ? supabase.from("roles").select("id, name, description, is_system, is_owner, is_admin, company_id").is("company_id", null)
+      : supabase.from("roles").select("id, name, description, is_system, is_owner, is_admin, company_id").or(`company_id.is.null,company_id.eq.${session.profile.company_id}`)
+    ).order("is_system", { ascending: false }).order("name"),
     supabase.from("role_grants").select("role_id, resource_key, actions, scope"),
     supabase.from("resources").select("*").order("sort_order"),
     supabase.from("user_roles").select("role_id"),

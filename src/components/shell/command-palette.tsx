@@ -14,6 +14,7 @@ import {
   CommandSeparator,
 } from "@/components/ui/command";
 import { usePermissions } from "@/components/permissions/provider";
+import { packageAllows } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/client";
 import { DynamicIcon } from "./icon";
 import { hasKey, t } from "@/i18n";
@@ -22,7 +23,7 @@ type Hit = { id: string; label: string; sub?: string; href: string };
 
 export function CommandPalette() {
   const router = useRouter();
-  const { resources, can } = usePermissions();
+  const { resources, can, session, permissions } = usePermissions();
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [vehicles, setVehicles] = React.useState<Hit[]>([]);
@@ -52,6 +53,13 @@ export function CommandPalette() {
         return;
       }
       const like = `%${q}%`;
+      if (session.platformMode) {
+        const { data } = await supabase.from("companies").select("id, name, city").is("deleted_at", null).ilike("name", like).limit(8);
+        setVehicles([]);
+        setRequests([]);
+        setDrivers(((data ?? []) as { id: string; name: string; city: string | null }[]).map((x) => ({ id: x.id, label: x.name, sub: x.city ?? undefined, href: `/platform/companies/${x.id}` })));
+        return;
+      }
       const [v, d, r] = await Promise.all([
         can("fleet.details", "view")
           ? supabase.from("vehicles").select("id, registration, make, model").is("deleted_at", null).or(`registration.ilike.${like},make.ilike.${like},model.ilike.${like}`).limit(5)
@@ -68,14 +76,19 @@ export function CommandPalette() {
       setRequests(((r.data ?? []) as { id: string; requester_name: string | null; destination: string | null; status: string }[]).map((x) => ({ id: x.id, label: `${x.requester_name ?? ""}: ${x.destination ?? ""}`, sub: t(`status.${x.status}`), href: `/daily-use/trip-requests/${x.id}` })));
     }, 250);
     return () => clearTimeout(handle);
-  }, [query, open, can]);
+  }, [query, open, can, session.platformMode]);
 
   const pages = React.useMemo(
     () =>
       resources
         .filter((r) => r.path && can(r.key, "view"))
+        .filter((r) =>
+          session.platformMode
+            ? r.key.startsWith("platform.") || r.key === "settings.roles" || r.key === "settings.audit"
+            : !r.key.startsWith("platform") && (!session.isOwner || packageAllows(permissions.packageKeys, r.key)),
+        )
         .map((r) => ({ key: r.key, label: hasKey(`resource.${r.key}`) ? t(`resource.${r.key}`) : r.name, path: r.path!, icon: r.icon })),
-    [resources, can],
+    [resources, can, session.platformMode, session.isOwner, permissions.packageKeys],
   );
 
   function go(href: string) {
@@ -105,7 +118,7 @@ export function CommandPalette() {
             </CommandGroup>
           ) : null}
           {drivers.length ? (
-            <CommandGroup heading={t("nav.drivers")}>
+            <CommandGroup heading={session.platformMode ? t("platform.companies.title") : t("nav.drivers")}>
               {drivers.map((h) => (
                 <CommandItem key={h.id} value={`driver-${h.id}-${h.label}`} onSelect={() => go(h.href)}>
                   <UserRound /> <span>{h.label}</span> {h.sub ? <span className="ml-auto text-xs text-muted-foreground">{h.sub}</span> : null}

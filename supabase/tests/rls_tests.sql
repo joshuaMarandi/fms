@@ -372,4 +372,31 @@ begin
   perform pg_temp.as_admin();
 end $$;
 
+
+-- Owner platform mode
+do $$
+declare j jsonb; n integer;
+begin
+  perform pg_temp.check('owner starts on the platform', (select company_id from public.profiles where id = '33333333-3333-3333-3333-000000000001') is null);
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000001');
+  j := public.session_context();
+  perform pg_temp.check('platform mode has no company', j->'company' = 'null'::jsonb or j->'company' is null);
+  select count(*) into n from public.platform_users();
+  perform pg_temp.check('owner lists users across companies', n >= 11);
+  select count(*) into n from public.platform_issues() where issue = 'no_admin';
+  perform pg_temp.check('companies without an admin are flagged', n >= 1);
+  perform public.switch_company('11111111-1111-1111-1111-111111111111');
+  perform pg_temp.check('owner enters a company', public.my_company_id() = '11111111-1111-1111-1111-111111111111');
+  perform public.switch_company(null);
+  perform pg_temp.check('owner goes back to the platform', public.my_company_id() is null);
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  begin
+    perform public.platform_users();
+    perform pg_temp.check('admin cannot list platform users', false);
+  exception when others then
+    perform pg_temp.check('admin cannot list platform users', true);
+  end;
+  perform pg_temp.as_admin();
+end $$;
+
 select 'ALL TESTS PASSED' as result;

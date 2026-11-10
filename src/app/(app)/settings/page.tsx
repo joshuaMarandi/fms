@@ -14,7 +14,7 @@ const ITEMS = [
 
 export default async function SettingsPage() {
   const session = await requireSession();
-  const visible = ITEMS.filter((i) => session.can(i.key, "view"));
+  const visible = ITEMS.filter((i) => session.can(i.key, "view") && (!session.platformMode || i.key === "settings.roles" || i.key === "settings.audit"));
   return (
     <>
       <PageHeader title={t("settings.title")} description={t("settings.description")} />

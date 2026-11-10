@@ -3,7 +3,7 @@ import { renderEmail, type Tone } from "./layout";
 
 /** Every email the system sends. Each returns { subject, html, text }. */
 
-const appName = () => process.env.MAIL_FROM_NAME ?? "MDV Fleet Management";
+const appName = () => process.env.MAIL_FROM_NAME ?? "Fleet Management System";
 const firstName = (name: string) => name.trim().split(/\s+/)[0] ?? name;
 
 export function invitationEmail(o: { name: string; email: string; companyName: string; roleName: string; invitedBy: string; url: string }) {

@@ -1,4 +1,4 @@
--- MDV Fleet Management System: seed
+-- Fleet Management System: seed
 -- Module tree, system roles with grants, the four spec roles, a demo company, demo users and demo data.
 -- Demo users all share the password "Password123!" (change in production).
 
@@ -59,7 +59,8 @@ insert into public.resources (key, parent_key, name, label_prefix, path, icon, s
   ('platform.overview', 'platform', 'Overview', null, '/platform', 'layout-grid', 51, false, false),
   ('platform.companies', 'platform', 'Companies', null, '/platform/companies', 'building-2', 52, false, false),
   ('platform.packages', 'platform', 'Packages', null, '/platform/packages', 'package', 53, false, false),
-  ('platform.registrations', 'platform', 'Registrations', null, '/platform/registrations', 'inbox', 54, false, false),
+  ('platform.users', 'platform', 'Users', null, '/platform/users', 'users', 54, false, false),
+  ('platform.registrations', 'platform', 'Registrations', null, '/platform/registrations', 'inbox', 55, false, false),
   ('settings', null, 'Settings', null, '/settings', 'settings', 900, false, false),
   ('settings.users', 'settings', 'Users', null, '/settings/users', 'user-cog', 901, false, false),
   ('settings.roles', 'settings', 'Roles and access', null, '/settings/roles', 'key-round', 902, false, false),
@@ -103,7 +104,7 @@ on conflict do nothing;
 -- Demo company and sites
 -- ---------------------------------------------------------------------------
 insert into public.companies (id, name, settings, package_id, status, contact_name, contact_email, contact_phone, city, country, subscription_start, subscription_end) values
-  ('11111111-1111-1111-1111-111111111111', 'MDV Demo Company', '{"fuel_price_per_litre": 3150, "default_target_km_per_l": 9, "currency": "TZS"}'::jsonb,
+  ('11111111-1111-1111-1111-111111111111', 'Demo Company', '{"fuel_price_per_litre": 3150, "default_target_km_per_l": 9, "currency": "TZS"}'::jsonb,
    'cccccccc-cccc-cccc-cccc-000000000003', 'active', 'Amani Mushi', 'fleetmanager@mdv.test', '+255700000002', 'Dar es Salaam', 'Tanzania', current_date - 90, current_date + 275)
 on conflict (id) do nothing;
 
@@ -335,11 +336,11 @@ on conflict do nothing;
 -- Vehicles
 -- ---------------------------------------------------------------------------
 insert into public.vehicles (id, company_id, make, model, registration, chassis_number, engine_number, yom, year_first_use, site_id, location, odometer_km, fuel_tank_capacity_l, target_km_per_l, owner_name, status) values
-  ('55555555-5555-5555-5555-000000000001', '11111111-1111-1111-1111-111111111111', 'Toyota', 'Land Cruiser 79', 'T 123 ABC', 'JTERB71J5K7001234', '1GD-0012345', 2019, 2019, '11111111-1111-1111-1111-00000000000a', 'Dar es Salaam HQ', 84210, 130, 8.5, 'MDV Demo Company', 'in_service'),
-  ('55555555-5555-5555-5555-000000000002', '11111111-1111-1111-1111-111111111111', 'Toyota', 'Hilux Double Cab', 'T 456 DEF', 'MR0FB8CD900123456', '2GD-0023456', 2021, 2021, '11111111-1111-1111-1111-00000000000a', 'Dar es Salaam HQ', 41560, 80, 11, 'MDV Demo Company', 'in_service'),
-  ('55555555-5555-5555-5555-000000000003', '11111111-1111-1111-1111-111111111111', 'Nissan', 'Patrol', 'T 789 GHI', 'JN1TESY61Z0123456', 'ZD30-0034567', 2017, 2018, '11111111-1111-1111-1111-00000000000b', 'Mwanza site', 132880, 95, 7.5, 'MDV Demo Company', 'in_garage'),
-  ('55555555-5555-5555-5555-000000000004', '11111111-1111-1111-1111-111111111111', 'Toyota', 'Coaster', 'T 321 JKL', 'JTGFB518000123456', 'N04C-0045678', 2016, 2016, '11111111-1111-1111-1111-00000000000c', 'Dodoma office', 210340, 95, 6, 'MDV Demo Company', 'in_service'),
-  ('55555555-5555-5555-5555-000000000005', '11111111-1111-1111-1111-111111111111', 'Mitsubishi', 'L200', 'T 654 MNO', 'MMBJNKL10LH012345', '4N15-0056789', 2022, 2022, '11111111-1111-1111-1111-00000000000a', 'Dar es Salaam HQ', 18230, 75, 12, 'MDV Demo Company', 'in_service')
+  ('55555555-5555-5555-5555-000000000001', '11111111-1111-1111-1111-111111111111', 'Toyota', 'Land Cruiser 79', 'T 123 ABC', 'JTERB71J5K7001234', '1GD-0012345', 2019, 2019, '11111111-1111-1111-1111-00000000000a', 'Dar es Salaam HQ', 84210, 130, 8.5, 'Demo Company', 'in_service'),
+  ('55555555-5555-5555-5555-000000000002', '11111111-1111-1111-1111-111111111111', 'Toyota', 'Hilux Double Cab', 'T 456 DEF', 'MR0FB8CD900123456', '2GD-0023456', 2021, 2021, '11111111-1111-1111-1111-00000000000a', 'Dar es Salaam HQ', 41560, 80, 11, 'Demo Company', 'in_service'),
+  ('55555555-5555-5555-5555-000000000003', '11111111-1111-1111-1111-111111111111', 'Nissan', 'Patrol', 'T 789 GHI', 'JN1TESY61Z0123456', 'ZD30-0034567', 2017, 2018, '11111111-1111-1111-1111-00000000000b', 'Mwanza site', 132880, 95, 7.5, 'Demo Company', 'in_garage'),
+  ('55555555-5555-5555-5555-000000000004', '11111111-1111-1111-1111-111111111111', 'Toyota', 'Coaster', 'T 321 JKL', 'JTGFB518000123456', 'N04C-0045678', 2016, 2016, '11111111-1111-1111-1111-00000000000c', 'Dodoma office', 210340, 95, 6, 'Demo Company', 'in_service'),
+  ('55555555-5555-5555-5555-000000000005', '11111111-1111-1111-1111-111111111111', 'Mitsubishi', 'L200', 'T 654 MNO', 'MMBJNKL10LH012345', '4N15-0056789', 2022, 2022, '11111111-1111-1111-1111-00000000000a', 'Dar es Salaam HQ', 18230, 75, 12, 'Demo Company', 'in_service')
 on conflict (id) do nothing;
 
 insert into public.vehicle_inspections (company_id, vehicle_id, kind, inspection_date, renewal_date)
@@ -371,10 +372,10 @@ insert into public.vehicle_remarks (company_id, vehicle_id, body, created_by) va
 -- Drivers
 -- ---------------------------------------------------------------------------
 insert into public.drivers (id, company_id, profile_id, full_name, phone, email, employer, joining_date, employment_number, job_title, department, date_of_birth, sex, years_driving) values
-  ('66666666-6666-6666-6666-000000000001', '11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-000000000005', 'Juma Hassan', '+255700000005', 'driver1@mdv.test', 'MDV Demo Company', '2019-03-04', 'EMP-0101', 'Driver', 'Transport', '1986-07-12', 'male', 14),
-  ('66666666-6666-6666-6666-000000000002', '11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-000000000006', 'Rehema Ally', '+255700000006', 'driver2@mdv.test', 'MDV Demo Company', '2021-09-15', 'EMP-0102', 'Driver', 'Transport', '1991-02-23', 'female', 8),
-  ('66666666-6666-6666-6666-000000000003', '11111111-1111-1111-1111-111111111111', null, 'Mohamed Kipara', '+255700000012', null, 'MDV Demo Company', '2017-01-10', 'EMP-0103', 'Driver', 'Transport', '1979-11-02', 'male', 20),
-  ('66666666-6666-6666-6666-000000000004', '11111111-1111-1111-1111-111111111111', null, 'Elizabeth Shayo', '+255700000013', null, 'MDV Demo Company', '2023-06-01', 'EMP-0104', 'Driver', 'Transport', '1995-05-30', 'female', 5)
+  ('66666666-6666-6666-6666-000000000001', '11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-000000000005', 'Juma Hassan', '+255700000005', 'driver1@mdv.test', 'Demo Company', '2019-03-04', 'EMP-0101', 'Driver', 'Transport', '1986-07-12', 'male', 14),
+  ('66666666-6666-6666-6666-000000000002', '11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-000000000006', 'Rehema Ally', '+255700000006', 'driver2@mdv.test', 'Demo Company', '2021-09-15', 'EMP-0102', 'Driver', 'Transport', '1991-02-23', 'female', 8),
+  ('66666666-6666-6666-6666-000000000003', '11111111-1111-1111-1111-111111111111', null, 'Mohamed Kipara', '+255700000012', null, 'Demo Company', '2017-01-10', 'EMP-0103', 'Driver', 'Transport', '1979-11-02', 'male', 20),
+  ('66666666-6666-6666-6666-000000000004', '11111111-1111-1111-1111-111111111111', null, 'Elizabeth Shayo', '+255700000013', null, 'Demo Company', '2023-06-01', 'EMP-0104', 'Driver', 'Transport', '1995-05-30', 'female', 5)
 on conflict (id) do nothing;
 
 insert into public.driver_courses (company_id, driver_id, courses, provider, date_completed) values
@@ -494,7 +495,7 @@ from (select v.id, v.odometer_km, row_number() over (order by v.registration)::i
 
 -- First aid kit inspections
 insert into public.first_aid_inspections (id, company_id, vehicle_id, inspected_on, inspector_name, inspector_qualification, signature, next_inspection_date)
-select gen_random_uuid(), '11111111-1111-1111-1111-111111111111', v.id, current_date - 45, 'Dr. Amina Juma', 'Medical officer, MDV clinic',
+select gen_random_uuid(), '11111111-1111-1111-1111-111111111111', v.id, current_date - 45, 'Dr. Amina Juma', 'Medical officer, company clinic',
   jsonb_build_object('name', 'Dr. Amina Juma', 'method', 'tick', 'signed_at', (current_date - 45)::text), current_date + 135
 from public.vehicles v where v.company_id = '11111111-1111-1111-1111-111111111111';
 
@@ -652,3 +653,7 @@ insert into public.incident_people (company_id, incident_id, kind, name, sex, ag
 
 -- Run the reminder job once so the demo has notifications.
 select public.process_due_reminders();
+
+-- Owners start on the platform, not inside a customer company.
+update public.profiles p set company_id = null
+where exists (select 1 from public.user_roles ur join public.roles r on r.id = ur.role_id where ur.user_id = p.id and r.is_owner);

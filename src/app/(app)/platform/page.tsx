@@ -14,11 +14,13 @@ import { t } from "@/i18n";
 export default async function PlatformOverviewPage() {
   await requirePermission("platform.overview", "view");
   const supabase = await createClient();
-  const [rows, { data: registrations }, { data: packages }] = await Promise.all([
+  const [rows, { data: registrations }, { data: packages }, { data: issueRows }] = await Promise.all([
     loadCompanyRows(supabase),
     supabase.from("company_registrations").select("id, company_name, contact_name, email, status, created_at").order("created_at", { ascending: false }).limit(6),
     supabase.from("packages").select("id, name").is("deleted_at", null).order("sort_order"),
+    supabase.rpc("platform_issues"),
   ]);
+  const issues = (issueRows ?? []) as { company_id: string; company_name: string; issue: "no_admin" | "no_package" | "expired" | "suspended"; detail: string | null }[];
 
   const live = rows.filter((r) => r.status === "active" || r.status === "trial");
   const pending = ((registrations ?? []) as { status: string }[]).filter((r) => r.status === "pending").length;
@@ -91,6 +93,30 @@ export default async function PlatformOverviewPage() {
           </Card>
         ))}
       </div>
+
+      <Card className={issues.length ? "border-warning/50" : undefined}>
+        <CardHeader>
+          <CardTitle className="text-base">{t("platform.issues.title")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {issues.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t("platform.issues.none")}</p>
+          ) : (
+            <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {issues.map((i) => (
+                <li key={`${i.company_id}-${i.issue}`}>
+                  <Link href={`/platform/companies/${i.company_id}`} className="flex items-center justify-between gap-2 rounded-lg border p-3 text-sm hover:bg-muted/40">
+                    <span className="min-w-0 truncate font-medium">{i.company_name}</span>
+                    <span className={`status-chip shrink-0 ${i.issue === "no_admin" || i.issue === "no_package" ? "status-chip-warning" : "status-chip-danger"}`}>
+                      {t(`platform.issues.${i.issue}`, { date: i.detail ? formatDate(i.detail) : "" })}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 md:grid-cols-2">
         <Widget title={t("platform.chart.by_package")} description={t("platform.chart.by_package_desc")} empty={byPackage.every((p) => p.count === 0)}>

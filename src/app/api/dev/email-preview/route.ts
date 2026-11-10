@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
 const sample = (t: string, base: string) => {
   switch (t) {
     case "invite":
-      return invitationEmail({ name: "Neema Kessy", email: "neema@example.com", companyName: "MDV Demo Company", roleName: "Fleet coordinator", invitedBy: "Amani Mushi", url: `${base}/auth/callback?token_hash=sample&type=invite` });
+      return invitationEmail({ name: "Neema Kessy", email: "neema@example.com", companyName: "Demo Company", roleName: "Fleet coordinator", invitedBy: "Amani Mushi", url: `${base}/auth/callback?token_hash=sample&type=invite` });
     case "reset":
       return passwordResetEmail({ name: "Juma Hassan", url: `${base}/auth/callback?token_hash=sample&type=recovery` });
     case "registration-received":
@@ -33,7 +33,7 @@ const sample = (t: string, base: string) => {
     case "digest":
       return notificationDigestEmail({
         name: "Amani Mushi",
-        companyName: "MDV Demo Company",
+        companyName: "Demo Company",
         url: `${base}/notifications`,
         items: [
           { kind: "reminder", title: "Insurance expires: T 123 ABC", body: "Due on 30 Nov 2026 (20 days left)", url: `${base}/fleet`, createdAt: "" },

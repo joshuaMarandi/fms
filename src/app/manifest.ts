@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "MDV Fleet Management System",
-    short_name: "MDV FMS",
+    name: "Fleet Management System",
+    short_name: "FMS",
     description: "Fleet, drivers, inspections, daily use, expenses, training, HR records and safety in one place.",
     start_url: "/dashboard",
     scope: "/",

@@ -53,7 +53,7 @@ function toneColors(t: Tone) {
 }
 
 export function renderEmail(c: EmailContent): { html: string; text: string } {
-  const appName = process.env.MAIL_FROM_NAME ?? "MDV Fleet Management";
+  const appName = process.env.MAIL_FROM_NAME ?? "Fleet Management System";
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
 
   const paragraphs = c.paragraphs.map((p) => `<p style="margin:0 0 16px;${font}font-size:15px;line-height:24px;color:${C.text};">${esc(p)}</p>`).join("");
@@ -118,7 +118,7 @@ export function renderEmail(c: EmailContent): { html: string; text: string } {
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;">
       <tr><td bgcolor="${C.brand}" style="padding:20px 28px;border-radius:12px 12px 0 0;">
         <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-          <td bgcolor="${C.primary}" width="32" height="32" align="center" style="border-radius:8px;${font}font-size:14px;font-weight:bold;color:#ffffff;">M</td>
+          <td bgcolor="${C.primary}" width="32" height="32" align="center" style="border-radius:8px;${font}font-size:14px;font-weight:bold;color:#ffffff;">F</td>
           <td style="padding-left:12px;${font}font-size:16px;font-weight:bold;color:#ffffff;">${esc(appName)}</td>
         </tr></table>
       </td></tr>

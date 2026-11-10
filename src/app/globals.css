@@ -60,7 +60,7 @@
 }
 
 /*
-  MDV palette (section 1 of the build prompt). Flat solid colours only: no gradients anywhere.
+  FMS palette (section 1 of the build prompt). Flat solid colours only: no gradients anywhere.
 */
 :root {
   --background: #f4f3ee;

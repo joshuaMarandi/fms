@@ -1,6 +1,6 @@
 # Open questions
 
-Items where the source document (MDV FMS2.pdf and the build prompt) was unclear. For each one the simplest reading was chosen and built; the owner can confirm or change it.
+Items where the source document (the source requirements PDF and the build prompt) was unclear. For each one the simplest reading was chosen and built; the owner can confirm or change it.
 
 | # | Question | Reading chosen | Where to change |
 | --- | --- | --- | --- |
