@@ -83,7 +83,7 @@ export function AppSidebar({ counts, companies }: { counts: SidebarCounts; compa
             <SidebarMenu>
               {tree.map((node) => {
                 const label = resourceLabel(node);
-                const numbered = node.label_prefix ? `${node.label_prefix} ${label}` : label;
+                const numbered = node.label_prefix && /^\d+$/.test(node.label_prefix) ? `${node.label_prefix} ${label}` : label;
                 const badge = badgeFor(node.key);
 
                 if (node.children.length === 0) {
@@ -120,7 +120,6 @@ export function AppSidebar({ counts, companies }: { counts: SidebarCounts; compa
                             <SidebarMenuSubItem key={child.key}>
                               <SidebarMenuSubButton asChild isActive={isActive(child.path)} className="h-8 data-active:bg-sidebar-active data-active:text-sidebar-accent-foreground">
                                 <Link href={child.path ?? node.path ?? "#"} onClick={() => setOpenMobile(false)}>
-                                  <span className="w-4 shrink-0 text-xs opacity-75">{child.label_prefix ?? ""}</span>
                                   <span>{resourceLabel(child)}</span>
                                 </Link>
                               </SidebarMenuSubButton>

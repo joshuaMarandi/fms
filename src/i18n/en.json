@@ -2,7 +2,6 @@
   "app.name": "MDV Fleet Management System",
   "app.short_name": "MDV FMS",
   "app.tagline": "Fleet, drivers, inspections, daily use, expenses, training, HR records and safety in one place.",
-
   "auth.sign_in": "Sign in",
   "auth.sign_in_title": "Sign in to MDV FMS",
   "auth.sign_in_description": "Use the email and password your administrator gave you.",
@@ -24,7 +23,6 @@
   "auth.change_password": "Change password",
   "auth.current_password": "Current password",
   "auth.inactive": "Your account is inactive. Contact your administrator.",
-
   "nav.dashboard": "Dashboard",
   "nav.settings": "Settings",
   "nav.sign_out": "Sign out",
@@ -53,7 +51,6 @@
   "nav.me": "Me",
   "nav.pending_approvals": "{count} pending approvals",
   "nav.open_anomalies": "{count} open anomalies",
-
   "common.save": "Save",
   "common.saving": "Saving",
   "common.saved": "Saved.",
@@ -162,7 +159,6 @@
   "common.open": "Open",
   "common.show_more": "Show more",
   "common.show_less": "Show less",
-
   "status.draft": "Draft",
   "status.submitted": "Submitted",
   "status.approved": "Approved",
@@ -191,14 +187,12 @@
   "status.not_started": "Not started",
   "status.signed": "Signed",
   "status.awaiting": "Awaiting",
-
   "reminder.valid": "Valid",
   "reminder.days_left": "{days} days left",
   "reminder.due_today": "Due today",
   "reminder.overdue_days": "Overdue by {days} days",
   "reminder.due_km": "Due at {km} km",
   "reminder.no_date": "No date",
-
   "approval.title": "Decision",
   "approval.approve": "Approve",
   "approval.reject": "Reject",
@@ -226,7 +220,6 @@
   "approval.assigned_driver": "Assigned driver",
   "approval.assigned_vehicle": "Assigned vehicle",
   "approval.approved_litres": "Approved litres",
-
   "signature.title": "Signature",
   "signature.tick": "I confirm this is correct and sign it electronically",
   "signature.draw": "Draw signature",
@@ -234,7 +227,6 @@
   "signature.signed": "Signed by {name} at {time}",
   "signature.method_tick": "Tick to confirm",
   "signature.method_draw": "Draw",
-
   "attachments.title": "Attachments",
   "attachments.drop": "Drag files here or click to choose",
   "attachments.label": "Document type",
@@ -248,7 +240,6 @@
   "attachments.no_files": "No files uploaded yet.",
   "attachments.preview": "Preview",
   "attachments.open": "Open in new tab",
-
   "table.no_results": "No results.",
   "table.search": "Search this list",
   "table.toggle_columns": "Toggle columns",
@@ -256,7 +247,6 @@
   "table.sort_desc": "Sort descending",
   "table.hide": "Hide column",
   "table.open_menu": "Open menu",
-
   "form.fix_errors": "Please fix the highlighted fields.",
   "form.required": "This field is required.",
   "form.invalid_email": "Enter a valid email address.",
@@ -268,7 +258,6 @@
   "form.km_end_before_start": "Km end must be at least km start.",
   "form.at_least_one": "Choose at least one.",
   "form.unsaved": "You have unsaved changes.",
-
   "resource.dashboard": "Dashboard",
   "resource.fleet": "Fleet database",
   "resource.fleet.details": "Vehicle details",
@@ -324,7 +313,6 @@
   "resource.settings.company": "Company",
   "resource.settings.reminders": "Reminders",
   "resource.settings.audit": "Audit log",
-
   "action.view": "View",
   "action.create": "Create",
   "action.edit": "Edit",
@@ -334,7 +322,6 @@
   "scope.all": "All records",
   "scope.department": "Department",
   "scope.own": "Own records",
-
   "profile.title": "My profile",
   "profile.description": "Your account details and what you are allowed to do.",
   "profile.name": "Name",
@@ -354,7 +341,6 @@
   "profile.notifications_in_app": "Show in-app notifications",
   "profile.updated": "Profile updated.",
   "profile.owner_everything": "As an owner you can do everything, including role and company settings.",
-
   "notifications.title": "Notifications",
   "notifications.description": "Reminders, approvals and rejections addressed to you.",
   "notifications.unread": "Unread",
@@ -363,7 +349,6 @@
   "notifications.kind.rejection": "Rejection",
   "notifications.kind.anomaly": "Anomaly",
   "notifications.kind.system": "System",
-
   "dashboard.title": "Dashboard",
   "dashboard.description": "Fleet health, costs, compliance and what needs your attention.",
   "dashboard.kpi.vehicles": "Vehicles in service",
@@ -440,7 +425,6 @@
   "dashboard.bucket.8_30": "8 to 30 days",
   "dashboard.bucket.31_90": "31 to 90 days",
   "dashboard.bucket.90_plus": "Over 90 days",
-
   "fleet.title": "Fleet database",
   "fleet.description": "One page per vehicle with details, inspection status, insurance, maintenance schedule, documents and remarks.",
   "fleet.add_vehicle": "Add vehicle",
@@ -495,7 +479,6 @@
   "fleet.not_safe_banner": "This vehicle has an open anomaly marked Immediately and is not safe for use until it is closed.",
   "fleet.open_anomalies": "{count} open anomalies",
   "fleet.vehicle_history": "Vehicle history",
-
   "drivers.title": "Driver details",
   "drivers.description": "One profile per driver with personal details, training, licence, OSHA fit-for-work and documents.",
   "drivers.add_driver": "Add driver",
@@ -548,7 +531,6 @@
   "drivers.doc.medical_report": "Medical report",
   "drivers.sex.male": "Male",
   "drivers.sex.female": "Female",
-
   "inspections.title": "Inspections",
   "inspections.daily.title": "Daily (pre-trip) inspection",
   "inspections.daily.description": "The driver checks the vehicle before the first trip of the day.",
@@ -592,7 +574,6 @@
   "inspections.first_aid.quantity": "Quantity",
   "inspections.first_aid.expiry": "Expiry",
   "inspections.first_aid.report": "Signed inspection form",
-
   "daily_use.title": "Vehicle daily use",
   "daily_use.km_log.title": "Daily kilometre log",
   "daily_use.km_log.description": "Trips driven each day with start and end odometer readings.",
@@ -666,7 +647,6 @@
   "daily_use.trips.jmp_signed": "Step signed.",
   "daily_use.trips.jmp_print": "Print JMP",
   "daily_use.trips.assignment": "Assignment",
-
   "expenses.title": "Fleet expenses and administration",
   "expenses.fuel.title": "Fuel",
   "expenses.fuel.description": "Fuel consumed against target, filled from the fuel log.",
@@ -916,7 +896,6 @@
   "expenses.reports.rows": "{count} rows",
   "expenses.reports.chart": "Chart",
   "expenses.reports.table": "Table",
-
   "settings.title": "Settings",
   "settings.description": "Users, roles and access, company data, reminders and the audit log.",
   "settings.users.title": "Users",
@@ -1002,7 +981,36 @@
   "settings.audit.changes": "Changes",
   "settings.audit.before": "Before",
   "settings.audit.after": "After",
-
   "demo.title": "Pattern demo",
-  "demo.description": "Every reusable pattern on one page with real permission checks."
+  "demo.description": "Every reusable pattern on one page with real permission checks.",
+  "landing.eyebrow": "Fleet and transport management",
+  "landing.title": "Every vehicle, driver and request in one place",
+  "landing.subtitle": "MDV FMS keeps the fleet database, inspections, daily use, fuel, maintenance, training, HR records and safety data together, with approvals and reminders that follow your roles.",
+  "landing.cta_login": "Sign in",
+  "landing.cta_dashboard": "Open the dashboard",
+  "landing.how_title": "How it works",
+  "landing.feature.fleet.title": "Fleet database",
+  "landing.feature.fleet.body": "One page per vehicle: details, inspection status, insurance, maintenance schedule, documents and remarks, with expiry reminders.",
+  "landing.feature.drivers.title": "Driver details",
+  "landing.feature.drivers.body": "Profiles with training, licences, OSHA fit-for-work and documents. Drivers see and update only their own data from their phone.",
+  "landing.feature.inspections.title": "Inspections",
+  "landing.feature.inspections.body": "Daily pre-trip checks, third-party inspections and first aid kits. An anomaly marked Immediately flags the vehicle as not safe for use.",
+  "landing.feature.daily_use.title": "Vehicle daily use",
+  "landing.feature.daily_use.body": "Kilometre logs, fuel requests and trip requests with manager approval and the three-step journey management plan for long trips.",
+  "landing.feature.expenses.title": "Expenses and administration",
+  "landing.feature.expenses.body": "Fuel, maintenance, tyres, washing, equipment, training, timesheets, leave and incidents, each with its own approvals and reports.",
+  "landing.feature.access.title": "Access is data, not code",
+  "landing.feature.access.body": "Owners and admins set what every role can view, add, edit, delete, approve and export per module, down to the submodule and scope.",
+  "landing.roles_title": "Built for every role",
+  "landing.roles_body": "Owner, Admin, Fleet coordinator, Head of department, Driver, HR, Requester, HSE manager, Control room operator and Emergency response commander each see only what they need.",
+  "landing.steps.1.title": "Record",
+  "landing.steps.1.body": "Drivers and coordinators log inspections, trips, fuel and requests from any device.",
+  "landing.steps.2.title": "Approve",
+  "landing.steps.2.body": "Managers approve or reject with a required reason and an electronic signature.",
+  "landing.steps.3.title": "Track",
+  "landing.steps.3.body": "Dashboards, reminders and exportable reports show cost, compliance and safety at a glance.",
+  "landing.footer": "MDV Fleet Management System",
+  "auth.welcome_back": "Welcome back",
+  "auth.no_account": "No account yet? Ask your fleet manager or administrator for an invitation.",
+  "auth.back_home": "Back to the overview"
 }
