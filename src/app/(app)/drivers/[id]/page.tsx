@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { loadOptions } from "@/lib/data/records";
-import { DRIVER_DOCUMENTS, driverCourseSchema, driverLicenceSchema, driverOshaSchema, driverPersonalSchema } from "@/modules/drivers";
+import { DRIVER_DOCUMENTS } from "@/modules/drivers";
 import { formatDate } from "@/lib/utils";
 import { t } from "@/i18n";
 
@@ -53,18 +53,18 @@ export default async function DriverPage({ params, searchParams }: PageProps<"/d
         </TabsList>
 
         <TabsContent value="personal">
-          <SchemaForm schema={driverPersonalSchema} record={d} options={options} revalidate={paths} readOnly={!session.can("drivers.personal", "edit")} />
+          <SchemaForm schemaKey="drivers.personal" record={d} options={options} revalidate={paths} readOnly={!session.can("drivers.personal", "edit")} />
         </TabsContent>
 
         <TabsContent value="training" className="space-y-6">
           {courseRows.map((c) => (
-            <SchemaForm key={c.id as string} schema={driverCourseSchema} record={c} extra={extra} revalidate={paths} readOnly={!session.can("drivers.training", "edit")} />
+            <SchemaForm key={c.id as string} schemaKey="drivers.training" record={c} extra={extra} revalidate={paths} readOnly={!session.can("drivers.training", "edit")} />
           ))}
           {session.can("drivers.training", "create") ? (
             <details className="page-card p-4" open={courseRows.length === 0}>
               <summary className="cursor-pointer text-sm font-medium">{t("common.add")}: {t("drivers.tab.training")}</summary>
               <div className="mt-4">
-                <SchemaForm schema={driverCourseSchema} record={null} extra={extra} revalidate={paths} />
+                <SchemaForm schemaKey="drivers.training" record={null} extra={extra} revalidate={paths} />
               </div>
             </details>
           ) : null}
@@ -94,7 +94,7 @@ export default async function DriverPage({ params, searchParams }: PageProps<"/d
             <span className="font-medium">{t("drivers.expiry_date")}</span>
             <ReminderChip date={((licence as Record<string, unknown> | null)?.expiry_date as string) ?? null} />
           </div>
-          <SchemaForm schema={driverLicenceSchema} record={licence as Record<string, unknown> | null} extra={extra} revalidate={paths} readOnly={!session.can("drivers.licence", "edit")} />
+          <SchemaForm schemaKey="drivers.licence" record={licence as Record<string, unknown> | null} extra={extra} revalidate={paths} readOnly={!session.can("drivers.licence", "edit")} />
           <div className="page-card mt-6 p-4 md:p-6">
             <h3 className="mb-3 text-sm font-semibold">{t("drivers.licence_file")}</h3>
             <AttachmentsBox table="drivers" rowId={id} resource="drivers.licence" bucket="driver-docs" labels={[t("drivers.doc.licence")]} multiple={false} readOnly={!session.can("drivers.licence", "edit")} />
@@ -106,7 +106,7 @@ export default async function DriverPage({ params, searchParams }: PageProps<"/d
             <span className="font-medium">{t("drivers.osha_redo")}</span>
             <ReminderChip date={((osha as Record<string, unknown> | null)?.redo_date as string) ?? null} />
           </div>
-          <SchemaForm schema={driverOshaSchema} record={osha as Record<string, unknown> | null} extra={extra} revalidate={paths} readOnly={!session.can("drivers.osha", "edit")} />
+          <SchemaForm schemaKey="drivers.osha" record={osha as Record<string, unknown> | null} extra={extra} revalidate={paths} readOnly={!session.can("drivers.osha", "edit")} />
         </TabsContent>
 
         <TabsContent value="documents">

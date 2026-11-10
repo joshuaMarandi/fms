@@ -52,7 +52,7 @@ export default async function DemoPage() {
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <Can resource="daily_use.fuel_log" action="create" fallback={<p className="page-card p-4 text-sm text-muted-foreground">{t("common.permission_denied")}</p>}>
-            <SchemaForm schema={def.schema} options={options} cancelHref="/demo" afterSave={(id) => `/daily-use/fuel-log/${id}`} />
+            <SchemaForm schemaKey={def.key} options={options} cancelHref="/demo" afterSavePath="/daily-use/fuel-log" />
           </Can>
         </div>
         <div className="space-y-6">

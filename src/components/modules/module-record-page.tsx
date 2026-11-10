@@ -58,12 +58,12 @@ export async function ModuleRecordPage({ moduleKey, id }: { moduleKey: string; i
       <div className={showApproval ? "grid gap-6 lg:grid-cols-3" : undefined}>
         <div className={showApproval ? "lg:col-span-2" : undefined}>
           <SchemaForm
-            schema={def.schema}
+            schemaKey={def.key}
             record={record}
             options={options}
             readOnly={locked}
             cancelHref={def.path}
-            afterSave={(newId) => `${def.path}/${newId}`}
+            afterSavePath="${def.path}"
             revalidate={[def.path]}
           />
           {def.detailExtra && record ? <DetailExtra name={def.detailExtra} record={record} options={options} /> : null}

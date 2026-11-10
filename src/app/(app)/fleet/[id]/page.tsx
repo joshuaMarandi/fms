@@ -11,7 +11,7 @@ import { RemarksThread } from "./remarks-thread";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { loadOptions } from "@/lib/data/records";
-import { insuranceSchema, internalInspectionSchema, serviceScheduleSchema, thirdPartyStatusSchema, vehicleDetailsSchema, VEHICLE_DOCUMENTS } from "@/modules/fleet";
+import { VEHICLE_DOCUMENTS } from "@/modules/fleet";
 import { formatDate, formatNumber } from "@/lib/utils";
 import { t } from "@/i18n";
 
@@ -84,7 +84,7 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
         </TabsList>
 
         <TabsContent value="details">
-          <SchemaForm schema={vehicleDetailsSchema} record={v} options={options} revalidate={paths} readOnly={!session.can("fleet.details", "edit")} />
+          <SchemaForm schemaKey="fleet.details" record={v} options={options} revalidate={paths} readOnly={!session.can("fleet.details", "edit")} />
         </TabsContent>
 
         <TabsContent value="inspection" className="space-y-6">
@@ -94,14 +94,14 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
                 <span className="font-medium">{t("fleet.internal_renewal_date")}</span>
                 <ReminderChip date={(internal?.renewal_date as string) ?? null} />
               </div>
-              <SchemaForm schema={internalInspectionSchema} record={internal ? { ...internal } : { kind: "internal" }} extra={{ ...extra, kind: "internal" }} revalidate={paths} readOnly={!session.can("fleet.inspection_status", "edit")} />
+              <SchemaForm schemaKey="fleet.inspection.internal" record={internal ? { ...internal } : { kind: "internal" }} extra={{ ...extra, kind: "internal" }} revalidate={paths} readOnly={!session.can("fleet.inspection_status", "edit")} />
             </div>
             <div>
               <div className="mb-2 flex items-center gap-2 text-sm">
                 <span className="font-medium">{t("fleet.third_party_next_date")}</span>
                 <ReminderChip date={(third?.renewal_date as string) ?? null} />
               </div>
-              <SchemaForm schema={thirdPartyStatusSchema} record={third ? { ...third } : { kind: "third_party" }} extra={{ ...extra, kind: "third_party" }} revalidate={paths} readOnly={!session.can("fleet.inspection_status", "edit")} />
+              <SchemaForm schemaKey="fleet.inspection.third_party" record={third ? { ...third } : { kind: "third_party" }} extra={{ ...extra, kind: "third_party" }} revalidate={paths} readOnly={!session.can("fleet.inspection_status", "edit")} />
             </div>
           </div>
         </TabsContent>
@@ -111,7 +111,7 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
             <span className="font-medium">{t("fleet.insurance_end")}</span>
             <ReminderChip date={((insurance as Record<string, unknown> | null)?.end_date as string) ?? null} />
           </div>
-          <SchemaForm schema={insuranceSchema} record={insurance as Record<string, unknown> | null} extra={extra} revalidate={paths} readOnly={!session.can("fleet.insurance", "edit")} />
+          <SchemaForm schemaKey="fleet.insurance" record={insurance as Record<string, unknown> | null} extra={extra} revalidate={paths} readOnly={!session.can("fleet.insurance", "edit")} />
         </TabsContent>
 
         <TabsContent value="maintenance">
@@ -119,7 +119,7 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
             <span className="font-medium">{t("fleet.next_service_km")}</span>
             <KmReminderChip dueKm={((schedule as Record<string, unknown> | null)?.next_service_km as number) ?? null} currentKm={v.odometer_km as number} />
           </div>
-          <SchemaForm schema={serviceScheduleSchema} record={schedule as Record<string, unknown> | null} extra={extra} revalidate={paths} readOnly={!session.can("fleet.maintenance_schedule", "edit")} />
+          <SchemaForm schemaKey="fleet.maintenance_schedule" record={schedule as Record<string, unknown> | null} extra={extra} revalidate={paths} readOnly={!session.can("fleet.maintenance_schedule", "edit")} />
         </TabsContent>
 
         <TabsContent value="documents">

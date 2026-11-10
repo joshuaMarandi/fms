@@ -31,14 +31,16 @@ import {
   type FormSchema,
 } from "@/lib/forms/schema";
 import { cn, formatDate, formatNumber, formatTzs } from "@/lib/utils";
+import { getSchema } from "@/modules/schemas";
 import { hasKey, t } from "@/i18n";
 
 export type SchemaFormProps = {
-  schema: FormSchema;
+  /** Key into src/modules/schemas.ts (schemas hold functions and cannot cross the server boundary) */
+  schemaKey: string;
   record?: Record<string, unknown> | null;
   options?: LoadedOptions;
-  /** Where to go after save; receives the id */
-  afterSave?: (id: string) => string;
+  /** After save, navigate to `${afterSavePath}/${id}` (a plain string so server pages can pass it) */
+  afterSavePath?: string;
   cancelHref?: string;
   readOnly?: boolean;
   /** Extra values merged into the payload (for example a parent id) */
@@ -76,8 +78,9 @@ function formatAuto(v: unknown, format?: string, digits?: number) {
   }
 }
 
-export function SchemaForm({ schema, record, options = {}, afterSave, cancelHref, readOnly, extra, revalidate, onSaved, children, submitLabel }: SchemaFormProps) {
+export function SchemaForm({ schemaKey, record, options = {}, afterSavePath, cancelHref, readOnly, extra, revalidate, onSaved, children, submitLabel }: SchemaFormProps) {
   const router = useRouter();
+  const schema = getSchema(schemaKey);
   const { can, session } = usePermissions();
   const ctx = React.useMemo<FormComputeContext>(
     () => ({ options, session: { fullName: session.fullName, userId: session.userId, driverId: session.driverId }, record }),
@@ -104,8 +107,8 @@ export function SchemaForm({ schema, record, options = {}, afterSave, cancelHref
     }
     toast.success(t("common.saved"));
     onSaved?.(res.data.id);
-    if (afterSave) {
-      router.push(afterSave(res.data.id));
+    if (afterSavePath) {
+      router.push(`${afterSavePath}/${res.data.id}`);
       router.refresh();
     } else {
       router.refresh();
