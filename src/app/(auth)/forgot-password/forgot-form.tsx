@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
+import { requestPasswordReset } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -17,10 +17,7 @@ export function ForgotPasswordForm() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
-    const supabase = createClient();
-    await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
-    });
+    await requestPasswordReset(email);
     setBusy(false);
     setSent(true);
   }

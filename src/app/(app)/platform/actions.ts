@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionResult } from "@/lib/data/records";
 import { inviteUserServer } from "@/lib/users/invite";
+import { sendMail } from "@/lib/email/mailer";
+import { registrationRejectedEmail } from "@/lib/email/templates";
 
 export type PackageInput = {
   id?: string | null;
@@ -200,8 +202,14 @@ export async function approveRegistration(input: { id: string; package_id: strin
 export async function rejectRegistration(id: string, reason: string): Promise<ActionResult<null>> {
   try {
     const supabase = await ownerClient();
+    const { data: reg } = await supabase.from("company_registrations").select("company_name, contact_name, email").eq("id", id).maybeSingle();
     const { error } = await supabase.rpc("reject_registration", { p_id: id, p_reason: reason });
     if (error) return fail(error);
+    if (reg) {
+      const r = reg as { company_name: string; contact_name: string; email: string };
+      const sent = await sendMail({ to: r.email, ...registrationRejectedEmail({ name: r.contact_name, companyName: r.company_name, reason: reason.trim() }) });
+      if (!sent.ok) console.error("[registration rejected email]", sent.error);
+    }
     revalidatePath("/platform/registrations");
     return { ok: true, data: null };
   } catch (e) {

@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { createClient } from "@/lib/supabase/client";
+import { submitRegistration } from "./actions";
 import { t } from "@/i18n";
 
 type Pkg = { id: string; name: string; max_vehicles: number; price: number; currency: string; billing_period: string };
@@ -31,11 +31,10 @@ export function RegisterForm({ packages, selected }: { packages: Pkg[]; selected
     if (Object.keys(errs).length) return;
     setBusy(true);
     setFailure(null);
-    const supabase = createClient();
-    const { error } = await supabase.from("company_registrations").insert({
-      company_name: v.company_name.trim(),
-      contact_name: v.contact_name.trim(),
-      email: v.email.trim().toLowerCase(),
+    const res = await submitRegistration({
+      company_name: v.company_name,
+      contact_name: v.contact_name,
+      email: v.email,
       phone: v.phone.trim() || null,
       city: v.city.trim() || null,
       country: v.country.trim() || null,
@@ -44,7 +43,7 @@ export function RegisterForm({ packages, selected }: { packages: Pkg[]; selected
       message: v.message.trim() || null,
     });
     setBusy(false);
-    if (error) {
+    if (!res.ok) {
       setFailure(t("register.error"));
       return;
     }
