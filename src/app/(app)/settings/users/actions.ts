@@ -3,33 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionResult } from "@/lib/data/records";
+import { inviteUserServer } from "@/lib/users/invite";
 
 export async function inviteUser(input: { email: string; full_name: string; phone?: string; role_id: string; job_title?: string; department?: string }): Promise<ActionResult<{ id: string }>> {
-  const supabase = await createClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (!session) return { ok: false, error: "Not signed in" };
-
-  // The Edge Function holds the service key; it checks has_permission(settings.users, create) for the caller.
-  const { data, error } = await supabase.functions.invoke("invite-user", {
-    body: { ...input, redirect_to: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/auth/callback?next=/reset-password` },
-  });
-  if (error) {
-    let message = error.message;
-    try {
-      const ctx = (error as { context?: Response }).context;
-      if (ctx && typeof ctx.json === "function") {
-        const body = (await ctx.json()) as { error?: string };
-        if (body?.error) message = body.error;
-      }
-    } catch {
-      // keep the generic message
-    }
-    return { ok: false, error: message };
-  }
-  revalidatePath("/settings/users");
-  return { ok: true, data: { id: (data as { id: string })?.id } };
+  const res = await inviteUserServer(input);
+  if (res.ok) revalidatePath("/settings/users");
+  return res;
 }
 
 export async function setUserRoles(userId: string, primaryRoleId: string, extraRoleIds: string[]): Promise<ActionResult<null>> {

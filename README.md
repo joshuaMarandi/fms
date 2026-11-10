@@ -29,13 +29,12 @@ npm run dev                       # http://localhost:3000
 1. Link the project: `supabase link --project-ref <ref>` or point `supabase db push --db-url postgresql://...` at the VPS database.
 2. Apply migrations: `supabase db push`. Load the seed once: `psql "$DB_URL" -f supabase/seed.sql` (demo data; remove the demo users and company afterwards if not wanted).
 3. Create the storage buckets if `storage.buckets` was not writable during migration: vehicle-docs, driver-docs, inspection-scans, jmp, incident-files, forms (all private).
-4. Deploy the Edge Functions and set their secrets:
+4. Set `SUPABASE_SERVICE_ROLE_KEY` in the app's `.env.local` (server only, no `NEXT_PUBLIC_` prefix). Invitations are sent by the Next.js server with it. Deploy the reminder email Edge Function and set its secrets:
    ```bash
-   supabase functions deploy invite-user
    supabase functions deploy send-reminder-emails
    supabase secrets set RESEND_API_KEY=... REMINDER_FROM_EMAIL=fleet@yourdomain APP_URL=https://fms.yourdomain
    ```
-   `SUPABASE_SERVICE_ROLE_KEY` is only ever used inside these functions.
+   The service role key is only read on the server (`src/lib/supabase/admin.ts`, guarded by `server-only`) and inside that function.
 5. For the daily email run, store the function URL and service key in Vault (see `supabase/migrations/20261110000500_cron_email_hook.sql`). The daily reminder job itself (`fms-process-reminders`, 06:00) is scheduled by the migration.
 6. In Supabase Auth settings add `https://fms.yourdomain/auth/callback` to the redirect URLs and set the site URL.
 7. Build and run the app: `npm run build && npm run start` behind your reverse proxy (or use the Dockerfile of your choice). Set `NEXT_PUBLIC_APP_URL`.
@@ -47,7 +46,7 @@ npm run dev                       # http://localhost:3000
 | `NEXT_PUBLIC_SUPABASE_URL` | `.env.local` | Supabase API URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `.env.local` | Anon (publishable) key; RLS protects everything |
 | `NEXT_PUBLIC_APP_URL` | `.env.local` | Public URL used in invitation links |
-| `SUPABASE_SERVICE_ROLE_KEY` | Edge Function secrets only | Admin API for invitations and emails |
+| `SUPABASE_SERVICE_ROLE_KEY` | `.env.local` (server only) and Edge Function secrets | Admin API for invitations; reminder emails |
 | `RESEND_API_KEY`, `REMINDER_FROM_EMAIL`, `APP_URL` | Edge Function secrets | Reminder emails |
 
 ## 3. Demo users (seed)
@@ -112,7 +111,7 @@ Settings, Roles and access: Add role (optionally copy from an existing role), ti
 ```
 supabase/migrations     schema, permission engine, RLS, triggers, RPCs, reminders, storage policies
 supabase/seed.sql       module tree, roles and grants, demo company and data
-supabase/functions      invite-user, send-reminder-emails (Deno)
+supabase/functions      send-reminder-emails (Deno)
 supabase/tests          rls_tests.sql: scopes, parent-child override, driver isolation, approvals, ceilings
 src/app/(app)           pages; generic modules use ModuleListPage and ModuleRecordPage
 src/modules             declarative module definitions (forms, columns, options)

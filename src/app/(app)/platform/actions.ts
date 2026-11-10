@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionResult } from "@/lib/data/records";
+import { inviteUserServer } from "@/lib/users/invite";
 
 export type PackageInput = {
   id?: string | null;
@@ -146,38 +147,23 @@ export async function setCompanyStatus(id: string, status: CompanyInput["status"
   }
 }
 
-/** Invite the first (or another) Admin into a company. The Edge Function holds the service key. */
+/** Invite the first (or another) Admin into a company. */
 export async function inviteCompanyAdmin(companyId: string, person: { full_name: string; email: string; phone?: string | null }): Promise<ActionResult<{ id: string }>> {
   try {
     const supabase = await ownerClient();
     const { data: adminRole } = await supabase.from("roles").select("id").eq("is_admin", true).eq("is_system", true).limit(1).maybeSingle();
     if (!adminRole) return { ok: false, error: "The Admin role is missing." };
 
-    const { data, error } = await supabase.functions.invoke("invite-user", {
-      body: {
-        email: person.email,
-        full_name: person.full_name,
-        phone: person.phone ?? null,
-        role_id: (adminRole as { id: string }).id,
-        company_id: companyId,
-        job_title: "Administrator",
-        redirect_to: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/auth/callback?next=/reset-password`,
-      },
+    const invited = await inviteUserServer({
+      email: person.email,
+      full_name: person.full_name,
+      phone: person.phone ?? null,
+      role_id: (adminRole as { id: string }).id,
+      company_id: companyId,
+      job_title: "Administrator",
     });
-    if (error) {
-      let message = error.message;
-      try {
-        const ctx = (error as { context?: Response }).context;
-        if (ctx && typeof ctx.json === "function") {
-          const body = (await ctx.json()) as { error?: string };
-          if (body?.error) message = body.error;
-        }
-      } catch {
-        // keep the generic message
-      }
-      return { ok: false, error: message };
-    }
-    const userId = (data as { id: string }).id;
+    if (!invited.ok) return invited;
+    const userId = invited.data.id;
 
     // Delegation ceiling = the modules in the company's package.
     const { data: company } = await supabase.from("companies").select("package_id").eq("id", companyId).maybeSingle();
