@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
+import { FormActions } from "@/components/patterns/form-actions";
 import { buildResourceTree, type Resource, type ResourceNode } from "@/lib/permissions";
 import { deletePackage, savePackage, type PackageInput } from "../actions";
 import { cn } from "@/lib/utils";
@@ -55,6 +56,7 @@ export function PackageForm({ pkg, resources, companiesUsing }: { pkg: PackageIn
   );
   const [selected, setSelected] = React.useState<Set<string>>(() => expand(pkg?.resource_keys ?? []));
   const [busy, setBusy] = React.useState(false);
+  const formId = React.useId();
 
   const parentOf = (key: string) => nodes.get(key)?.parent_key ?? null;
 
@@ -128,7 +130,7 @@ export function PackageForm({ pkg, resources, companiesUsing }: { pkg: PackageIn
     ));
 
   return (
-    <form onSubmit={submit} className="grid gap-6 lg:grid-cols-[1fr_420px]">
+    <form id={formId} onSubmit={submit} className="grid gap-6 lg:grid-cols-[1fr_420px]">
       <section className="page-card space-y-4 p-4 md:p-6">
         <div className="grid gap-4 md:grid-cols-2">
           <Field className="md:col-span-2">
@@ -226,14 +228,7 @@ export function PackageForm({ pkg, resources, companiesUsing }: { pkg: PackageIn
           ) : (
             <span />
           )}
-          <div className="flex gap-2">
-            <Button type="button" variant="outline" size="lg" onClick={() => router.push("/platform/packages")}>
-              {t("common.cancel")}
-            </Button>
-            <Button type="submit" size="lg" disabled={busy}>
-              {busy ? t("common.saving") : t("common.save")}
-            </Button>
-          </div>
+          <FormActions formId={formId} busy={busy} onCancel={() => router.push("/platform/packages")} />
         </div>
       </section>
 

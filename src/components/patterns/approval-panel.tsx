@@ -10,10 +10,10 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusChip } from "./status-chip";
 import { SignatureField, SignatureSummary, type SignatureValue } from "./signature-field";
 import { ConfirmDialog } from "./confirm-dialog";
+import { SearchSelect } from "./search-select";
 import { usePermissions } from "@/components/permissions/provider";
 import { callRpc } from "@/lib/data/records";
 import { formatDate } from "@/lib/utils";
@@ -188,18 +188,7 @@ export function ApprovalPanel({
                       {f.required ? <span className="text-danger"> *</span> : null}
                     </FieldLabel>
                     {f.control === "select" ? (
-                      <Select value={extra[f.name] ?? ""} onValueChange={(v) => setExtra({ ...extra, [f.name]: v ?? "" })}>
-                        <SelectTrigger id={`extra-${f.name}`} className="h-10 w-full">
-                          <SelectValue placeholder={t("common.select_placeholder")} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {f.options.map((o) => (
-                            <SelectItem key={o.value} value={o.value}>
-                              {o.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <SearchSelect id={`extra-${f.name}`} value={extra[f.name] ?? ""} onChange={(v) => setExtra({ ...extra, [f.name]: v })} options={f.options} invalid={!!errors[f.name]} />
                     ) : (
                       <Input id={`extra-${f.name}`} type={f.control} inputMode={f.control === "number" ? "decimal" : undefined} className="h-10" value={extra[f.name] ?? ""} onChange={(e) => setExtra({ ...extra, [f.name]: e.target.value })} />
                     )}

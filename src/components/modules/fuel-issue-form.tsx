@@ -3,16 +3,16 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { DatePicker } from "@/components/patterns/date-picker";
+import { FormActions } from "@/components/patterns/form-actions";
 import { saveRecord } from "@/lib/data/records";
 import { formatNumber, formatTzs } from "@/lib/utils";
 import { t } from "@/i18n";
 
 /** Fuel log manager view: previous fill, balance, odometers, issued litres, price and the computed cost. */
-export function FuelIssueForm({ request, issue, vehicle, readOnly }: { request: Record<string, unknown>; issue: Record<string, unknown> | null; vehicle: Record<string, unknown> | null; readOnly: boolean }) {
+export function FuelIssueForm({ request, issue, vehicle, readOnly, defaultPrice }: { request: Record<string, unknown>; issue: Record<string, unknown> | null; vehicle: Record<string, unknown> | null; readOnly: boolean; defaultPrice?: number | null }) {
   const router = useRouter();
   const [v, setV] = React.useState({
     issue_date: (issue?.issue_date as string) ?? new Date().toISOString().slice(0, 10),
@@ -22,7 +22,7 @@ export function FuelIssueForm({ request, issue, vehicle, readOnly }: { request: 
     current_odometer: String(issue?.current_odometer ?? request.current_odometer ?? ""),
     fuel_filled_l: String(issue?.fuel_filled_l ?? request.fuel_filled_l ?? ""),
     fuel_issued_l: String(issue?.fuel_issued_l ?? request.approved_l ?? request.fuel_required_l ?? ""),
-    price_per_litre: String(issue?.price_per_litre ?? ""),
+    price_per_litre: String(issue?.price_per_litre ?? (defaultPrice ? defaultPrice : "")),
   });
   const [busy, setBusy] = React.useState(false);
 
@@ -86,7 +86,10 @@ export function FuelIssueForm({ request, issue, vehicle, readOnly }: { request: 
         {field("current_odometer", "daily_use.fuel.current_odometer", "km")}
         {field("fuel_filled_l", "daily_use.fuel.fuel_filled", "L")}
         {field("fuel_issued_l", "daily_use.fuel.issued", "L")}
-        {field("price_per_litre", "daily_use.fuel.price", "TZS")}
+        <div>
+          {field("price_per_litre", "daily_use.fuel.price", "TZS")}
+          <p className="mt-1 text-xs text-muted-foreground">{t("daily_use.fuel.price_hint")}</p>
+        </div>
       </div>
       <dl className="grid gap-3 rounded-lg bg-muted/50 p-3 text-sm sm:grid-cols-3">
         <div>
@@ -102,13 +105,7 @@ export function FuelIssueForm({ request, issue, vehicle, readOnly }: { request: 
           <dd className="font-medium tabular-nums">{cost === null ? "—" : formatTzs(cost)}</dd>
         </div>
       </dl>
-      {!readOnly ? (
-        <div className="flex justify-end">
-          <Button onClick={save} disabled={busy || !v.fuel_issued_l}>
-            {busy ? t("common.saving") : t("daily_use.fuel.issue")}
-          </Button>
-        </div>
-      ) : null}
+      {!readOnly ? <FormActions onSave={save} busy={busy} disabled={!v.fuel_issued_l} saveLabel={t("daily_use.fuel.issue")} /> : null}
     </div>
   );
 }

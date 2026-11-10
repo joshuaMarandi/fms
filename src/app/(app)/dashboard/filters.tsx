@@ -4,6 +4,7 @@ import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DatePicker } from "@/components/patterns/date-picker";
+import { SearchSelect } from "@/components/patterns/search-select";
 import { t } from "@/i18n";
 import type { RangeKey } from "./range";
 
@@ -43,19 +44,14 @@ export function DashboardFilters({ vehicles }: { vehicles: { id: string; registr
           <DatePicker value={sp.get("to")} onChange={(v) => update({ to: v })} className="w-[150px]" placeholder={t("common.to")} />
         </>
       ) : null}
-      <Select value={vehicle} onValueChange={(v) => update({ vehicle: v ?? "all" })}>
-        <SelectTrigger className="h-10 w-[180px]" aria-label={t("common.vehicle_filter")}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">{t("common.all_vehicles")}</SelectItem>
-          {vehicles.map((v) => (
-            <SelectItem key={v.id} value={v.id}>
-              {v.registration}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <div className="w-[200px]">
+        <SearchSelect
+          value={vehicle === "all" ? "" : vehicle}
+          onChange={(v) => update({ vehicle: v || "all" })}
+          options={vehicles.map((v) => ({ value: v.id, label: v.registration }))}
+          placeholder={t("common.all_vehicles")}
+        />
+      </div>
     </div>
   );
 }

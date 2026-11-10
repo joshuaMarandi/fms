@@ -399,4 +399,34 @@ begin
   perform pg_temp.as_admin();
 end $$;
 
+
+-- Monthly fuel price and closing anomalies later
+do $$
+declare v_insp uuid; v_an uuid; v_price numeric; v_issue uuid;
+begin
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  insert into public.fuel_prices (company_id, price_per_litre, effective_from) values ('11111111-1111-1111-1111-111111111111', 3300, current_date - 5);
+  insert into public.fuel_prices (company_id, price_per_litre, effective_from) values ('11111111-1111-1111-1111-111111111111', 3400, current_date + 20);
+  perform pg_temp.check('price in force today is this month''s price', public.fuel_price_on('11111111-1111-1111-1111-111111111111', current_date) = 3300);
+  perform pg_temp.check('future price applies from its date', public.fuel_price_on('11111111-1111-1111-1111-111111111111', current_date + 25) = 3400);
+  insert into public.fuel_issues (company_id, vehicle_id, issue_date, previous_odometer, current_odometer, fuel_issued_l, price_per_litre)
+  values ('11111111-1111-1111-1111-111111111111', '55555555-5555-5555-5555-000000000002', current_date, 1000, 1400, 40, 0) returning id into v_issue;
+  select price_per_litre into v_price from public.fuel_issues where id = v_issue;
+  perform pg_temp.check('fuel issue without a price takes the price in force', v_price = 3300);
+  perform pg_temp.as_admin();
+
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000005');
+  insert into public.daily_inspections (company_id, vehicle_id, inspection_date, mileage_km, remark)
+  values ('11111111-1111-1111-1111-111111111111', '55555555-5555-5555-5555-000000000002', current_date, 50000, 'anomalies') returning id into v_insp;
+  insert into public.inspection_anomalies (company_id, daily_inspection_id, vehicle_id, description, action_required, when_to_act, status, date_opened)
+  values ('11111111-1111-1111-1111-111111111111', v_insp, '55555555-5555-5555-5555-000000000002', 'Wiper blade torn', 'Replace', 'at_next_service', 'open', current_date) returning id into v_an;
+  perform pg_temp.check('anomaly can be saved open without a closing date', (select date_closed from public.inspection_anomalies where id = v_an) is null);
+  perform pg_temp.as_admin();
+
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  update public.inspection_anomalies set status = 'closed' where id = v_an;
+  perform pg_temp.check('closing later fills the closing date', (select date_closed from public.inspection_anomalies where id = v_an) = current_date);
+  perform pg_temp.as_admin();
+end $$;
+
 select 'ALL TESTS PASSED' as result;

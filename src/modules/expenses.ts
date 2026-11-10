@@ -37,7 +37,7 @@ export const fuelExpenses: ModuleDef = {
           { name: "target_km_per_l", label: "expenses.fuel.target", control: "number", min: 0, step: 0.1, unit: "km/L", description: "Defaults to the vehicle target" },
           { name: "fuel_consumed_l", label: "expenses.fuel.consumed", control: "number", min: 0, unit: "L", required: true },
           { name: "attained_km_per_l", label: "expenses.fuel.attained", control: "auto", format: "number", digits: 2, compute: (v) => safe((num(v.km_end) - num(v.km_start)) / num(v.fuel_consumed_l)) },
-          { name: "price_per_litre", label: "expenses.fuel.price", control: "number", min: 0, unit: "TZS", required: true },
+          { name: "price_per_litre", label: "expenses.fuel.price", control: "number", min: 0, unit: "TZS", description: "expenses.fuel.price_hint" },
           { name: "amount_tzs", label: "expenses.fuel.amount", control: "auto", format: "tzs", compute: (v) => safe(num(v.fuel_consumed_l) * num(v.price_per_litre)) },
         ],
       },

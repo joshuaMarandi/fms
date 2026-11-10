@@ -63,7 +63,7 @@ export async function ModuleRecordPage({ moduleKey, id }: { moduleKey: string; i
             options={options}
             readOnly={locked}
             cancelHref={def.path}
-            afterSavePath="${def.path}"
+            afterSavePath={def.path}
             revalidate={[def.path]}
           />
           {def.detailExtra && record ? <DetailExtra name={def.detailExtra} record={record} options={options} /> : null}

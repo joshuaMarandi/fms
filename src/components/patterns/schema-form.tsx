@@ -17,6 +17,8 @@ import { Field as UiField, FieldDescription, FieldError, FieldLabel, FieldLegend
 import { DatePicker } from "./date-picker";
 import { SignatureField, type SignatureValue } from "./signature-field";
 import { AttachmentsBox } from "./attachments-box";
+import { SearchSelect, toSearchOptions } from "./search-select";
+import { FormActions } from "./form-actions";
 import { usePermissions } from "@/components/permissions/provider";
 import { saveRecord } from "@/lib/data/records";
 import type { LoadedOptions } from "@/lib/data/records";
@@ -96,6 +98,7 @@ export function SchemaForm({ schemaKey, record, options = {}, afterSavePath, can
     mode: "onBlur",
   });
   const [busy, setBusy] = React.useState(false);
+  const formId = React.useId();
 
   async function onSubmit(values: FieldValues) {
     setBusy(true);
@@ -121,8 +124,9 @@ export function SchemaForm({ schemaKey, record, options = {}, afterSavePath, can
 
   return (
     <form
+      id={formId}
       onSubmit={form.handleSubmit(onSubmit, () => toast.error(t("form.fix_errors")))}
-      className="space-y-6 pb-24 md:pb-6"
+      className="space-y-6"
       noValidate
     >
       {sections.map((section, i) => (
@@ -141,20 +145,7 @@ export function SchemaForm({ schemaKey, record, options = {}, afterSavePath, can
         </section>
       ))}
       {children}
-      {canEdit ? (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t bg-card/95 p-3 md:static md:border-0 md:bg-transparent md:p-0">
-          <div className="mx-auto flex max-w-[1400px] items-center justify-end gap-2">
-            {cancelHref ? (
-              <Button type="button" variant="outline" size="lg" onClick={() => router.push(cancelHref)}>
-                {t("common.cancel")}
-              </Button>
-            ) : null}
-            <Button type="submit" size="lg" disabled={busy}>
-              {busy ? t("common.saving") : submitLabel ?? t("common.save")}
-            </Button>
-          </div>
-        </div>
-      ) : null}
+      {canEdit ? <FormActions formId={formId} busy={busy} saveLabel={submitLabel} onCancel={cancelHref ? () => router.push(cancelHref) : undefined} /> : null}
     </form>
   );
 }
@@ -236,20 +227,31 @@ function FieldRenderer({ field: f, form, ctx, disabled, recordId, schema, prefix
         <Controller
           control={form.control}
           name={name}
-          render={({ field }) => (
-            <Select value={(field.value as string) ?? ""} onValueChange={(v) => field.onChange(v ?? "")} disabled={isDisabled}>
-              <SelectTrigger id={id} className="h-10 w-full" aria-invalid={!!error}>
-                <SelectValue placeholder={t("common.select_placeholder")} />
-              </SelectTrigger>
-              <SelectContent>
-                {opts.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
+          render={({ field }) =>
+            f.source || opts.length > 8 ? (
+              <SearchSelect
+                id={id}
+                value={(field.value as string) ?? ""}
+                onChange={(v) => field.onChange(v)}
+                options={f.source ? toSearchOptions(sourceOpts) : opts}
+                disabled={isDisabled}
+                invalid={!!error}
+              />
+            ) : (
+              <Select value={(field.value as string) ?? ""} onValueChange={(v) => field.onChange(v ?? "")} disabled={isDisabled}>
+                <SelectTrigger id={id} className="h-10 w-full" aria-invalid={!!error}>
+                  <SelectValue placeholder={t("common.select_placeholder")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {opts.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )
+          }
         />,
       );
     }

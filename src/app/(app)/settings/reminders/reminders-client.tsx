@@ -3,11 +3,11 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { createClient } from "@/lib/supabase/client";
+import { FormActions } from "@/components/patterns/form-actions";
 import { t } from "@/i18n";
 
 export type ReminderSetting = { id: string; reminder_type: string; lead_days: number; lead_km: number; notify_role_ids: string[]; notify_email: boolean };
@@ -78,13 +78,7 @@ export function RemindersClient({ rows, roles, companyId, canEdit }: { rows: Rem
           </tbody>
         </table>
       </div>
-      {canEdit ? (
-        <div className="flex justify-end">
-          <Button onClick={save} disabled={busy}>
-            {busy ? t("common.saving") : t("common.save")}
-          </Button>
-        </div>
-      ) : null}
+      {canEdit ? <FormActions onSave={save} busy={busy} /> : null}
     </div>
   );
 }

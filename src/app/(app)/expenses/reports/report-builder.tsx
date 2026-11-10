@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { DatePicker } from "@/components/patterns/date-picker";
+import { SearchSelect } from "@/components/patterns/search-select";
 import { DataTable } from "@/components/patterns/data-table";
 import { MonthlyBarChart, MonthlyLineChart, Widget } from "@/app/(app)/dashboard/charts";
 import { createClient } from "@/lib/supabase/client";
@@ -141,35 +142,11 @@ export function ReportBuilder({ types, presets, vehicles, drivers, canExport, co
         </Field>
         <Field>
           <FieldLabel htmlFor="rep-vehicle">{t("common.vehicle_filter")}</FieldLabel>
-          <Select value={vehicle} onValueChange={(v) => setVehicle(v ?? "all")}>
-            <SelectTrigger id="rep-vehicle" className="h-10 w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("common.all_vehicles")}</SelectItem>
-              {vehicles.map((v) => (
-                <SelectItem key={v.id} value={v.id}>
-                  {v.registration}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SearchSelect id="rep-vehicle" value={vehicle === "all" ? "" : vehicle} onChange={(v) => setVehicle(v || "all")} options={vehicles.map((v) => ({ value: v.id, label: v.registration }))} placeholder={t("common.all_vehicles")} />
         </Field>
         <Field>
           <FieldLabel htmlFor="rep-driver">{t("inspections.driver_name")}</FieldLabel>
-          <Select value={driver} onValueChange={(v) => setDriver(v ?? "all")}>
-            <SelectTrigger id="rep-driver" className="h-10 w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("common.all")}</SelectItem>
-              {drivers.map((d) => (
-                <SelectItem key={d.id} value={d.id}>
-                  {d.full_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SearchSelect id="rep-driver" value={driver === "all" ? "" : driver} onChange={(v) => setDriver(v || "all")} options={drivers.map((d) => ({ value: d.id, label: d.full_name }))} placeholder={t("common.all")} />
         </Field>
         <div className="flex flex-wrap items-end gap-2 md:col-span-5">
           <Button onClick={run} disabled={busy} className="h-10">

@@ -21,7 +21,10 @@ export async function DetailExtra({ name, record, options }: { name: string; rec
   switch (name) {
     case "fuel_issue": {
       if (record.status !== "approved" && record.status !== "completed") return null;
-      const { data: issue } = await supabase.from("fuel_issues").select("*").eq("fuel_request_id", record.id as string).is("deleted_at", null).maybeSingle();
+      const [{ data: issue }, { data: price }] = await Promise.all([
+        supabase.from("fuel_issues").select("*").eq("fuel_request_id", record.id as string).is("deleted_at", null).maybeSingle(),
+        supabase.rpc("fuel_price_on", { p_company: record.company_id as string, p_date: new Date().toISOString().slice(0, 10) }),
+      ]);
       const vehicle = options.vehicles?.find((v) => v.value === record.vehicle_id);
       const canIssue = session.can("daily_use.fuel_log", "approve");
       if (!issue && !canIssue) return null;
@@ -34,7 +37,7 @@ export async function DetailExtra({ name, record, options }: { name: string; rec
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <FuelIssueForm request={record} issue={issue as Record<string, unknown> | null} vehicle={vehicle ?? null} readOnly={!canIssue} />
+            <FuelIssueForm request={record} issue={issue as Record<string, unknown> | null} vehicle={vehicle ?? null} readOnly={!canIssue} defaultPrice={price ? Number(price) : null} />
           </CardContent>
         </Card>
       );

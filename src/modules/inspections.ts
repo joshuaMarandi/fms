@@ -26,7 +26,7 @@ const anomalyRowFields: Field[] = [
     ],
   },
   { name: "date_opened", label: "inspections.anomaly.date_opened", control: "date", required: true },
-  { name: "date_closed", label: "inspections.anomaly.date_closed", control: "date", showWhen: { field: "status", equals: "closed" }, required: true },
+  { name: "date_closed", label: "inspections.anomaly.date_closed", control: "date", showWhen: { field: "status", equals: "closed" }, description: "inspections.anomaly.date_closed_hint" },
 ];
 
 const inspectionCore = (childFk: string): Field[] => [

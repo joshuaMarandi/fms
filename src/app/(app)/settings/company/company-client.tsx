@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AttachmentsBox } from "@/components/patterns/attachments-box";
+import { FormActions } from "@/components/patterns/form-actions";
 import { createClient } from "@/lib/supabase/client";
 import { useSession } from "@/components/permissions/provider";
 import { t } from "@/i18n";
@@ -24,7 +25,8 @@ export function CompanyClient({ company, sites, prices, categories, vehicles, ca
   const session = useSession();
   const supabase = createClient();
   const [name, setName] = React.useState(company.name);
-  const [fuelPrice, setFuelPrice] = React.useState(String(company.settings.fuel_price_per_litre ?? ""));
+  // The per-litre price now lives in the Fuel price card; keep the legacy setting unchanged.
+  const fuelPrice = String(company.settings.fuel_price_per_litre ?? "");
   const [defaultTarget, setDefaultTarget] = React.useState(String(company.settings.default_target_km_per_l ?? ""));
   const [siteRows, setSiteRows] = React.useState<Site[]>(sites);
   const [priceRows, setPriceRows] = React.useState<Price[]>(() => ["full", "body", "interior", "engine"].map((c) => prices.find((p) => p.category === c) ?? { id: "", category: c, price_tzs: 0 }));
@@ -114,10 +116,7 @@ export function CompanyClient({ company, sites, prices, categories, vehicles, ca
               <Input id="c-name" value={name} onChange={(e) => setName(e.target.value)} disabled={ro} className="h-10" />
             </Field>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field>
-                <FieldLabel htmlFor="c-fuel">{t("settings.company.fuel_price")}</FieldLabel>
-                <Input id="c-fuel" type="number" inputMode="decimal" value={fuelPrice} onChange={(e) => setFuelPrice(e.target.value)} disabled={ro} className="h-10" />
-              </Field>
+
               <Field>
                 <FieldLabel htmlFor="c-target">{t("settings.company.default_target")}</FieldLabel>
                 <Input id="c-target" type="number" inputMode="decimal" step="0.1" value={defaultTarget} onChange={(e) => setDefaultTarget(e.target.value)} disabled={ro} className="h-10" />
@@ -221,13 +220,7 @@ export function CompanyClient({ company, sites, prices, categories, vehicles, ca
         </CardContent>
       </Card>
 
-      {!ro ? (
-        <div className="flex justify-end">
-          <Button size="lg" onClick={saveAll} disabled={busy}>
-            {busy ? t("common.saving") : t("common.save")}
-          </Button>
-        </div>
-      ) : null}
+      {!ro ? <FormActions onSave={saveAll} busy={busy} /> : null}
     </div>
   );
 }

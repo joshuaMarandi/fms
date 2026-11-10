@@ -3,12 +3,12 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DatePicker } from "@/components/patterns/date-picker";
+import { FormActions } from "@/components/patterns/form-actions";
 import { saveCompany, type CompanyInput } from "../actions";
 import { daysFromNowISO, todayISO } from "@/lib/utils";
 import { t } from "@/i18n";
@@ -36,6 +36,7 @@ export function CompanyForm({ company, packages }: { company: CompanyInput | nul
     },
   );
   const [busy, setBusy] = React.useState(false);
+  const formId = React.useId();
   const set = (patch: Partial<CompanyInput>) => setV((x) => ({ ...x, ...patch }));
 
   async function submit(e: React.FormEvent) {
@@ -66,7 +67,7 @@ export function CompanyForm({ company, packages }: { company: CompanyInput | nul
   const selected = packages.find((p) => p.id === v.package_id);
 
   return (
-    <form onSubmit={submit} className="space-y-6">
+    <form id={formId} onSubmit={submit} className="space-y-6">
       <section className="page-card p-4 md:p-6">
         <h2 className="mb-4 text-base font-semibold">{t("platform.companies.details")}</h2>
         <div className="grid gap-4 md:grid-cols-2">
@@ -138,14 +139,7 @@ export function CompanyForm({ company, packages }: { company: CompanyInput | nul
         </div>
       </section>
 
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="outline" size="lg" onClick={() => router.push("/platform/companies")}>
-          {t("common.cancel")}
-        </Button>
-        <Button type="submit" size="lg" disabled={busy}>
-          {busy ? t("common.saving") : t("common.save")}
-        </Button>
-      </div>
+      <FormActions formId={formId} busy={busy} onCancel={() => router.push("/platform/companies")} />
     </form>
   );
 }

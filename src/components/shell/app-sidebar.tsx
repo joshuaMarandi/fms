@@ -54,7 +54,11 @@ export function AppSidebar({ counts }: { counts: SidebarCounts; companies?: { id
       const setting = settings ? [{ ...settings, children: settings.children.filter((c) => c.key === "settings.roles" || c.key === "settings.audit") }] : [];
       return [...items, ...setting];
     }
-    const visible = filterTree(permissions, all).filter((n) => n.key !== "platform");
+    // Fleet database and Driver details open one page each; their sections are tabs on that page.
+    const SINGLE_PAGE = new Set(["fleet", "drivers"]);
+    const visible = filterTree(permissions, all)
+      .filter((n) => n.key !== "platform")
+      .map((n) => (SINGLE_PAGE.has(n.key) ? { ...n, children: [] } : n));
     if (!session.isOwner) return visible;
     // Owner inside a company: show exactly the modules in that company's package.
     const keep = (nodes: ResourceNode[]): ResourceNode[] =>
@@ -96,7 +100,7 @@ export function AppSidebar({ counts }: { counts: SidebarCounts; companies?: { id
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="gap-1.5">
               {tree.map((node) => {
                 const label = resourceLabel(node);
                 const numbered = node.label_prefix && /^\d+$/.test(node.label_prefix) ? `${node.label_prefix} ${label}` : label;
@@ -105,7 +109,7 @@ export function AppSidebar({ counts }: { counts: SidebarCounts; companies?: { id
                 if (node.children.length === 0) {
                   return (
                     <SidebarMenuItem key={node.key}>
-                      <SidebarMenuButton asChild isActive={isActive(node.path)} tooltip={numbered} className="data-active:bg-sidebar-active data-active:text-sidebar-accent-foreground">
+                      <SidebarMenuButton asChild isActive={isActive(node.path)} tooltip={numbered} className="h-10 data-active:bg-sidebar-active data-active:text-sidebar-accent-foreground">
                         <Link href={node.path ?? "#"} onClick={() => setOpenMobile(false)}>
                           <DynamicIcon icon={node.icon} />
                           <span>{numbered}</span>
@@ -125,7 +129,7 @@ export function AppSidebar({ counts }: { counts: SidebarCounts; companies?: { id
                   <Collapsible key={node.key} asChild defaultOpen={groupActive(node)} className="group/collapsible">
                     <SidebarMenuItem>
                       <CollapsibleTrigger asChild>
-                        <SidebarMenuButton tooltip={numbered} isActive={isActive(node.path) && pathname === basePath(node.path)} className="data-active:bg-sidebar-active data-active:text-sidebar-accent-foreground">
+                        <SidebarMenuButton tooltip={numbered} isActive={isActive(node.path) && pathname === basePath(node.path)} className="h-10 data-active:bg-sidebar-active data-active:text-sidebar-accent-foreground">
                           <DynamicIcon icon={node.icon} />
                           <span>{numbered}</span>
                           <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" aria-hidden="true" />
@@ -137,22 +141,22 @@ export function AppSidebar({ counts }: { counts: SidebarCounts; companies?: { id
                         </SidebarMenuBadge>
                       ) : null}
                       <CollapsibleContent>
-                        <SidebarMenuSub>
+                        <SidebarMenuSub className="gap-1 py-1">
                           {node.children.map((child) => (
                             <SidebarMenuSubItem key={child.key}>
-                              <SidebarMenuSubButton asChild isActive={isActive(child.path)} className="h-8 data-active:bg-sidebar-active data-active:text-sidebar-accent-foreground">
+                              <SidebarMenuSubButton asChild isActive={isActive(child.path)} className="h-9 data-active:bg-sidebar-active data-active:text-sidebar-accent-foreground">
                                 <Link href={child.path ?? node.path ?? "#"} onClick={() => setOpenMobile(false)}>
                                   <span>{resourceLabel(child)}</span>
                                   <LinkPending />
                                 </Link>
                               </SidebarMenuSubButton>
                               {child.children.filter((g) => g.path).length > 0 ? (
-                                <SidebarMenuSub className="mr-0 border-l-0 pl-4">
+                                <SidebarMenuSub className="mr-0 gap-1 border-l-0 pl-4">
                                   {child.children
                                     .filter((g) => g.path)
                                     .map((g) => (
                                       <SidebarMenuSubItem key={g.key}>
-                                        <SidebarMenuSubButton asChild size="sm" isActive={isActive(g.path) && pathname === basePath(g.path)} className="h-7 data-active:bg-sidebar-active data-active:text-sidebar-accent-foreground">
+                                        <SidebarMenuSubButton asChild size="sm" isActive={isActive(g.path) && pathname === basePath(g.path)} className="h-8 data-active:bg-sidebar-active data-active:text-sidebar-accent-foreground">
                                           <Link href={g.path!} onClick={() => setOpenMobile(false)}>
                                             <span>{resourceLabel(g)}</span>
                                             <LinkPending />

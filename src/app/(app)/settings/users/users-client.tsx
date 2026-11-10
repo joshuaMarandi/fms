@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { DataTable } from "@/components/patterns/data-table";
 import { StatusChip } from "@/components/patterns/status-chip";
+import { SearchSelect } from "@/components/patterns/search-select";
 import { inviteUser, setAdminCeiling, setUserActive, setUserRoles, updateUserProfile } from "./actions";
 import { hasKey, t } from "@/i18n";
 
@@ -252,19 +253,7 @@ function EditUserSheet({ user, roles, modules, drivers, isOwner, onClose }: { us
             </Field>
             <Field>
               <FieldLabel htmlFor="u-driver">{t("settings.users.link_driver")}</FieldLabel>
-              <Select value={profile.driver_id || "none"} onValueChange={(v) => setProfile({ ...profile, driver_id: v === "none" ? "" : (v ?? "") })}>
-                <SelectTrigger id="u-driver" className="h-10 w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">{t("common.none")}</SelectItem>
-                  {drivers.map((d) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      {d.full_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchSelect id="u-driver" value={profile.driver_id} onChange={(v) => setProfile({ ...profile, driver_id: v })} options={drivers.map((d) => ({ value: d.id, label: d.full_name }))} placeholder={t("common.none")} />
             </Field>
           </div>
           {isOwner && primaryIsAdmin ? (
