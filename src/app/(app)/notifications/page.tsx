@@ -3,7 +3,8 @@ import { PageHeader } from "@/components/shell/page-header";
 import { requireSession } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/utils";
-import { kindIcon, type NotificationRow } from "@/components/shell/notifications-bell";
+import type { NotificationRow } from "@/components/shell/notifications-bell";
+import { kindIcon } from "@/components/shell/notification-icon";
 import { MarkAllReadButton } from "./mark-all-read";
 import { t } from "@/i18n";
 

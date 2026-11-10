@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bell, BellRing, CheckCheck, CircleAlert, CircleCheck, CircleX, Clock } from "lucide-react";
+import { Bell, BellRing, CheckCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useSession } from "@/components/permissions/provider";
 import { formatDate } from "@/lib/utils";
 import { t } from "@/i18n";
+import { kindIcon } from "./notification-icon";
 
 export type NotificationRow = {
   id: string;
@@ -21,21 +22,6 @@ export type NotificationRow = {
   read_at: string | null;
   created_at: string;
 };
-
-export function kindIcon(kind: string) {
-  switch (kind) {
-    case "approval":
-      return <CircleCheck className="size-4 text-success" aria-hidden="true" />;
-    case "rejection":
-      return <CircleX className="size-4 text-danger" aria-hidden="true" />;
-    case "anomaly":
-      return <CircleAlert className="size-4 text-danger" aria-hidden="true" />;
-    case "reminder":
-      return <Clock className="size-4 text-warning" aria-hidden="true" />;
-    default:
-      return <Bell className="size-4 text-muted-foreground" aria-hidden="true" />;
-  }
-}
 
 export function NotificationsBell({ initial, initialUnread }: { initial: NotificationRow[]; initialUnread: number }) {
   const session = useSession();
