@@ -1,36 +1,118 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MDV Fleet Management System
 
-## Getting Started
+Role-based web app where a company's fleet, drivers, inspections, daily use, expenses, training, HR records and safety data live in one place. Built from the MDV FMS2 requirements: every field, checkbox, radio, dropdown and reminder from sections 1 to 5 exists in the app.
 
-First, run the development server:
+Stack: Next.js (App Router, TypeScript) · Supabase (Postgres, Auth, Storage, Realtime, pg_cron, Edge Functions) · shadcn/ui · Tailwind CSS · TanStack Table · React Hook Form + Zod · Recharts. Installable PWA for drivers. All UI text lives in `src/i18n/en.json` (Swahili can be added in `sw.json`).
+
+## 1. Setup
+
+Requirements: Node 20.9+, npm, the Supabase CLI, Docker (for a local Supabase) or a self-hosted Supabase on your VPS.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env.local        # fill in NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Local Supabase
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run db:start                  # starts Postgres, Auth, Storage, Studio in Docker
+npm run db:reset                  # applies supabase/migrations and supabase/seed.sql
+npm run db:types                  # regenerates src/lib/database.types.ts
+npm run dev                       # http://localhost:3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+`supabase status` prints the API URL and anon key for `.env.local`.
 
-## Learn More
+### Self-hosted Supabase (VPS)
 
-To learn more about Next.js, take a look at the following resources:
+1. Link the project: `supabase link --project-ref <ref>` or point `supabase db push --db-url postgresql://...` at the VPS database.
+2. Apply migrations: `supabase db push`. Load the seed once: `psql "$DB_URL" -f supabase/seed.sql` (demo data; remove the demo users and company afterwards if not wanted).
+3. Create the storage buckets if `storage.buckets` was not writable during migration: vehicle-docs, driver-docs, inspection-scans, jmp, incident-files, forms (all private).
+4. Deploy the Edge Functions and set their secrets:
+   ```bash
+   supabase functions deploy invite-user
+   supabase functions deploy send-reminder-emails
+   supabase secrets set RESEND_API_KEY=... REMINDER_FROM_EMAIL=fleet@yourdomain APP_URL=https://fms.yourdomain
+   ```
+   `SUPABASE_SERVICE_ROLE_KEY` is only ever used inside these functions.
+5. For the daily email run, store the function URL and service key in Vault (see `supabase/migrations/20261110000500_cron_email_hook.sql`). The daily reminder job itself (`fms-process-reminders`, 06:00) is scheduled by the migration.
+6. In Supabase Auth settings add `https://fms.yourdomain/auth/callback` to the redirect URLs and set the site URL.
+7. Build and run the app: `npm run build && npm run start` behind your reverse proxy (or use the Dockerfile of your choice). Set `NEXT_PUBLIC_APP_URL`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 2. Environment variables
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Variable | Where | Purpose |
+| --- | --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | `.env.local` | Supabase API URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `.env.local` | Anon (publishable) key; RLS protects everything |
+| `NEXT_PUBLIC_APP_URL` | `.env.local` | Public URL used in invitation links |
+| `SUPABASE_SERVICE_ROLE_KEY` | Edge Function secrets only | Admin API for invitations and emails |
+| `RESEND_API_KEY`, `REMINDER_FROM_EMAIL`, `APP_URL` | Edge Function secrets | Reminder emails |
 
-## Deploy on Vercel
+## 3. Demo users (seed)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+All passwords: `Password123!`
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Email | Role |
+| --- | --- |
+| owner@mdv.test | Owner |
+| fleetmanager@mdv.test | Admin (Fleet Manager), delegable ceiling: all five modules |
+| coordinator@mdv.test | Fleet coordinator |
+| hod@mdv.test | Head of department |
+| driver1@mdv.test, driver2@mdv.test | Driver (linked to driver records) |
+| hr@mdv.test | HR |
+| requester@mdv.test | Requester |
+| hse@mdv.test | HSE manager |
+| controlroom@mdv.test | Control room operator |
+| erc@mdv.test | Emergency response commander |
+
+## 4. How access works
+
+Access is data, not code. `resources` holds the module tree (keys like `expenses.tyres`), `roles` hold `role_grants` (resource, actions, scope), users hold one primary role and optional extra roles (union). The same check runs in three places:
+
+- Database: `permission_scope(resource, action)` and `row_access(...)` inside every RLS policy; `approve_request`, `reject_request`, `sign_jmp` check `approve`; role editing triggers enforce the admin ceiling (`admin_ceilings`).
+- Server: `requirePermission()` in pages, `session.can()`.
+- Client: `useCan()` and `<Can resource action>` hide menu items, tabs, buttons and fields.
+
+A grant on a parent key applies to its children unless a child has its own grant (longest prefix wins). Scopes: `all`, `department`, `own` (created by the user or linked to the user's driver record).
+
+## 5. Adding a module or submodule
+
+1. Add a row to `public.resources` (key, parent_key, name, label_prefix, path, icon, sort_order) in a migration or in `seed.sql`.
+2. Create the table with the standard columns (`id, company_id, created_at, created_by, updated_at, updated_by, deleted_at`) and register it in `public.table_resources`; call `apply_standard_rls('table', 'resource.key')` (or `apply_child_rls` for repeatable rows) in the migration.
+3. Describe the form and list once in `src/modules/*.ts` (a `ModuleDef`: schema with the controls from the spec, list columns, option sources) and add it to `src/modules/registry.ts`.
+4. Add three route files under `src/app/(app)/<path>/`: `page.tsx` (ModuleListPage), `new/page.tsx` and `[id]/page.tsx` (ModuleRecordPage). Add its labels to `src/i18n/en.json` and a quick action in `src/components/shell/quick-action.tsx`.
+5. Grant it to roles in Settings, Roles and access (or in `seed.sql`). Mark date columns that need reminders with a `sync_reminder` trigger.
+
+## 6. Adding a role
+
+Settings, Roles and access: Add role (optionally copy from an existing role), tick actions per module or submodule, pick a scope per row, save. The plain-language preview shows what the role can do. An Admin only sees rows inside their delegation ceiling and cannot grant what they do not hold; the database enforces the same rule.
+
+## 7. Project layout
+
+```
+supabase/migrations     schema, permission engine, RLS, triggers, RPCs, reminders, storage policies
+supabase/seed.sql       module tree, roles and grants, demo company and data
+supabase/functions      invite-user, send-reminder-emails (Deno)
+supabase/tests          rls_tests.sql: scopes, parent-child override, driver isolation, approvals, ceilings
+src/app/(app)           pages; generic modules use ModuleListPage and ModuleRecordPage
+src/modules             declarative module definitions (forms, columns, options)
+src/components/patterns data table, schema form, repeatable rows, approval panel, attachments box, chips, signature, confirm dialog
+src/components/shell    sidebar, topbar, breadcrumbs, command palette, notifications, profile menu
+src/lib/permissions.ts  can(), permissionScope() shared by server and client
+src/i18n                en.json (all UI text), sw.json
+```
+
+## 8. Scripts
+
+| Script | What it does |
+| --- | --- |
+| `npm run dev` / `build` / `start` | Next.js |
+| `npm run lint`, `npm run typecheck` | ESLint, TypeScript (with route typegen) |
+| `npm run check:style` | fails on emoji or CSS gradients anywhere in the codebase |
+| `npm run db:reset`, `db:types`, `db:test` | reset and seed, regenerate types, run the SQL test suite |
+
+## 9. Open questions
+
+See `docs/OPEN_QUESTIONS.md` for the items the source document left open and the reading that was built.
