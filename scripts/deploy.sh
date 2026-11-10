@@ -34,11 +34,9 @@ echo "==> Building"
 NODE_OPTIONS="--max-old-space-size=3072" npm run build
 
 echo "==> Restarting"
-if pm2 describe fms >/dev/null 2>&1; then
-  pm2 reload ecosystem.config.cjs --update-env
-else
-  pm2 start ecosystem.config.cjs
-fi
+# Recreate the process so a changed PORT in .env.local is picked up.
+pm2 delete fms >/dev/null 2>&1 || true
+pm2 start ecosystem.config.cjs
 pm2 save
 
 echo "==> Done. $(git log --oneline -1)"

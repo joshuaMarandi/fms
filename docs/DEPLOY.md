@@ -3,7 +3,7 @@
 Target: app at **https://fms.mdvfleet.co.tz**, using the self-hosted Supabase already running on the same server at **https://db.mdvfleet.co.tz**.
 
 ```
-Browser ──> fms.mdvfleet.co.tz  (CloudPanel Node.js site, nginx) ──> Next.js on 127.0.0.1:3010 (PM2)
+Browser ──> fms.mdvfleet.co.tz  (CloudPanel Node.js site, nginx) ──> Next.js on 127.0.0.1:3111 (PM2)
         └─> db.mdvfleet.co.tz   (existing Supabase)               ──> Supabase Kong (Docker)
                                                                        └─ Postgres, Auth, REST, Storage, Realtime
 ```
@@ -46,7 +46,7 @@ If it is not `supabase-db`, use that name in step 4.
 
 You already created `fms.mdvfleet.co.tz`. In its Settings make sure:
 - Node.js version: 22
-- App Port: **3010**
+- App Port: **3111** (the same number goes in `PORT` in `.env.local`)
 - SSL/TLS: Let's Encrypt certificate issued
 
 ## 3. Get the code from GitHub onto the server
@@ -106,6 +106,7 @@ NEXT_PUBLIC_SUPABASE_URL=https://db.mdvfleet.co.tz
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<ANON_KEY from the Supabase .env>
 SUPABASE_SERVICE_ROLE_KEY=<SERVICE_ROLE_KEY from the Supabase .env>
 NEXT_PUBLIC_APP_URL=https://fms.mdvfleet.co.tz
+PORT=3111
 
 SMTP_USER=<gmail address>
 SMTP_PASSWORD=<16-character Google app password>
@@ -159,7 +160,8 @@ cd ~/htdocs/fms.mdvfleet.co.tz && bash scripts/deploy.sh
 
 | Symptom | Check |
 | --- | --- |
-| 502 Bad Gateway on fms | `pm2 logs fms`; the App Port in CloudPanel must be 3010 |
+| 502 Bad Gateway on fms | `pm2 logs fms`; `PORT` in `.env.local` must equal the App Port in CloudPanel |
+| `pm2 status` shows errored | `pm2 logs fms --lines 50 --nostream` shows the reason |
 | Build stops with "JavaScript heap out of memory" | The server needs about 3 GB free RAM for the build; add swap: `fallocate -l 4G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile` |
 | Sign in fails, "Invalid API key" | `NEXT_PUBLIC_SUPABASE_ANON_KEY` does not match `ANON_KEY`; rebuild after fixing `.env.local` |
 | Invite says "SUPABASE_SERVICE_ROLE_KEY is not set" | Add it to `.env.local`, then `pm2 reload fms --update-env` |
