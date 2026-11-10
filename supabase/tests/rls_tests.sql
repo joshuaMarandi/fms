@@ -1,0 +1,248 @@
+-- RLS and permission tests. Run against a database that has the migrations and seed applied:
+--   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls_tests.sql
+-- Every test raises an exception when it fails, so a clean run means all tests pass.
+-- Users come from seed.sql; auth.uid() is simulated through request.jwt.claim.sub.
+
+create or replace function pg_temp.as_user(p_user uuid) returns void language plpgsql as $$
+begin
+  perform set_config('request.jwt.claim.sub', p_user::text, true);
+  perform set_config('request.jwt.claim.role', 'authenticated', true);
+  perform set_config('role', 'authenticated', true);
+end $$;
+
+create or replace function pg_temp.as_admin() returns void language plpgsql as $$
+begin
+  perform set_config('role', 'postgres', true);
+  perform set_config('request.jwt.claim.sub', '', true);
+end $$;
+
+create or replace function pg_temp.check(p_name text, p_ok boolean) returns void language plpgsql as $$
+begin
+  if not coalesce(p_ok, false) then
+    raise exception 'TEST FAILED: %', p_name;
+  end if;
+  raise notice 'ok: %', p_name;
+end $$;
+
+do $$
+declare
+  owner_id uuid := '33333333-3333-3333-3333-000000000001';
+  admin_id uuid := '33333333-3333-3333-3333-000000000002';
+  coord_id uuid := '33333333-3333-3333-3333-000000000003';
+  hod_id uuid := '33333333-3333-3333-3333-000000000004';
+  driver1_id uuid := '33333333-3333-3333-3333-000000000005';
+  driver2_id uuid := '33333333-3333-3333-3333-000000000006';
+  hr_id uuid := '33333333-3333-3333-3333-000000000007';
+  driver1 uuid := '66666666-6666-6666-6666-000000000001';
+  driver2 uuid := '66666666-6666-6666-6666-000000000002';
+  n integer;
+  v_role uuid;
+  v_ok boolean;
+begin
+  -- permission_scope: own, department, all, parent-child override
+  perform pg_temp.check('owner has all on anything', public.permission_scope_for(owner_id, 'expenses.tyres', 'delete') = 'all');
+  perform pg_temp.check('admin has approve on expenses child via parent grant', public.permission_scope_for(admin_id, 'expenses.maintenance.requests', 'approve') = 'all');
+  perform pg_temp.check('coordinator has no approve', public.permission_scope_for(coord_id, 'expenses.tyres', 'approve') is null);
+  perform pg_temp.check('coordinator can create inspections', public.permission_scope_for(coord_id, 'inspections.daily', 'create') = 'all');
+  perform pg_temp.check('HOD view only', public.permission_scope_for(hod_id, 'fleet.details', 'view') = 'all' and public.permission_scope_for(hod_id, 'fleet.details', 'edit') is null);
+  perform pg_temp.check('HOD child grant overrides parent (remarks create)', public.permission_scope_for(hod_id, 'fleet.remarks', 'create') = 'all');
+  perform pg_temp.check('driver own scope on km log', public.permission_scope_for(driver1_id, 'daily_use.km_log', 'create') = 'own');
+  perform pg_temp.check('driver cannot view expenses.fuel', public.permission_scope_for(driver1_id, 'expenses.fuel', 'view') is null);
+  perform pg_temp.check('HR reads drivers', public.permission_scope_for(hr_id, 'drivers.licence', 'view') = 'all');
+  perform pg_temp.check('HR approves nothing', public.permission_scope_for(hr_id, 'expenses.leave.requests', 'approve') is null);
+
+  -- Department scope: give HR a department-scoped grant temporarily and check widest-wins union
+  insert into public.roles (id, company_id, name, is_system) values ('22222222-2222-2222-2222-0000000000aa', '11111111-1111-1111-1111-111111111111', 'Dept tester', false);
+  insert into public.role_grants (role_id, resource_key, actions, scope) values ('22222222-2222-2222-2222-0000000000aa', 'expenses.timesheet', '{view,edit}', 'department');
+  insert into public.user_roles (user_id, role_id, is_primary) values (hr_id, '22222222-2222-2222-2222-0000000000aa', false);
+  perform pg_temp.check('union keeps widest scope (all over department)', public.permission_scope_for(hr_id, 'expenses.timesheet', 'view') = 'all');
+  perform pg_temp.check('department scope where only that role grants it', public.permission_scope_for(hr_id, 'expenses.timesheet', 'edit') = 'department');
+  delete from public.user_roles where role_id = '22222222-2222-2222-2222-0000000000aa';
+  delete from public.roles where id = '22222222-2222-2222-2222-0000000000aa';
+end $$;
+
+-- RLS: a driver cannot read another driver's records
+do $$
+declare n integer;
+begin
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000005');
+  select count(*) into n from public.km_logs where driver_id <> '66666666-6666-6666-6666-000000000001';
+  perform pg_temp.check('driver sees no other drivers km logs', n = 0);
+  select count(*) into n from public.km_logs where driver_id = '66666666-6666-6666-6666-000000000001';
+  perform pg_temp.check('driver sees own km logs', n > 0);
+  select count(*) into n from public.daily_inspections where driver_id <> '66666666-6666-6666-6666-000000000001';
+  perform pg_temp.check('driver sees no other drivers inspections', n = 0);
+  select count(*) into n from public.drivers where id <> '66666666-6666-6666-6666-000000000001';
+  perform pg_temp.check('driver sees only own driver record', n = 0);
+  select count(*) into n from public.fuel_expenses;
+  perform pg_temp.check('driver sees no fuel expenses', n = 0);
+  select count(*) into n from public.vehicles;
+  perform pg_temp.check('driver can list vehicles for dropdowns', n > 0);
+  perform pg_temp.as_admin();
+end $$;
+
+-- RLS: HOD is read only; HR sees drivers but not fuel; coordinator sees everything operational
+do $$
+declare n integer; v_ok boolean;
+begin
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000004');
+  select count(*) into n from public.vehicles;
+  perform pg_temp.check('HOD reads vehicles', n > 0);
+  begin
+    update public.vehicles set location = 'x' where registration = 'T 123 ABC';
+    get diagnostics n = row_count;
+    v_ok := n = 0;
+  exception when others then v_ok := true;
+  end;
+  perform pg_temp.check('HOD cannot update vehicles', v_ok);
+  insert into public.vehicle_remarks (company_id, vehicle_id, body) values ('11111111-1111-1111-1111-111111111111', '55555555-5555-5555-5555-000000000001', 'HOD remark test');
+  perform pg_temp.check('HOD can add remark', true);
+  perform pg_temp.as_admin();
+
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000007');
+  select count(*) into n from public.drivers;
+  perform pg_temp.check('HR reads drivers', n > 0);
+  select count(*) into n from public.fuel_requests;
+  perform pg_temp.check('HR sees no fuel requests', n = 0);
+  perform pg_temp.as_admin();
+
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000003');
+  select count(*) into n from public.km_logs;
+  perform pg_temp.check('coordinator sees all km logs', n > 10);
+  perform pg_temp.as_admin();
+end $$;
+
+-- Approvals: edit cannot approve; status changes must go through the RPC; reject needs a reason
+do $$
+declare v_id uuid; v_ok boolean;
+begin
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000005');
+  insert into public.fuel_requests (company_id, vehicle_id, request_date, current_odometer, fuel_required_l, status)
+  values ('11111111-1111-1111-1111-111111111111', '55555555-5555-5555-5555-000000000002', current_date, 99999, 40, 'draft') returning id into v_id;
+  update public.fuel_requests set status = 'submitted' where id = v_id;
+  begin
+    update public.fuel_requests set status = 'approved' where id = v_id;
+    v_ok := false;
+  exception when others then v_ok := true;
+  end;
+  perform pg_temp.check('direct approve blocked by trigger', v_ok);
+  begin
+    perform public.approve_request('fuel_requests', v_id);
+    v_ok := false;
+  exception when others then v_ok := true;
+  end;
+  perform pg_temp.check('driver cannot approve own request', v_ok);
+  perform pg_temp.as_admin();
+
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000003');
+  begin
+    perform public.approve_request('fuel_requests', v_id);
+    v_ok := false;
+  exception when others then v_ok := true;
+  end;
+  perform pg_temp.check('coordinator (edit only) cannot approve', v_ok);
+  perform pg_temp.as_admin();
+
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  begin
+    perform public.reject_request('fuel_requests', v_id, '');
+    v_ok := false;
+  exception when others then v_ok := true;
+  end;
+  perform pg_temp.check('reject without reason refused', v_ok);
+  perform public.approve_request('fuel_requests', v_id, null, '{"approved_l": 35}'::jsonb);
+  perform pg_temp.check('admin approves and sets litres', (select approved_l from public.fuel_requests where id = v_id) = 35);
+  perform pg_temp.as_admin();
+end $$;
+
+-- Role editing: admin ceiling enforced in the database
+do $$
+declare v_role uuid; v_ok boolean;
+begin
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  insert into public.roles (name, description) values ('Site clerk', 'test') returning id into v_role;
+  insert into public.role_grants (role_id, resource_key, actions, scope) values (v_role, 'daily_use.km_log', '{view,create}', 'all');
+  perform pg_temp.check('admin grants inside ceiling', true);
+  begin
+    insert into public.role_grants (role_id, resource_key, actions, scope) values (v_role, 'settings.roles', '{view}', 'all');
+    v_ok := false;
+  exception when others then v_ok := true;
+  end;
+  perform pg_temp.check('admin cannot grant outside ceiling (settings)', v_ok);
+  begin
+    update public.roles set name = 'Hacked' where id = '22222222-2222-2222-2222-000000000005';
+    get diagnostics v_ok = row_count;
+    v_ok := not v_ok;
+  exception when others then v_ok := true;
+  end;
+  perform pg_temp.check('admin cannot edit system role', v_ok);
+  begin
+    insert into public.user_roles (user_id, role_id) values ('33333333-3333-3333-3333-000000000003', '22222222-2222-2222-2222-000000000001');
+    v_ok := false;
+  exception when others then v_ok := true;
+  end;
+  perform pg_temp.check('admin cannot assign owner role', v_ok);
+  perform pg_temp.as_admin();
+
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000003');
+  begin
+    insert into public.roles (name) values ('Coordinator made role');
+    v_ok := false;
+  exception when others then v_ok := true;
+  end;
+  perform pg_temp.check('coordinator cannot create roles', v_ok);
+  perform pg_temp.as_admin();
+
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000001');
+  begin
+    delete from public.user_roles where user_id = '33333333-3333-3333-3333-000000000001' and role_id = '22222222-2222-2222-2222-000000000001';
+    v_ok := false;
+  exception when others then v_ok := true;
+  end;
+  perform pg_temp.check('last owner cannot be removed', v_ok);
+  begin
+    delete from public.roles where id = '22222222-2222-2222-2222-000000000001';
+    v_ok := false;
+  exception when others then v_ok := true;
+  end;
+  perform pg_temp.check('owner role cannot be deleted', v_ok);
+  delete from public.roles where id = v_role;
+  perform pg_temp.check('owner deletes unused custom role', true);
+  perform pg_temp.as_admin();
+end $$;
+
+-- Reminders exist for every reminder field and the daily job creates notifications
+do $$
+declare n integer;
+begin
+  select count(*) into n from public.reminders where reminder_type = 'insurance_end';
+  perform pg_temp.check('insurance reminders exist', n >= 5);
+  select count(*) into n from public.reminders where reminder_type = 'next_service' and due_km is not null;
+  perform pg_temp.check('next service km reminders exist', n >= 5);
+  select count(*) into n from public.reminders where reminder_type in ('licence_expiry', 'osha_redo', 'training_refresher', 'inspection_renewal', 'third_party_renewal');
+  perform pg_temp.check('driver and inspection reminders exist', n >= 15);
+  select count(*) into n from public.notifications where kind = 'reminder';
+  perform pg_temp.check('reminder notifications were created', n > 0);
+end $$;
+
+-- Calculated values live in the database
+do $$
+declare v numeric; n integer;
+begin
+  select count(*) into n from public.km_log_trips where trip_km <> km_end - km_start;
+  perform pg_temp.check('trip km generated', n = 0);
+  select count(*) into n from public.km_logs l where total_km <> (select coalesce(sum(trip_km), 0) from public.km_log_trips t where t.km_log_id = l.id);
+  perform pg_temp.check('km log totals maintained', n = 0);
+  select count(*) into n from public.timesheets t where total_normal_hours <> (select coalesce(sum(normal_hours), 0) from public.timesheet_days d where d.timesheet_id = t.id);
+  perform pg_temp.check('timesheet totals maintained', n = 0);
+  select count(*) into n from public.wash_requests where cost_tzs = 0;
+  perform pg_temp.check('wash cost filled from price list', n = 0);
+  select count(*) into n from public.fuel_expenses;
+  perform pg_temp.check('fuel issues produced fuel expenses', n > 0);
+  select not_safe_for_use::int into v from public.v_vehicle_safety where vehicle_id = '55555555-5555-5555-5555-000000000004';
+  perform pg_temp.check('vehicle with immediate open anomaly is not safe', v = 1);
+  select count(*) into n from public.vehicles where status = 'in_garage';
+  perform pg_temp.check('open work order puts vehicle in garage', n >= 1);
+end $$;
+
+select 'ALL TESTS PASSED' as result;
