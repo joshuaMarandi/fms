@@ -68,6 +68,10 @@ export type FormSection = {
   fields: Field[];
   /** Resource key needed to see this section (defaults to the form's resource) */
   resource?: string;
+  /** Section can be opened and closed with its header. */
+  collapsible?: boolean;
+  /** Initial state of a collapsible section (default open). */
+  defaultOpen?: boolean;
 };
 
 export type FormSchema = {
@@ -142,10 +146,15 @@ function fieldZod(f: Field, values: Record<string, unknown>): z.ZodTypeAny {
     case "file":
       return z.unknown().optional();
     case "rows": {
-      const rowShape: Record<string, z.ZodTypeAny> = {};
-      for (const sub of f.fields) rowShape[sub.name] = fieldZod({ ...sub, showWhen: undefined }, {});
-      rowShape.id = z.string().optional();
-      const arr = z.array(z.object(rowShape).passthrough());
+      // Each row is checked against its own values, so a field hidden in that row is not required.
+      const row = z.record(z.string(), z.unknown()).superRefine((r, rctx) => {
+        for (const sub of f.fields) {
+          if (sub.control === "auto" || sub.control === "file") continue;
+          const res = fieldZod(sub, r).safeParse(r[sub.name]);
+          if (!res.success) for (const issue of res.error.issues) rctx.addIssue({ code: "custom", message: issue.message, path: [sub.name, ...issue.path] });
+        }
+      });
+      const arr = z.array(row);
       return f.minRows && visible ? arr.min(f.minRows, t("form.at_least_one")) : arr.optional();
     }
   }
@@ -219,7 +228,7 @@ export function toPayload(schema: FormSchema, values: Record<string, unknown>) {
         const r: Record<string, unknown> = {};
         for (const sub of f.fields) {
           if (sub.control === "auto" || sub.control === "file") continue;
-          r[sub.name] = clean(sub, (row as Record<string, unknown>)[sub.name]);
+          r[sub.name] = conditionMet(sub.showWhen, row as Record<string, unknown>) ? clean(sub, (row as Record<string, unknown>)[sub.name]) : clean(sub, "");
         }
         if ((row as Record<string, unknown>).id) r.id = (row as Record<string, unknown>).id;
         return r;

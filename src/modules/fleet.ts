@@ -87,18 +87,28 @@ export const insuranceSchema: FormSchema = {
   ],
 };
 
+/** Recording a service done: each save is a new history row; the newest row is the current schedule. */
 export const serviceScheduleSchema: FormSchema = {
   table: "service_schedules",
   resource: "fleet.maintenance_schedule",
   sections: [
     {
-      title: "fleet.tab.maintenance",
+      title: "fleet.service.record_title",
+      description: "fleet.service.record_description",
       fields: [
-        { name: "last_service_km", label: "fleet.last_service_km", control: "number", min: 0, unit: "km" },
-        { name: "last_service_date", label: "fleet.last_service_date", control: "date" },
-        { name: "next_service_km", label: "fleet.next_service_km", control: "number", min: 0, unit: "km", required: true, description: "Reminder: fires from the vehicle odometer" },
-        { name: "interval_km", label: "fleet.service_interval", control: "number", min: 0, unit: "km" },
-        { name: "notes", label: "common.notes", control: "textarea" },
+        { name: "last_service_date", label: "fleet.last_service_date", control: "date", required: true },
+        { name: "last_service_km", label: "fleet.last_service_km", control: "number", min: 0, unit: "km", required: true },
+        { name: "interval_km", label: "fleet.service_interval", control: "number", min: 1, unit: "km", required: true },
+        {
+          name: "next_service_km",
+          label: "fleet.next_service_km",
+          control: "auto",
+          format: "km",
+          digits: 0,
+          compute: (v) => (v.last_service_km !== "" && v.interval_km !== "" && v.last_service_km != null && v.interval_km != null ? Number(v.last_service_km) + Number(v.interval_km) : null),
+        },
+        { name: "garage", label: "fleet.service.garage", control: "text" },
+        { name: "notes", label: "fleet.service.work_done", control: "textarea" },
       ],
     },
   ],

@@ -449,4 +449,37 @@ begin
   perform pg_temp.as_admin();
 end $$;
 
+-- Service history, employee details from the user, incidents with outside vehicles and drivers
+do $$
+declare v_old uuid; v_new uuid; v_ts uuid; v_inc uuid; v_iv uuid; r record;
+begin
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  select id into v_old from public.service_schedules where vehicle_id = '55555555-5555-5555-5555-000000000002' and deleted_at is null order by created_at desc limit 1;
+  insert into public.service_schedules (company_id, vehicle_id, last_service_km, last_service_date, interval_km, garage)
+  values ('11111111-1111-1111-1111-111111111111', '55555555-5555-5555-5555-000000000002', 60000, current_date, 7500, 'City Motors') returning id into v_new;
+  perform pg_temp.check('next service is service km plus interval', (select next_service_km from public.service_schedules where id = v_new) = 67500);
+  perform pg_temp.check('older services stay as history', (select count(*) from public.service_schedules where vehicle_id = '55555555-5555-5555-5555-000000000002' and deleted_at is null) >= 2);
+  perform pg_temp.check('older service reminder is closed', not exists (select 1 from public.reminders where source_table = 'service_schedules' and source_id = v_old and status <> 'done'));
+
+  insert into public.timesheets (company_id, employee_id, period_month)
+  values ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-000000000005', date_trunc('month', current_date)::date) returning id into v_ts;
+  select * into r from public.timesheets where id = v_ts;
+  perform pg_temp.check('timesheet name comes from the chosen employee', r.employee_name = 'Juma Hassan');
+  perform pg_temp.check('timesheet job details come from the employee', r.employment_number is not null and r.driver_id = '66666666-6666-6666-6666-000000000001');
+
+  insert into public.incidents (company_id, occurred_at, description, driver_source, driver_name, driver_contact)
+  values ('11111111-1111-1111-1111-111111111111', now(), 'Rear-ended at junction', 'other', 'Hamisi Bakari', '+255711111111') returning id into v_inc;
+  select * into r from public.incidents where id = v_inc;
+  perform pg_temp.check('outside driver is saved as typed', r.driver_id is null and r.driver_name = 'Hamisi Bakari');
+  insert into public.incident_vehicles (company_id, incident_id, vehicle_source, vehicle_id, registration, make, driver_name)
+  values ('11111111-1111-1111-1111-111111111111', v_inc, 'other', '55555555-5555-5555-5555-000000000002', 'T 999 ZZZ', 'Isuzu', 'Hamisi Bakari') returning id into v_iv;
+  select * into r from public.incident_vehicles where id = v_iv;
+  perform pg_temp.check('outside vehicle keeps typed details and no fleet link', r.vehicle_id is null and r.registration = 'T 999 ZZZ');
+
+  update public.incidents set driver_source = 'fleet', driver_id = '66666666-6666-6666-6666-000000000001', driver_name = null, driver_contact = null where id = v_inc;
+  select * into r from public.incidents where id = v_inc;
+  perform pg_temp.check('fleet driver details refill from the driver record', r.driver_name = 'Juma Hassan' and r.driver_contact = '+255700000005');
+  perform pg_temp.as_admin();
+end $$;
+
 select 'ALL TESTS PASSED' as result;

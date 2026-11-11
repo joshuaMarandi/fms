@@ -16,7 +16,7 @@ export default async function FleetPage() {
     supabase.from("v_vehicle_safety").select("*"),
     supabase.from("vehicle_insurance").select("vehicle_id, end_date").is("deleted_at", null).order("end_date", { ascending: false }),
     supabase.from("vehicle_inspections").select("vehicle_id, kind, renewal_date").is("deleted_at", null).order("renewal_date", { ascending: false }),
-    supabase.from("service_schedules").select("vehicle_id, next_service_km").is("deleted_at", null),
+    supabase.from("service_schedules").select("vehicle_id, next_service_km").is("deleted_at", null).order("created_at", { ascending: false }),
   ]);
 
   const safetyMap = new Map((safety ?? []).map((s: { vehicle_id: string; not_safe_for_use: boolean; open_anomalies: number }) => [s.vehicle_id, s]));

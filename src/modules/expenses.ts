@@ -6,6 +6,13 @@ export const TZ_REGIONS = [
   "Arusha", "Dar es Salaam", "Dodoma", "Geita", "Iringa", "Kagera", "Katavi", "Kigoma", "Kilimanjaro", "Lindi", "Manyara", "Mara", "Mbeya", "Morogoro", "Mtwara", "Mwanza", "Njombe", "Pemba North", "Pemba South", "Pwani", "Rukwa", "Ruvuma", "Shinyanga", "Simiyu", "Singida", "Songwe", "Tabora", "Tanga", "Unguja North", "Unguja South", "Unguja Urban West",
 ];
 
+/** Read-only employee details shown from the chosen user (the database fills the columns). */
+const fromEmployee = (field: string) => (v: Record<string, unknown>, ctx: { options: { profiles?: Record<string, unknown>[] }; session: { userId: string } }) => {
+  const id = (v.employee_id as string) || ctx.session.userId;
+  const p = (ctx.options.profiles ?? []).find((o) => o.value === id);
+  return (p?.[field] as string) || (v[field] as string) || null;
+};
+
 const num = (v: unknown) => (v === "" || v === null || v === undefined ? NaN : Number(v));
 const safe = (v: number) => (Number.isNaN(v) || !Number.isFinite(v) ? null : v);
 
@@ -105,6 +112,11 @@ export const maintenanceRequests: ModuleDef = {
           { name: "confirmation", label: "expenses.maintenance.confirmation", control: "signature", required: true },
         ],
       },
+      {
+        title: "common.documents",
+        description: "common.documents_hint",
+        fields: [{ name: "documents", label: "common.attachments", control: "file", bucket: "forms", labels: ["expenses.maintenance.doc.fault_photos", "expenses.maintenance.doc.inspection_report"] }],
+      }
     ],
   },
   list: {
@@ -147,7 +159,6 @@ export const workOrders: ModuleDef = {
           { name: "order_number", label: "expenses.maintenance.order_number", control: "text" },
           { name: "garage_name", label: "expenses.maintenance.garage", control: "text", required: true },
           { name: "description", label: "expenses.maintenance.work_description", control: "textarea", required: true },
-          { name: "form", label: "expenses.maintenance.works_order", control: "file", bucket: "forms", labels: ["expenses.maintenance.doc.works_order"] },
         ],
       },
       {
@@ -161,6 +172,11 @@ export const workOrders: ModuleDef = {
           { name: "mileage_during_repairs", label: "expenses.maintenance.mileage_during", control: "auto", format: "km", compute: (v) => safe(num(v.odometer_in) - num(v.odometer_out)) },
         ],
       },
+      {
+        title: "common.documents",
+        description: "common.documents_hint",
+        fields: [{ name: "documents", label: "common.attachments", control: "file", bucket: "forms", labels: ["expenses.maintenance.doc.works_order", "expenses.maintenance.doc.job_card", "expenses.maintenance.doc.invoice", "expenses.maintenance.doc.photos"] }],
+      }
     ],
   },
   list: {
@@ -410,9 +426,13 @@ export const mandatoryTrainings: ModuleDef = {
           { name: "trainer", label: "expenses.trainings.trainer", control: "text" },
           { name: "cost_tzs", label: "expenses.trainings.cost", control: "number", min: 0, unit: "TZS" },
           { name: "refresher_date", label: "expenses.trainings.refresher", control: "date", description: "Reminder" },
-          { name: "certificate", label: "drivers.doc.course_certificates", control: "file", bucket: "driver-docs", labels: ["drivers.doc.course_certificates"] },
         ],
       },
+      {
+        title: "common.documents",
+        description: "common.documents_hint",
+        fields: [{ name: "documents", label: "common.attachments", control: "file", bucket: "driver-docs", labels: ["drivers.doc.course_certificates", "expenses.trainings.doc.attendance", "expenses.trainings.doc.invoice"] }],
+      }
     ],
   },
   list: {
@@ -492,12 +512,11 @@ export const timesheets: ModuleDef = {
     sections: [
       {
         fields: [
-          { name: "employee_id", label: "expenses.timesheet.employee", control: "select", source: "profiles", description: "Auto: you, when left empty" },
-          { name: "employee_name", label: "expenses.timesheet.employee", control: "text", required: true },
-          { name: "employer", label: "expenses.timesheet.employer", control: "text" },
-          { name: "employment_number", label: "expenses.timesheet.employment_number", control: "text" },
-          { name: "job_title", label: "expenses.timesheet.job_title", control: "text" },
-          { name: "department", label: "expenses.timesheet.department", control: "text" },
+          { name: "employee_id", label: "expenses.timesheet.employee", control: "select", source: "profiles", description: "expenses.employee_hint" },
+          { name: "employment_number", label: "expenses.timesheet.employment_number", control: "auto", compute: fromEmployee("employment_number") },
+          { name: "employer", label: "expenses.timesheet.employer", control: "auto", compute: fromEmployee("employer") },
+          { name: "job_title", label: "expenses.timesheet.job_title", control: "auto", compute: fromEmployee("job_title") },
+          { name: "department", label: "expenses.timesheet.department", control: "auto", compute: fromEmployee("department") },
           { name: "period_month", label: "expenses.timesheet.period", control: "date", required: true, description: "Pick the first day of the month" },
         ],
       },
@@ -568,12 +587,11 @@ export const leavePlans: ModuleDef = {
     sections: [
       {
         fields: [
-          { name: "employee_id", label: "expenses.leave.name", control: "select", source: "profiles", description: "Auto: you, when left empty" },
-          { name: "employee_name", label: "expenses.leave.name", control: "text", required: true },
-          { name: "employment_number", label: "expenses.leave.employment_number", control: "text" },
-          { name: "employer", label: "expenses.leave.company", control: "text" },
-          { name: "position", label: "expenses.leave.position", control: "text" },
-          { name: "department", label: "expenses.leave.department", control: "text" },
+          { name: "employee_id", label: "expenses.leave.name", control: "select", source: "profiles", description: "expenses.employee_hint" },
+          { name: "employment_number", label: "expenses.leave.employment_number", control: "auto", compute: fromEmployee("employment_number") },
+          { name: "employer", label: "expenses.leave.company", control: "auto", compute: fromEmployee("employer") },
+          { name: "position", label: "expenses.leave.position", control: "auto", compute: fromEmployee("job_title") },
+          { name: "department", label: "expenses.leave.department", control: "auto", compute: fromEmployee("department") },
           { name: "plan_year", label: "expenses.leave.plan.year", control: "year", required: true, from: 2020 },
         ],
       },
@@ -637,7 +655,7 @@ export const leaveRequests: ModuleDef = {
     sections: [
       {
         fields: [
-          { name: "employee_id", label: "expenses.leave.name", control: "select", source: "profiles", description: "Auto: you, when left empty" },
+          { name: "employee_id", label: "expenses.leave.name", control: "select", source: "profiles", description: "expenses.employee_hint" },
           { name: "category_id", label: "expenses.leave.category", control: "select", source: "leave_categories", required: true },
           { name: "date_from", label: "expenses.leave.date_from", control: "date", required: true },
           { name: "date_to", label: "expenses.leave.date_to", control: "date", required: true },
@@ -702,7 +720,6 @@ export const leaveBalances: ModuleDef = {
   },
 };
 
-const RESPONSE_ACTIONS: Option[] = ["informed_authorities", "secured_scene", "sent_injured", "reported_insurance"].map((k) => ({ value: k, label: `expenses.safety.response.${k}` }));
 const SEX: Option[] = [
   { value: "male", label: "drivers.sex.male" },
   { value: "female", label: "drivers.sex.female" },
@@ -764,6 +781,8 @@ export const incidents: ModuleDef = {
       },
       {
         title: "expenses.safety.vehicles",
+        description: "expenses.safety.vehicles_hint",
+        collapsible: true,
         fields: [
           {
             name: "vehicles",
@@ -772,33 +791,47 @@ export const incidents: ModuleDef = {
             childTable: "incident_vehicles",
             fk: "incident_id",
             fields: [
-              { name: "vehicle_id", label: "expenses.safety.vehicle", control: "select", source: "vehicles", description: "Auto fills the fields below when saved" },
-              { name: "make", label: "expenses.safety.vehicle_make", control: "text" },
-              { name: "model", label: "expenses.safety.vehicle_model", control: "text" },
-              { name: "registration", label: "expenses.safety.vehicle_registration", control: "text" },
-              { name: "yom", label: "expenses.safety.vehicle_yom", control: "year", from: 1980 },
-              { name: "owner_name", label: "expenses.safety.vehicle_owner", control: "text" },
-              { name: "insurance_policy_number", label: "expenses.safety.vehicle_policy", control: "text" },
+              { name: "vehicle_source", label: "expenses.safety.vehicle_source", control: "radio", inline: true, required: true, options: [
+              { value: "fleet", label: "expenses.safety.source.fleet" },
+              { value: "other", label: "expenses.safety.source.other" },
+            ] },
+              { name: "vehicle_id", label: "expenses.safety.vehicle", control: "select", source: "vehicles", required: true, showWhen: { field: "vehicle_source", equals: "fleet" }, description: "expenses.safety.fleet_vehicle_hint" },
+              { name: "registration", label: "expenses.safety.vehicle_registration", control: "text", required: true, showWhen: { field: "vehicle_source", equals: "other" } },
+              { name: "make", label: "expenses.safety.vehicle_make", control: "text", showWhen: { field: "vehicle_source", equals: "other" } },
+              { name: "model", label: "expenses.safety.vehicle_model", control: "text", showWhen: { field: "vehicle_source", equals: "other" } },
+              { name: "yom", label: "expenses.safety.vehicle_yom", control: "year", from: 1980, showWhen: { field: "vehicle_source", equals: "other" } },
+              { name: "owner_name", label: "expenses.safety.vehicle_owner", control: "text", showWhen: { field: "vehicle_source", equals: "other" } },
+              { name: "insurance_policy_number", label: "expenses.safety.vehicle_policy", control: "text", showWhen: { field: "vehicle_source", equals: "other" } },
+              { name: "driver_name", label: "expenses.safety.other_driver_name", control: "text", showWhen: { field: "vehicle_source", equals: "other" } },
+              { name: "driver_contact", label: "expenses.safety.other_driver_contact", control: "tel", showWhen: { field: "vehicle_source", equals: "other" } },
+              { name: "driver_licence_number", label: "expenses.safety.driver_licence_number", control: "text", showWhen: { field: "vehicle_source", equals: "other" } },
             ],
+            defaultRow: () => ({ vehicle_source: "fleet", vehicle_id: "", registration: "", make: "", model: "", yom: "", owner_name: "", insurance_policy_number: "", driver_name: "", driver_contact: "", driver_licence_number: "" }),
           },
         ],
       },
       {
         title: "expenses.safety.driver",
+        collapsible: true,
         fields: [
-          { name: "driver_id", label: "expenses.safety.driver", control: "select", source: "drivers", description: "Auto fills the fields below from the driver record when saved" },
-          { name: "driver_name", label: "expenses.safety.driver_name", control: "text" },
-          { name: "driver_company", label: "expenses.safety.driver_company", control: "text" },
-          { name: "driver_contact", label: "expenses.safety.driver_contact", control: "tel" },
-          { name: "driver_age", label: "expenses.safety.driver_age", control: "number", min: 0, max: 120, integer: true },
-          { name: "driver_sex", label: "expenses.safety.driver_sex", control: "radio", inline: true, options: SEX },
-          { name: "driver_licence_class", label: "expenses.safety.driver_licence_class", control: "text" },
-          { name: "driver_licence_number", label: "expenses.safety.driver_licence_number", control: "text" },
-          { name: "driver_years_driving", label: "expenses.safety.driver_years", control: "number", min: 0, integer: true },
+          { name: "driver_source", label: "expenses.safety.driver_source", control: "radio", inline: true, required: true, options: [
+              { value: "fleet", label: "expenses.safety.driver_source.fleet" },
+              { value: "other", label: "expenses.safety.driver_source.other" },
+            ] },
+          { name: "driver_id", label: "expenses.safety.driver", control: "select", source: "drivers", required: true, showWhen: { field: "driver_source", equals: "fleet" }, description: "expenses.safety.fleet_driver_hint" },
+          { name: "driver_name", label: "expenses.safety.driver_name", control: "text", required: true, showWhen: { field: "driver_source", equals: "other" } },
+          { name: "driver_company", label: "expenses.safety.driver_company", control: "text", showWhen: { field: "driver_source", equals: "other" } },
+          { name: "driver_contact", label: "expenses.safety.driver_contact", control: "tel", showWhen: { field: "driver_source", equals: "other" } },
+          { name: "driver_age", label: "expenses.safety.driver_age", control: "number", min: 0, max: 120, integer: true, showWhen: { field: "driver_source", equals: "other" } },
+          { name: "driver_sex", label: "expenses.safety.driver_sex", control: "radio", inline: true, options: SEX, showWhen: { field: "driver_source", equals: "other" } },
+          { name: "driver_licence_class", label: "expenses.safety.driver_licence_class", control: "text", showWhen: { field: "driver_source", equals: "other" } },
+          { name: "driver_licence_number", label: "expenses.safety.driver_licence_number", control: "text", showWhen: { field: "driver_source", equals: "other" } },
+          { name: "driver_years_driving", label: "expenses.safety.driver_years", control: "number", min: 0, integer: true, showWhen: { field: "driver_source", equals: "other" } },
         ],
       },
       {
         title: "expenses.safety.injuries",
+        collapsible: true,
         fields: [
           { name: "injuries_count", label: "expenses.safety.injuries_count", control: "auto", format: "number", digits: 0, compute: (v) => (Array.isArray(v.injured) ? v.injured.length : 0) },
           personRows("injured", "expenses.safety.injuries"),
@@ -806,6 +839,7 @@ export const incidents: ModuleDef = {
       },
       {
         title: "expenses.safety.fatalities",
+        collapsible: true,
         fields: [
           { name: "fatalities_count", label: "expenses.safety.fatalities_count", control: "auto", format: "number", digits: 0, compute: (v) => (Array.isArray(v.deceased) ? v.deceased.length : 0) },
           personRows("deceased", "expenses.safety.fatalities"),
@@ -813,11 +847,16 @@ export const incidents: ModuleDef = {
       },
       {
         title: "expenses.safety.response",
+        collapsible: true,
         fields: [
-          { name: "response_actions", label: "expenses.safety.response", control: "checkbox_group", options: RESPONSE_ACTIONS, columns: 2 },
-          { name: "other_actions", label: "expenses.safety.other_actions", control: "textarea" },
-          { name: "files", label: "common.attachments", control: "file", bucket: "incident-files" },
+          { name: "other_actions", label: "expenses.safety.response", control: "textarea", placeholder: "expenses.safety.response_placeholder", colSpan: 2 },
         ],
+      },
+      {
+        title: "common.documents",
+        description: "common.documents_hint",
+        collapsible: true,
+        fields: [{ name: "files", label: "common.attachments", control: "file", bucket: "incident-files", labels: ["expenses.safety.doc.police_report", "expenses.safety.doc.photos", "expenses.safety.doc.insurance_claim"] }],
       },
     ],
   },

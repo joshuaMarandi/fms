@@ -13,7 +13,7 @@ import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { loadOptions } from "@/lib/data/records";
 import { VEHICLE_DOCUMENTS } from "@/modules/fleet";
-import { formatDate, formatNumber } from "@/lib/utils";
+import { formatDate, formatNumber, todayISO } from "@/lib/utils";
 import { t } from "@/i18n";
 
 export default async function VehiclePage({ params, searchParams }: PageProps<"/fleet/[id]">) {
@@ -23,12 +23,12 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
   const session = await requirePermission("fleet.details", "view");
   const supabase = await createClient();
 
-  const [{ data: vehicle }, { data: safety }, { data: inspections }, { data: insurance }, { data: schedule }, { data: remarks }, options] = await Promise.all([
+  const [{ data: vehicle }, { data: safety }, { data: inspections }, { data: insurance }, { data: schedules }, { data: remarks }, options] = await Promise.all([
     supabase.from("vehicles").select("*").eq("id", id).is("deleted_at", null).maybeSingle(),
     supabase.from("v_vehicle_safety").select("*").eq("vehicle_id", id).maybeSingle(),
     supabase.from("vehicle_inspections").select("*").eq("vehicle_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
     supabase.from("vehicle_insurance").select("*").eq("vehicle_id", id).is("deleted_at", null).order("end_date", { ascending: false }).limit(1).maybeSingle(),
-    supabase.from("service_schedules").select("*").eq("vehicle_id", id).is("deleted_at", null).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    supabase.from("service_schedules").select("*").eq("vehicle_id", id).is("deleted_at", null).order("created_at", { ascending: false }).limit(50),
     supabase.from("vehicle_remarks").select("*, author:profiles!vehicle_remarks_created_by_fkey(full_name)").eq("vehicle_id", id).is("deleted_at", null).order("created_at", { ascending: false }),
     loadOptions(["sites"]),
   ]);
@@ -38,6 +38,10 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
   const internal = ((inspections ?? []) as Record<string, unknown>[]).find((i) => i.kind === "internal") ?? null;
   const third = ((inspections ?? []) as Record<string, unknown>[]).find((i) => i.kind === "third_party") ?? null;
   const safe = safety as { not_safe_for_use: boolean; open_anomalies: number } | null;
+  const history = (schedules ?? []) as Record<string, unknown>[];
+  const schedule = history[0] ?? null;
+  // A new service row, prefilled with today, the current odometer and the last interval.
+  const nextService = { last_service_date: todayISO(), last_service_km: v.odometer_km ?? "", interval_km: schedule?.interval_km ?? "" };
   const title = `${v.registration}`;
   const extra = { vehicle_id: id };
   const paths = [`/fleet/${id}`, "/fleet"];
@@ -116,12 +120,58 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
           <SchemaForm schemaKey="fleet.insurance" record={insurance as Record<string, unknown> | null} extra={extra} revalidate={paths} readOnly={!session.can("fleet.insurance", "edit")} />
         </TabsContent>
 
-        <TabsContent value="maintenance">
-          <div className="mb-2 flex items-center gap-2 text-sm">
-            <span className="font-medium">{t("fleet.next_service_km")}</span>
-            <KmReminderChip dueKm={((schedule as Record<string, unknown> | null)?.next_service_km as number) ?? null} currentKm={v.odometer_km as number} />
+        <TabsContent value="maintenance" className="space-y-4">
+          <div className="page-card flex flex-wrap items-center gap-x-4 gap-y-2 p-4 text-sm">
+            <span className="font-medium">{t("fleet.service.current")}</span>
+            {schedule ? (
+              <>
+                <span>{t("fleet.service.next", { km: formatNumber(schedule.next_service_km as number) })}</span>
+                <span className="text-muted-foreground">{t("fleet.service.interval", { km: formatNumber(schedule.interval_km as number) })}</span>
+                <KmReminderChip dueKm={(schedule.next_service_km as number) ?? null} currentKm={v.odometer_km as number} />
+              </>
+            ) : (
+              <span className="text-muted-foreground">{t("fleet.service.none")}</span>
+            )}
           </div>
-          <SchemaForm schemaKey="fleet.maintenance_schedule" record={schedule as Record<string, unknown> | null} extra={extra} revalidate={paths} readOnly={!session.can("fleet.maintenance_schedule", "edit")} />
+          {session.can("fleet.maintenance_schedule", "create") ? (
+            <SchemaForm key={(schedule?.id as string) ?? "first"} schemaKey="fleet.maintenance_schedule" record={nextService} extra={extra} revalidate={paths} />
+          ) : null}
+          <div className="page-card p-4 md:p-6">
+            <h2 className="mb-3 text-base font-semibold">{t("fleet.service.history")}</h2>
+            {history.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t("fleet.service.none")}</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[560px] text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-muted-foreground">
+                      <th className="py-2 pr-3 font-medium">{t("fleet.last_service_date")}</th>
+                      <th className="py-2 pr-3 text-right font-medium">{t("fleet.last_service_km")}</th>
+                      <th className="py-2 pr-3 text-right font-medium">{t("fleet.service_interval")}</th>
+                      <th className="py-2 pr-3 text-right font-medium">{t("fleet.next_service_km")}</th>
+                      <th className="py-2 pr-3 font-medium">{t("fleet.service.garage")}</th>
+                      <th className="py-2 font-medium">{t("fleet.service.work_done")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {history.map((h, i) => (
+                      <tr key={h.id as string} className="border-b last:border-0">
+                        <td className="py-2 pr-3">
+                          {formatDate(h.last_service_date as string)}
+                          {i === 0 ? <span className="status-chip status-chip-success ml-2">{t("fleet.service.current")}</span> : null}
+                        </td>
+                        <td className="py-2 pr-3 text-right tabular-nums">{formatNumber(h.last_service_km as number)}</td>
+                        <td className="py-2 pr-3 text-right tabular-nums">{formatNumber(h.interval_km as number)}</td>
+                        <td className="py-2 pr-3 text-right tabular-nums">{formatNumber(h.next_service_km as number)}</td>
+                        <td className="py-2 pr-3">{(h.garage as string) || ""}</td>
+                        <td className="py-2 whitespace-pre-line">{(h.notes as string) || ""}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </TabsContent>
 
         <TabsContent value="documents">

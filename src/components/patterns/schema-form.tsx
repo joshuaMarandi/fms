@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useForm, useFieldArray, Controller, type FieldValues, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import { ChevronRight, Plus, Trash2 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -129,21 +130,45 @@ export function SchemaForm({ schemaKey, record, options = {}, afterSavePath, can
       className="space-y-6"
       noValidate
     >
-      {sections.map((section, i) => (
-        <section key={i} className="page-card p-4 md:p-6">
-          {section.title ? (
-            <div className="mb-4">
-              <h2 className="text-base font-semibold">{tl(section.title)}</h2>
-              {section.description ? <p className="text-sm text-muted-foreground">{tl(section.description)}</p> : null}
-            </div>
-          ) : null}
+      {sections.map((section, i) => {
+        const body = (
           <div className="grid gap-4 md:grid-cols-2">
             {section.fields.map((f) => (
               <FieldRenderer key={f.name} field={f} form={form} ctx={ctx} disabled={!canEdit || (!!f.editResource && !can(f.editResource, "edit"))} recordId={(record?.id as string) ?? null} schema={schema} />
             ))}
           </div>
-        </section>
-      ))}
+        );
+        if (section.collapsible && section.title) {
+          return (
+            <Collapsible key={i} defaultOpen={section.defaultOpen ?? true} className="group/section page-card">
+              <CollapsibleTrigger asChild>
+                <button type="button" className="flex w-full items-center gap-3 rounded-xl p-4 text-left hover:bg-muted/40 md:px-6">
+                  <ChevronRight className="size-5 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/section:rotate-90" aria-hidden="true" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-base font-semibold">{tl(section.title)}</span>
+                    {section.description ? <span className="block text-sm text-muted-foreground">{tl(section.description)}</span> : null}
+                  </span>
+                </button>
+              </CollapsibleTrigger>
+              {/* forceMount keeps typed values and added rows while a section is closed */}
+              <CollapsibleContent forceMount className="px-4 pb-4 data-[state=closed]:hidden md:px-6 md:pb-6">
+                {body}
+              </CollapsibleContent>
+            </Collapsible>
+          );
+        }
+        return (
+          <section key={i} className="page-card p-4 md:p-6">
+            {section.title ? (
+              <div className="mb-4">
+                <h2 className="text-base font-semibold">{tl(section.title)}</h2>
+                {section.description ? <p className="text-sm text-muted-foreground">{tl(section.description)}</p> : null}
+              </div>
+            ) : null}
+            {body}
+          </section>
+        );
+      })}
       {children}
       {canEdit ? <FormActions formId={formId} busy={busy} saveLabel={submitLabel} onCancel={cancelHref ? () => router.push(cancelHref) : undefined} /> : null}
     </form>
