@@ -121,7 +121,6 @@ export function PackageForm({ pkg, resources, companiesUsing }: { pkg: PackageIn
         <label className={cn("flex min-h-[40px] cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 text-sm hover:bg-muted/50", depth === 0 && "font-medium")} style={{ paddingLeft: 8 + depth * 20 }}>
           <Checkbox checked={state(n)} onCheckedChange={(c) => toggle(n, c === true)} />
           <span>
-            {n.label_prefix && /^\d+$/.test(n.label_prefix) ? <span className="mr-1 text-muted-foreground">{n.label_prefix}</span> : null}
             {label(n)}
           </span>
         </label>

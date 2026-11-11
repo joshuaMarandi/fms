@@ -109,7 +109,7 @@ export function AppSidebar({ counts }: { counts: SidebarCounts; companies?: { id
             <SidebarMenu className="gap-1.5">
               {tree.map((node) => {
                 const label = resourceLabel(node);
-                const numbered = node.label_prefix && /^\d+$/.test(node.label_prefix) ? `${node.label_prefix} ${label}` : label;
+                const numbered = label;
                 const badge = badgeFor(node.key);
 
                 if (node.children.length === 0) {

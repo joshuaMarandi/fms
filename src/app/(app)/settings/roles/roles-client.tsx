@@ -221,7 +221,6 @@ function RoleEditor({ role, grants, resources, tree, editable, isOwner, canDelet
                 )}
                 <Checkbox checked={rowAll && !!c} disabled={!editable} onCheckedChange={(v) => setRowAll(n.key, !!v)} aria-label={`${t("settings.roles.row_all")}: ${label(n)}`} />
                 <span className={cn("text-sm", depth === 0 && "font-medium")}>
-                  {n.label_prefix && /^\d+$/.test(n.label_prefix) ? <span className="mr-1 text-muted-foreground">{n.label_prefix}</span> : null}
                   {label(n)}
                 </span>
                 {inh ? (
