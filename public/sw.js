@@ -1,6 +1,6 @@
 /* FMS service worker: app shell caching for the installable driver app.
    Network first for pages and API; cache first for static assets; offline fallback page. */
-const VERSION = "fms-v1";
+const VERSION = "fms-v2";
 const STATIC = `${VERSION}-static`;
 const PAGES = `${VERSION}-pages`;
 const OFFLINE_URL = "/offline";

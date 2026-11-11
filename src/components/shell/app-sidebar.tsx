@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { ChevronRight, Truck } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -91,8 +92,8 @@ export function AppSidebar({ counts }: { counts: SidebarCounts; companies?: { id
             // eslint-disable-next-line @next/next/no-img-element -- small company logo from our own API, cached by the browser
             <img src={session.brand.logoUrl} alt="" className="size-8 shrink-0 rounded-md bg-white object-contain p-0.5" />
           ) : (
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
-              <Truck className="size-4" aria-hidden="true" />
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-white p-0.5">
+              <Image src="/brand/fms-mark.png" alt="" width={256} height={90} className="h-auto w-full" />
             </span>
           )}
           <span className="min-w-0 group-data-[collapsible=icon]:hidden">

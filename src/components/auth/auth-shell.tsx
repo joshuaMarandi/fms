@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Truck } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { t } from "@/i18n";
 
 /**
@@ -16,11 +16,8 @@ export function AuthShell({ title, description, children }: { title: string; des
 
       <div className="relative z-10 flex min-h-svh flex-col">
         <header className="flex items-center justify-between p-4 md:p-6">
-          <Link href="/" className="flex items-center gap-2 text-white">
-            <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Truck className="size-5" aria-hidden="true" />
-            </span>
-            <span className="font-semibold">{t("app.short_name")}</span>
+          <Link href="/" className="flex items-center">
+            <Image src="/brand/fms-logo-white.png" alt={t("app.name")} width={640} height={306} priority className="h-10 w-auto" />
           </Link>
           <Link href="/" className="flex items-center gap-1 text-sm text-white/90 underline-offset-4 hover:underline">
             <ArrowLeft className="size-4" aria-hidden="true" /> {t("auth.back_home")}

@@ -27,11 +27,8 @@ export default async function LandingPage() {
     <main className="min-h-svh bg-background">
       <header className="sticky top-0 z-10 border-b bg-background/95">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 md:px-6">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Truck className="size-5" aria-hidden="true" />
-            </span>
-            <span className="font-semibold">{t("app.short_name")}</span>
+          <Link href="/" className="flex items-center">
+            <Image src="/brand/fms-logo.png" alt={t("app.name")} width={640} height={306} priority className="h-10 w-auto" />
           </Link>
           <nav className="flex items-center gap-2">
           <a href="#pricing" className="hidden px-3 text-sm text-muted-foreground hover:text-foreground sm:inline">
