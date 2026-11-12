@@ -28,8 +28,9 @@ import {
   Wrench,
 } from "lucide-react";
 import { TONE, CLICKABLE_CARD, type Tone } from "@/components/patterns/tone";
+import { ListCardHeader, ROW_LINK, StatCard } from "@/components/patterns/stat-card";
 import { PageHeader } from "@/components/shell/page-header";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { ReminderChip, StatusChip } from "@/components/patterns/status-chip";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
@@ -255,32 +256,13 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
   ];
   const kpiCards = kpiList.filter((c) => c.show);
 
-  /** Header of a list card: coloured icon, title and a "view all" link. */
-  const listHeader = (title: string, icon: typeof Truck, tone: Tone, href?: string) => {
-    const Icon = icon;
-    return (
-      <CardHeader className="flex flex-row items-center justify-between gap-3">
-        <span className="flex items-center gap-3">
-          <span className={cn("flex size-9 items-center justify-center rounded-lg", TONE[tone].tile)} aria-hidden="true">
-            <Icon className="size-[18px]" />
-          </span>
-          <CardTitle className="text-base">{title}</CardTitle>
-        </span>
-        {href ? (
-          <Link href={href} className="inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-4 hover:underline">
-            {t("dashboard.view_all")} <ArrowRight className="size-3.5" aria-hidden="true" />
-          </Link>
-        ) : null}
-      </CardHeader>
-    );
-  };
-  const rowLink = "flex items-center justify-between gap-2 rounded-lg border bg-card p-2.5 transition-colors hover:border-primary/40 hover:bg-primary/5";
+  const rowLink = ROW_LINK;
 
   const tasks = (
     <div className="grid gap-6 lg:grid-cols-3">
       {approvable.length > 0 ? (
         <Card>
-          {listHeader(t("dashboard.lists.needs_approval"), Inbox, "blue", "/requests")}
+          <ListCardHeader title={t("dashboard.lists.needs_approval")} icon={Inbox} tone="blue" href={"/requests"} />
           <CardContent className="space-y-2 text-sm">
             {pending.every((p) => p.rows.length === 0) ? <p className="text-muted-foreground">{t("dashboard.lists.nothing_pending")}</p> : null}
             {pending.flatMap((p) =>
@@ -302,7 +284,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
         </Card>
       ) : null}
       <Card id="expiring" className="scroll-mt-20">
-        {listHeader(t("dashboard.lists.expiring"), CalendarClock, "amber", "/notifications")}
+        <ListCardHeader title={t("dashboard.lists.expiring")} icon={CalendarClock} tone="amber" href={"/notifications"} />
         <CardContent className="space-y-2 text-sm">
           {expiring.length === 0 ? <p className="text-muted-foreground">{t("dashboard.lists.nothing_pending")}</p> : null}
           {expiring.map((r, i) => (
@@ -318,7 +300,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
       </Card>
       {can("inspections", "view") ? (
         <Card>
-          {listHeader(t("dashboard.lists.anomalies"), AlertTriangle, "red", "/inspections/anomalies")}
+          <ListCardHeader title={t("dashboard.lists.anomalies")} icon={AlertTriangle} tone="red" href={"/inspections/anomalies"} />
           <CardContent className="space-y-2 text-sm">
             {an.length === 0 ? <p className="text-muted-foreground">{t("dashboard.lists.nothing_pending")}</p> : null}
             {actionsByVehicle.slice(0, 8).map((a) => (
@@ -421,40 +403,19 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
       <PageHeader title={t("dashboard.title")} description={t("dashboard.description")} actions={<DashboardFilters vehicles={((vehicles ?? []) as Row[]).map((v) => ({ id: v.id as string, registration: v.registration as string }))} />} />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-        {kpiCards.map((c) => {
-          const Icon = c.icon;
-          const tone = TONE[c.danger ? "red" : c.tone];
-          return (
-            <Link key={c.title} href={c.href} className={cn("group rounded-xl", CLICKABLE_CARD)}>
-              <Card className={cn("h-full gap-2 pt-0 transition-colors", tone.ring, c.danger && "ring-danger/40")}>
-                <span className={cn("h-1 w-full", tone.bar)} aria-hidden="true" />
-                <CardHeader className="flex flex-row items-start justify-between gap-2 pb-0">
-                  <span className="min-w-0">
-                    <CardDescription className="text-xs font-medium">{c.title}</CardDescription>
-                    <CardTitle className={cn("mt-1 truncate text-2xl tabular-nums", c.danger && "text-danger")}>{c.value}</CardTitle>
-                  </span>
-                  <span className={cn("flex size-10 shrink-0 items-center justify-center rounded-xl", tone.tile)} aria-hidden="true">
-                    <Icon className="size-5" />
-                  </span>
-                </CardHeader>
-                <CardContent className="space-y-1">
-                  {c.change !== null && c.change !== undefined ? (
-                    <p className={cn("flex items-center gap-1 text-xs", (c.invert ? c.change <= 0 : c.change >= 0) ? "text-success" : "text-danger")}>
-                      {c.change > 0 ? <ArrowUpRight className="size-3.5" aria-hidden="true" /> : c.change < 0 ? <ArrowDownRight className="size-3.5" aria-hidden="true" /> : <Minus className="size-3.5" aria-hidden="true" />}
-                      {Math.abs(c.change).toFixed(0)}% {t("common.change_vs_previous")}
-                    </p>
-                  ) : c.sub ? (
-                    <p className="line-clamp-2 text-xs text-muted-foreground">{c.sub}</p>
-                  ) : null}
-                  {c.spark.length > 1 ? <Sparkline data={c.spark} color={c.danger ? "var(--chart-4)" : `var(--chart-${{ green: 1, blue: 2, amber: 3, red: 4, purple: 5, slate: 6 }[c.tone]})`} /> : null}
-                  <span className={cn("inline-flex items-center gap-1 pt-1 text-xs font-medium opacity-80 transition-opacity group-hover:opacity-100", tone.text)}>
-                    {t("dashboard.open")} <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
-                  </span>
-                </CardContent>
-              </Card>
-            </Link>
-          );
-        })}
+        {kpiCards.map((c) => (
+          <StatCard key={c.title} title={c.title} value={c.value} href={c.href} icon={c.icon} tone={c.tone} danger={c.danger}>
+            {c.change !== null && c.change !== undefined ? (
+              <p className={cn("flex items-center gap-1 text-xs", (c.invert ? c.change <= 0 : c.change >= 0) ? "text-success" : "text-danger")}>
+                {c.change > 0 ? <ArrowUpRight className="size-3.5" aria-hidden="true" /> : c.change < 0 ? <ArrowDownRight className="size-3.5" aria-hidden="true" /> : <Minus className="size-3.5" aria-hidden="true" />}
+                {Math.abs(c.change).toFixed(0)}% {t("common.change_vs_previous")}
+              </p>
+            ) : c.sub ? (
+              <p className="line-clamp-2 text-xs text-muted-foreground">{c.sub}</p>
+            ) : null}
+            {c.spark.length > 1 ? <Sparkline data={c.spark} color={c.danger ? "var(--chart-4)" : `var(--chart-${{ green: 1, blue: 2, amber: 3, red: 4, purple: 5, slate: 6 }[c.tone]})`} /> : null}
+          </StatCard>
+        ))}
       </div>
 
       {health ? (
@@ -495,7 +456,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
-          {listHeader(t("dashboard.lists.activity"), Activity, "slate", can("settings.audit", "view") ? "/settings/audit" : "/notifications")}
+          <ListCardHeader title={t("dashboard.lists.activity")} icon={Activity} tone="slate" href={can("settings.audit", "view") ? "/settings/audit" : "/notifications"} />
           <CardContent className="space-y-2 text-sm">
             {((activity ?? []) as Row[]).map((a) => (
               <Link key={a.id as string} href={(a.link as string) || (a.table_name ? "/settings/audit" : "/notifications")} className={rowLink}>
@@ -508,7 +469,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
         </Card>
         {isHod || can("fleet.remarks", "view") ? (
           <Card>
-            {listHeader(t("dashboard.remarks"), MessageSquareText, "amber", "/fleet")}
+            <ListCardHeader title={t("dashboard.remarks")} icon={MessageSquareText} tone="amber" href={"/fleet"} />
             <CardContent className="space-y-2 text-sm">
               {((remarks ?? []) as Row[]).map((r) => (
                 <Link key={r.id as string} href={r.vehicle_id ? `/fleet/${r.vehicle_id}` : "/fleet"} className={cn(rowLink, "block")}>

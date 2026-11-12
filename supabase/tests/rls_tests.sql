@@ -15,6 +15,7 @@ begin
   perform set_config('role', 'postgres', true);
   perform set_config('request.jwt.claim.sub', '', true);
   perform set_config('request.jwt.claim.role', '', true);
+  perform set_config('request.jwt.claims', '', true);
 end $$;
 
 create or replace function pg_temp.check(p_name text, p_ok boolean) returns void language plpgsql as $$
@@ -678,6 +679,169 @@ begin
   insert into public.message_templates (company_id, key, content) values (null, 'email.approval_request', '{"subject": "Decision needed: {request}"}');
   perform pg_temp.check('owner keeps platform defaults', exists (select 1 from public.message_templates where company_id is null and key = 'email.approval_request'));
   perform pg_temp.as_admin();
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- Migration 15: assigning system roles, ceilings that follow the package, package change requests
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  owner_id uuid := '33333333-3333-3333-3333-000000000001';
+  admin_id uuid := '33333333-3333-3333-3333-000000000002';
+  coord_id uuid := '33333333-3333-3333-3333-000000000003';
+  demo uuid := '11111111-1111-1111-1111-111111111111';
+  driver_role uuid := '22222222-2222-2222-2222-000000000005';
+  hr_role uuid := '22222222-2222-2222-2222-000000000006';
+  basic uuid := 'cccccccc-cccc-cccc-cccc-000000000001';
+  v_orig uuid;
+  v_target uuid;
+  v_req uuid;
+  v_custom uuid;
+  v_ok boolean;
+  v_saved text[];
+begin
+  perform pg_temp.as_admin();
+  select package_id into v_orig from public.companies where id = demo;
+  select array_agg(resource_key) into v_saved from public.admin_ceilings where user_id = admin_id;
+
+  -- An admin whose ceiling is empty (invited before the company had a package) can still give the Driver role.
+  delete from public.admin_ceilings where user_id = admin_id and resource_key <> 'dashboard';
+  delete from public.user_roles where user_id = coord_id and role_id in (driver_role, hr_role);
+  perform pg_temp.as_user(admin_id);
+  insert into public.user_roles (user_id, role_id, is_primary) values (coord_id, driver_role, false);
+  perform pg_temp.check('m15: admin assigns the Driver system role with an empty ceiling', true);
+
+  -- Smaller package (Basic has no daily use or expenses): HR is still assignable.
+  perform pg_temp.as_user(owner_id);
+  update public.companies set package_id = basic where id = demo;
+  perform pg_temp.as_user(admin_id);
+  insert into public.user_roles (user_id, role_id, is_primary) values (coord_id, hr_role, false);
+  perform pg_temp.check('m15: system role with grants outside the package is assignable', true);
+
+  -- Custom roles are still checked against the ceiling for modules in the package.
+  perform pg_temp.as_admin();
+  insert into public.roles (company_id, name, description, is_system, is_owner, is_admin)
+  values (demo, 'Test custom m15', 'test', false, false, false) returning id into v_custom;
+  insert into public.role_grants (role_id, resource_key, actions, scope) values (v_custom, 'fleet', array['view']::public.permission_action[], 'all');
+  delete from public.admin_ceilings where user_id = admin_id and resource_key = 'fleet';
+  perform pg_temp.as_user(admin_id);
+  begin
+    insert into public.user_roles (user_id, role_id, is_primary) values (coord_id, v_custom, false);
+    v_ok := false;
+  exception when others then
+    v_ok := sqlerrm like '%outside your delegation ceiling%';
+  end;
+  perform pg_temp.check('m15: custom role outside the ceiling is still refused', v_ok);
+
+  -- Package change by the owner adds the new modules to the admins' ceilings.
+  perform pg_temp.as_user(owner_id);
+  update public.companies set package_id = v_orig where id = demo;
+  perform pg_temp.check('m15: ceiling follows the package (expenses added back)',
+    exists (select 1 from public.admin_ceilings where user_id = admin_id and resource_key = 'expenses'));
+  perform pg_temp.check('m15: ceiling follows the package (fleet added back)',
+    exists (select 1 from public.admin_ceilings where user_id = admin_id and resource_key = 'fleet'));
+
+  -- Package change request: admin asks, owner gets email and SMS, owner approves.
+  perform pg_temp.as_admin();
+  select p.id into v_target from public.packages p
+  where p.is_active and p.deleted_at is null and p.id <> v_orig
+    and p.max_vehicles >= (select count(*) from public.vehicles where company_id = demo and deleted_at is null)
+  order by p.max_vehicles desc limit 1;
+  if v_target is null then
+    insert into public.packages (name, price, max_vehicles) values ('Test big m15', 1000, 100000) returning id into v_target;
+  end if;
+
+  perform pg_temp.as_user(coord_id);
+  begin
+    perform public.request_package_change(v_target, 'more please');
+    v_ok := false;
+  exception when others then
+    v_ok := sqlstate = '42501';
+  end;
+  perform pg_temp.check('m15: a non-admin cannot request a package change', v_ok);
+
+  perform pg_temp.as_user(admin_id);
+  begin
+    perform public.request_package_change(v_orig, null);
+    v_ok := false;
+  exception when others then
+    v_ok := sqlerrm like '%already your package%';
+  end;
+  perform pg_temp.check('m15: requesting the current package is refused', v_ok);
+
+  v_req := public.request_package_change(v_target, 'We are adding trucks');
+  perform pg_temp.check('m15: admin sees the pending request',
+    exists (select 1 from public.package_change_requests where id = v_req and status = 'pending'));
+  -- A second request replaces the first.
+  v_req := public.request_package_change(v_target, 'We are adding more trucks');
+  perform pg_temp.check('m15: only one pending request per company',
+    (select count(*) from public.package_change_requests where company_id = demo and status = 'pending') = 1);
+
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m15: owner gets the request by email and SMS',
+    (select count(*) from public.message_outbox where template = 'package_request' and user_id = owner_id and data ->> 'path' = '/platform/companies/' || demo) >= 2);
+
+  perform pg_temp.as_user(admin_id);
+  begin
+    perform public.decide_package_change(v_req, true, null);
+    v_ok := false;
+  exception when others then
+    v_ok := sqlstate = '42501';
+  end;
+  perform pg_temp.check('m15: the admin cannot approve their own request', v_ok);
+
+  perform pg_temp.as_user(owner_id);
+  begin
+    perform public.decide_package_change(v_req, false, '  ');
+    v_ok := false;
+  exception when others then
+    v_ok := sqlerrm like '%reason%';
+  end;
+  perform pg_temp.check('m15: rejection needs a reason', v_ok);
+
+  perform public.decide_package_change(v_req, true, null);
+  perform pg_temp.check('m15: approval changes the package', (select package_id from public.companies where id = demo) = v_target);
+  perform pg_temp.check('m15: request marked approved', (select status from public.package_change_requests where id = v_req) = 'approved');
+
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m15: requester told by email and SMS',
+    (select count(*) from public.message_outbox where template = 'package_approved' and user_id = admin_id) >= 2);
+  perform pg_temp.check('m15: requester in-app notice is not repeated in the digest',
+    exists (select 1 from public.notifications where user_id = admin_id and link like '%' || v_req::text and emailed_at is not null));
+
+  -- Reject and cancel paths.
+  perform pg_temp.as_user(admin_id);
+  v_req := public.request_package_change(v_orig, null);
+  perform public.cancel_package_change(v_req);
+  perform pg_temp.check('m15: admin can cancel a pending request', (select status from public.package_change_requests where id = v_req) = 'cancelled');
+  v_req := public.request_package_change(v_orig, null);
+  perform pg_temp.as_user(owner_id);
+  perform public.decide_package_change(v_req, false, 'Pay the invoice first');
+  perform pg_temp.check('m15: rejection keeps the package', (select package_id from public.companies where id = demo) = v_target);
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m15: requester told about the rejection',
+    exists (select 1 from public.message_outbox where template = 'package_rejected' and user_id = admin_id and data ->> 'reason' = 'Pay the invoice first'));
+
+  -- The table is read-only from the API.
+  perform pg_temp.as_user(admin_id);
+  begin
+    update public.package_change_requests set status = 'approved' where id = v_req;
+    v_ok := false;
+  exception when others then
+    v_ok := sqlstate = '42501';
+  end;
+  perform pg_temp.check('m15: requests cannot be changed directly', v_ok);
+
+  -- Clean up.
+  perform pg_temp.as_user(owner_id);
+  update public.companies set package_id = v_orig where id = demo;
+  delete from public.user_roles where user_id = coord_id and role_id in (driver_role, hr_role);
+  perform pg_temp.as_admin();
+  delete from public.role_grants where role_id = v_custom;
+  delete from public.roles where id = v_custom;
+  delete from public.admin_ceilings where user_id = admin_id;
+  insert into public.admin_ceilings (user_id, resource_key) select admin_id, unnest(v_saved) on conflict do nothing;
+  update public.message_outbox set status = 'skipped' where status = 'pending';
 end $$;
 
 select 'ALL TESTS PASSED' as result;

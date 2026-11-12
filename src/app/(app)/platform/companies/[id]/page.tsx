@@ -9,6 +9,7 @@ import { formatDate, formatNumber } from "@/lib/utils";
 import { CompanyForm, type PackageOption } from "../company-form";
 import { CompanyStatusChip, formatBytes, formatPrice, loadCompanyRows, type CompanyStatus } from "../../shared";
 import { CompanyActions, InviteAdminButton } from "./company-actions";
+import { PackageRequestPanel } from "./package-request-panel";
 import type { CompanyInput } from "../../actions";
 import { t } from "@/i18n";
 
@@ -17,12 +18,13 @@ export default async function CompanyDetailPage({ params }: PageProps<"/platform
   await requirePermission("platform.companies", "view");
   const supabase = await createClient();
 
-  const [{ data: company }, { data: packages }, rows, { data: profiles }, { data: adminRoles }] = await Promise.all([
+  const [{ data: company }, { data: packages }, rows, { data: profiles }, { data: adminRoles }, { data: pendingReq }] = await Promise.all([
     supabase.from("companies").select("*").eq("id", id).is("deleted_at", null).maybeSingle(),
     supabase.from("packages").select("id, name, max_vehicles, price, currency, billing_period, is_active").is("deleted_at", null).order("sort_order"),
     loadCompanyRows(supabase),
     supabase.from("profiles").select("id, full_name, email, phone, is_active").eq("company_id", id).order("full_name"),
     supabase.from("roles").select("id").eq("is_admin", true),
+    supabase.from("package_change_requests").select("id, from_package_id, to_package_id, note, created_at, requester:profiles!package_change_requests_requested_by_fkey(full_name)").eq("company_id", id).eq("status", "pending").maybeSingle(),
   ]);
   if (!company) notFound();
   const c = company as Record<string, unknown>;
@@ -38,6 +40,8 @@ export default async function CompanyDetailPage({ params }: PageProps<"/platform
   );
 
   const vehicles = usage?.vehicles ?? 0;
+  const pr = pendingReq as unknown as { id: string; from_package_id: string | null; to_package_id: string; note: string | null; created_at: string; requester: { full_name: string } | null } | null;
+  const prTo = pr ? pkgs.find((p) => p.id === pr.to_package_id) : undefined;
   const max = pkg?.max_vehicles ?? null;
   const pct = max ? Math.min(100, Math.round((vehicles / max) * 100)) : 0;
 
@@ -123,6 +127,21 @@ export default async function CompanyDetailPage({ params }: PageProps<"/platform
           </CardContent>
         </Card>
       </div>
+
+      {pr ? (
+        <PackageRequestPanel
+          request={{
+            id: pr.id,
+            from_name: pkgs.find((p) => p.id === pr.from_package_id)?.name ?? t("platform.companies.no_package"),
+            to_name: prTo?.name ?? "",
+            note: pr.note,
+            requester: pr.requester?.full_name ?? null,
+            created_at: pr.created_at,
+            vehicles,
+            to_max: prTo?.max_vehicles ?? Number.MAX_SAFE_INTEGER,
+          }}
+        />
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">

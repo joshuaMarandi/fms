@@ -4,6 +4,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { sendMail } from "@/lib/email/mailer";
 import { invitationEmail } from "@/lib/email/templates";
 import { appUrl, authLink } from "@/lib/app-url";
+import { sendSms, smsConfigured } from "@/lib/sms/kilakona";
+import { renderSmsTemplate, templateDef, type SmsTemplateDef } from "@/lib/messaging/registry";
+import { loadTemplateContent } from "@/lib/messaging/load";
 import type { ActionResult } from "@/lib/data/records";
 
 export type InviteInput = {
@@ -94,19 +97,36 @@ export async function inviteUserServer(input: InviteInput): Promise<ActionResult
     return { ok: false, error: roleErr.message, hint: roleErr.hint ?? undefined };
   }
 
-  const mail = await invitationEmail({
-    name: fullName,
-    email,
-    companyName: (company as { name: string } | null)?.name ?? "your company",
-    roleName: (role as { name: string } | null)?.name ?? "User",
-    invitedBy: me?.full_name || "Your administrator",
-    url: authLink(await appUrl(), link.properties.hashed_token, "invite"),
-    companyId,
-  });
+  const companyName = (company as { name: string } | null)?.name ?? "your company";
+  const roleName = (role as { name: string } | null)?.name ?? "User";
+  const invitedBy = me?.full_name || "Your administrator";
+  const url = authLink(await appUrl(), link.properties.hashed_token, "invite");
+  const mail = await invitationEmail({ name: fullName, email, companyName, roleName, invitedBy, url, companyId });
   const sent = await sendMail({ to: email, ...mail });
   if (!sent.ok) {
     await rollback();
     return { ok: false, error: `The invitation email could not be sent: ${sent.error}` };
+  }
+
+  // The same link by SMS when there is a phone number. A failed SMS does not undo the invitation:
+  // the email is already out.
+  if (input.phone && smsConfigured()) {
+    try {
+      const text = renderSmsTemplate(templateDef("sms.invite") as SmsTemplateDef, await loadTemplateContent("sms.invite", companyId), {
+        name: fullName.split(/\s+/)[0],
+        company: companyName,
+        app: process.env.MAIL_FROM_NAME ?? "FMS",
+        invited_by: invitedBy,
+        role: roleName,
+        email,
+        link: url,
+        url,
+      });
+      const sms = await sendSms(input.phone, text);
+      if (!sms.ok) console.error("[invite sms]", sms.error);
+    } catch (e) {
+      console.error("[invite sms]", (e as Error).message);
+    }
   }
 
   return { ok: true, data: { id: newId } };

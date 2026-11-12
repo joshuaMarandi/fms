@@ -24,7 +24,7 @@ export default async function CompanyPage() {
     <>
       <PageHeader title={t("settings.company.title")} description={t("settings.company.description")} />
       <FuelPriceCard companyId={companyId} prices={((fuelPrices ?? []) as FuelPrice[]).map((p) => ({ ...p, price_per_litre: Number(p.price_per_litre) }))} canEdit={session.can("settings.company", "edit")} />
-      <SubscriptionCard subscription={session.subscription} vehiclesUsed={(vehicles ?? []).length} />
+      <SubscriptionCard subscription={session.subscription} vehiclesUsed={(vehicles ?? []).length} companyId={companyId} canEdit={session.can("settings.company", "edit") || session.permissions.isAdmin} />
       <CompanyClient
         company={company as Parameters<typeof CompanyClient>[0]["company"]}
         sites={(sites ?? []) as { id: string; name: string; region: string | null }[]}

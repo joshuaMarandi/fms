@@ -3,13 +3,25 @@ import { Progress } from "@/components/ui/progress";
 import { ReminderChip, StatusChip } from "@/components/patterns/status-chip";
 import { createClient } from "@/lib/supabase/server";
 import type { Subscription } from "@/lib/auth/session";
-import { formatDate, formatNumber } from "@/lib/utils";
+import { formatDate, formatNumber, nowMs } from "@/lib/utils";
 import { hasKey, t } from "@/i18n";
+import { loadPublicPackages } from "@/components/landing/pricing";
+import { PackageChange, type PackageRequest } from "./package-change";
 
 const TONES: Record<string, "success" | "warning" | "danger" | "neutral" | "info"> = { pending: "warning", trial: "info", active: "success", suspended: "danger", cancelled: "neutral" };
 
-/** Read-only view of the company's package for its Admin. Only the owner can change it. */
-export async function SubscriptionCard({ subscription, vehiclesUsed }: { subscription: Subscription | null; vehiclesUsed: number }) {
+/** The company's package for its Admin, with a request to change it (the owner approves). */
+export async function SubscriptionCard({ subscription, vehiclesUsed, companyId, canEdit }: { subscription: Subscription | null; vehiclesUsed: number; companyId: string; canEdit: boolean }) {
+  const supabase = await createClient();
+  const [packages, { data: requests }] = await Promise.all([
+    canEdit ? loadPublicPackages() : Promise.resolve([]),
+    supabase.from("package_change_requests").select("id, status, created_at, decided_at, decision_note, to:packages!package_change_requests_to_package_id_fkey(name)").eq("company_id", companyId).order("created_at", { ascending: false }).limit(1),
+  ]);
+  const r = ((requests ?? []) as unknown as { id: string; status: PackageRequest["status"]; created_at: string; decided_at: string | null; decision_note: string | null; to: { name: string } | null }[])[0];
+  // A rejection is shown for 30 days; an approval needs no banner (the card already shows the new package).
+  const latest: PackageRequest | null = r && (r.status === "pending" || (r.status === "rejected" && r.decided_at && nowMs() - new Date(r.decided_at).getTime() < 30 * 86400000)) ? { id: r.id, status: r.status, created_at: r.created_at, decided_at: r.decided_at, decision_note: r.decision_note, to_name: r.to?.name ?? "" } : null;
+  const change = <PackageChange packages={packages} currentId={subscription?.packageId ?? null} vehiclesUsed={vehiclesUsed} latest={latest} canEdit={canEdit} />;
+
   if (!subscription?.packageId) {
     return (
       <Card>
@@ -17,10 +29,10 @@ export async function SubscriptionCard({ subscription, vehiclesUsed }: { subscri
           <CardTitle className="text-base">{t("subscription.title")}</CardTitle>
           <CardDescription>{t("subscription.none")}</CardDescription>
         </CardHeader>
+        <CardContent>{change}</CardContent>
       </Card>
     );
   }
-  const supabase = await createClient();
   const { data: resources } = await supabase.from("resources").select("key, name").in("key", subscription.packageKeys);
   const modules = ((resources ?? []) as { key: string; name: string }[]).map((r) => (hasKey(`resource.${r.key}`) ? t(`resource.${r.key}`) : r.name));
   const max = subscription.maxVehicles ?? 0;
@@ -62,6 +74,7 @@ export async function SubscriptionCard({ subscription, vehiclesUsed }: { subscri
             ))}
           </ul>
         </div>
+        <div className="md:col-span-3">{change}</div>
       </CardContent>
     </Card>
   );

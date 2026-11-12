@@ -7,10 +7,12 @@ import { hasKey, t } from "@/i18n";
 
 export type PublicPackage = { id: string; name: string; description: string | null; price: number; currency: string; billing_period: string; max_vehicles: number; modules: string[] };
 
-export async function loadPublicPackages(): Promise<PublicPackage[]> {
+export async function loadPublicPackages(opts: { publicOnly?: boolean } = {}): Promise<PublicPackage[]> {
   const supabase = await createClient();
+  let q = supabase.from("packages").select("id, name, description, price, currency, billing_period, max_vehicles").eq("is_active", true).is("deleted_at", null);
+  if (opts.publicOnly !== false) q = q.eq("is_public", true);
   const [{ data: packages }, { data: keys }, { data: resources }] = await Promise.all([
-    supabase.from("packages").select("id, name, description, price, currency, billing_period, max_vehicles").eq("is_active", true).eq("is_public", true).is("deleted_at", null).order("sort_order").order("price"),
+    q.order("sort_order").order("price"),
     supabase.from("package_resources").select("package_id, resource_key"),
     supabase.from("resources").select("key, name, sort_order"),
   ]);
