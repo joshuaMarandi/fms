@@ -52,7 +52,7 @@ export function AppSidebar({ counts }: { counts: SidebarCounts; companies?: { id
       const platform = all.find((n) => n.key === "platform");
       const settings = all.find((n) => n.key === "settings");
       const items = (platform?.children ?? []).map((c) => ({ ...c, children: [] }));
-      const setting = settings ? [{ ...settings, children: settings.children.filter((c) => c.key === "settings.roles" || c.key === "settings.audit") }] : [];
+      const setting = settings ? [{ ...settings, children: settings.children.filter((c) => c.key === "settings.roles" || c.key === "settings.audit" || c.key === "settings.templates") }] : [];
       return [...items, ...setting];
     }
     // Fleet database, Driver details and Inspections open one page each (tabs or a vehicle hub).

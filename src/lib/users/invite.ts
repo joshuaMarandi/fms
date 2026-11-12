@@ -94,13 +94,14 @@ export async function inviteUserServer(input: InviteInput): Promise<ActionResult
     return { ok: false, error: roleErr.message, hint: roleErr.hint ?? undefined };
   }
 
-  const mail = invitationEmail({
+  const mail = await invitationEmail({
     name: fullName,
     email,
     companyName: (company as { name: string } | null)?.name ?? "your company",
     roleName: (role as { name: string } | null)?.name ?? "User",
     invitedBy: me?.full_name || "Your administrator",
     url: authLink(await appUrl(), link.properties.hashed_token, "invite"),
+    companyId,
   });
   const sent = await sendMail({ to: email, ...mail });
   if (!sent.ok) {

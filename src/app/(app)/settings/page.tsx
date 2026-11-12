@@ -9,12 +9,13 @@ const ITEMS = [
   { key: "settings.roles", href: "/settings/roles", icon: "key-round" },
   { key: "settings.company", href: "/settings/company", icon: "building-2" },
   { key: "settings.reminders", href: "/settings/reminders", icon: "bell" },
+  { key: "settings.templates", href: "/settings/templates", icon: "mail" },
   { key: "settings.audit", href: "/settings/audit", icon: "scroll-text" },
 ];
 
 export default async function SettingsPage() {
   const session = await requireSession();
-  const visible = ITEMS.filter((i) => session.can(i.key, "view") && (!session.platformMode || i.key === "settings.roles" || i.key === "settings.audit"));
+  const visible = ITEMS.filter((i) => session.can(i.key, "view") && (!session.platformMode || i.key === "settings.roles" || i.key === "settings.audit" || i.key === "settings.templates"));
   return (
     <>
       <PageHeader title={t("settings.title")} description={t("settings.description")} />

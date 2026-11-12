@@ -42,7 +42,7 @@ export async function submitRegistration(input: RegistrationInput): Promise<{ ok
     const { data: pkg } = row.package_id ? await supabase.from("packages").select("name").eq("id", row.package_id).maybeSingle() : { data: null };
     const packageName = (pkg as { name: string } | null)?.name ?? null;
 
-    const applicant = registrationReceivedEmail({ name: row.contact_name, companyName: row.company_name, packageName });
+    const applicant = await registrationReceivedEmail({ name: row.contact_name, companyName: row.company_name, packageName });
     const tasks: Promise<unknown>[] = [sendMail({ to: row.email, ...applicant })];
 
     const admin = createAdminClient();
@@ -51,7 +51,7 @@ export async function submitRegistration(input: RegistrationInput): Promise<{ ok
       new Set(((owners ?? []) as unknown as { profiles: { email: string | null; is_active: boolean } }[]).filter((o) => o.profiles?.is_active && o.profiles.email).map((o) => o.profiles.email!)),
     );
     if (ownerEmails.length) {
-      const alert = registrationAlertEmail({
+      const alert = await registrationAlertEmail({
         companyName: row.company_name,
         contactName: row.contact_name,
         email: row.email,

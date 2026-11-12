@@ -66,7 +66,8 @@ insert into public.resources (key, parent_key, name, label_prefix, path, icon, s
   ('settings.roles', 'settings', 'Roles and access', null, '/settings/roles', 'key-round', 902, false, false),
   ('settings.company', 'settings', 'Company', null, '/settings/company', 'building-2', 903, false, false),
   ('settings.reminders', 'settings', 'Reminders', null, '/settings/reminders', 'bell', 904, false, false),
-  ('settings.audit', 'settings', 'Audit log', null, '/settings/audit', 'scroll-text', 905, false, false)
+  ('settings.audit', 'settings', 'Audit log', null, '/settings/audit', 'scroll-text', 905, false, false),
+  ('settings.templates', 'settings', 'Email and SMS templates', null, '/settings/templates', 'mail', 906, false, false)
 on conflict (key) do update set
   parent_key = excluded.parent_key, name = excluded.name, label_prefix = excluded.label_prefix, path = excluded.path,
   icon = excluded.icon, sort_order = excluded.sort_order, has_reminders = excluded.has_reminders, is_request = excluded.is_request;
@@ -178,6 +179,7 @@ begin
   perform pg_temp.grant_role(admin, 'settings.users', array['view', 'create', 'edit']);
   perform pg_temp.grant_role(admin, 'settings.roles', array['view', 'create', 'edit']);
   perform pg_temp.grant_role(admin, 'settings.company', array['view', 'edit']);
+  perform pg_temp.grant_role(admin, 'settings.templates', array['view', 'edit']);
   perform pg_temp.grant_role(admin, 'settings.reminders', array['view', 'edit']);
   perform pg_temp.grant_role(admin, 'settings.audit', v);
 
@@ -342,6 +344,8 @@ insert into public.vehicles (id, company_id, make, model, registration, chassis_
   ('55555555-5555-5555-5555-000000000004', '11111111-1111-1111-1111-111111111111', 'Toyota', 'Coaster', 'T321JKL', 'JTGFB518000123456', 'N04C-0045678', 2016, 2016, '11111111-1111-1111-1111-00000000000c', 'Dodoma office', 210340, 95, 6, 'Demo Company', 'in_service'),
   ('55555555-5555-5555-5555-000000000005', '11111111-1111-1111-1111-111111111111', 'Mitsubishi', 'L200', 'T654MNO', 'MMBJNKL10LH012345', '4N15-0056789', 2022, 2022, '11111111-1111-1111-1111-00000000000a', 'Dar es Salaam HQ', 18230, 75, 12, 'Demo Company', 'in_service')
 on conflict (id) do nothing;
+update public.vehicles set engine_type = case when id = '55555555-5555-5555-5555-000000000005' then 'petrol' else 'diesel' end
+where company_id = '11111111-1111-1111-1111-111111111111' and engine_type is null;
 
 insert into public.vehicle_inspections (company_id, vehicle_id, kind, inspection_date, renewal_date)
 select '11111111-1111-1111-1111-111111111111', v.id, 'internal', current_date - (interval '1 day' * (30 * n)), current_date + (interval '1 day' * (365 - 30 * n))
@@ -659,3 +663,6 @@ select public.process_due_reminders();
 -- Owners start on the platform, not inside a customer company.
 update public.profiles p set company_id = null
 where exists (select 1 from public.user_roles ur join public.roles r on r.id = ur.role_id where ur.user_id = p.id and r.is_owner);
+
+-- Demo data creates approval messages for test addresses; none of them are sent.
+update public.message_outbox set status = 'skipped', last_error = 'Seed data' where status = 'pending';

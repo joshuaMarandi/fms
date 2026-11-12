@@ -1,10 +1,9 @@
-import "server-only";
-
 /**
  * One email layout for every message: brand bar, white card, heading, short paragraphs,
  * an optional button, an optional details table and an optional item list, then a quiet footer.
  * Table-based with inline styles so it renders the same in Gmail, Outlook and phone mail apps.
  * Flat colours only, no images, no emoji. A plain-text version is produced alongside.
+ * Pure function (no server APIs), so the template editor can render the same email as a live preview.
  */
 
 const C = {
@@ -52,9 +51,11 @@ function toneColors(t: Tone) {
   return t === "success" ? [C.success, C.successBg] : t === "warning" ? [C.warning, C.warningBg] : t === "danger" ? [C.danger, C.dangerBg] : [C.neutral, C.neutralBg];
 }
 
-export function renderEmail(c: EmailContent): { html: string; text: string } {
-  const appName = process.env.MAIL_FROM_NAME ?? "Fleet Management System";
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+export type EmailBrand = { appName?: string; appUrl?: string };
+
+export function renderEmail(c: EmailContent, brand: EmailBrand = {}): { html: string; text: string } {
+  const appName = brand.appName ?? (typeof process !== "undefined" ? process.env.MAIL_FROM_NAME : undefined) ?? "Fleet Management System";
+  const appUrl = brand.appUrl ?? (typeof process !== "undefined" ? process.env.NEXT_PUBLIC_APP_URL : undefined) ?? "";
 
   const paragraphs = c.paragraphs.map((p) => `<p style="margin:0 0 16px;${font}font-size:15px;line-height:24px;color:${C.text};">${esc(p)}</p>`).join("");
 

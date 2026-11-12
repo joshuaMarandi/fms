@@ -17,7 +17,7 @@ export default async function CompanyPage() {
     supabase.from("wash_prices").select("id, category, price_tzs").eq("company_id", companyId).is("deleted_at", null),
     supabase.from("leave_categories").select("id, name, counts_against_balance").eq("company_id", companyId).is("deleted_at", null).order("name"),
     supabase.from("vehicles").select("id, registration, make, model, target_km_per_l").is("deleted_at", null).order("registration"),
-    supabase.from("fuel_prices").select("id, price_per_litre, effective_from, note").eq("company_id", companyId).is("deleted_at", null).order("effective_from", { ascending: false }).limit(24),
+    supabase.from("fuel_prices").select("id, price_per_litre, effective_from, note, engine_type").eq("company_id", companyId).is("deleted_at", null).order("effective_from", { ascending: false }).limit(60),
   ]);
 
   return (

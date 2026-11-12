@@ -3,6 +3,7 @@ import { publicOrigin } from "@/lib/public-origin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendMail, emailConfigured } from "@/lib/email/mailer";
 import { notificationDigestEmail, type DigestItem } from "@/lib/email/templates";
+import { dispatchOutbox } from "@/lib/messaging/dispatch";
 
 /**
  * Daily email digest: one email per user with every notification not emailed yet
@@ -27,6 +28,9 @@ async function handle(request: NextRequest) {
   const admin = createAdminClient();
   const base = publicOrigin(request);
 
+  // Approval emails and SMS that are still waiting (normally sent within seconds).
+  await dispatchOutbox(base, 200).catch((e) => console.error("[messages]", (e as Error).message));
+
   if (request.nextUrl.searchParams.get("reminders") === "1") {
     const { error } = await admin.rpc("process_due_reminders");
     if (error) return NextResponse.json({ error: `Reminder check failed: ${error.message}` }, { status: 500 });
@@ -47,9 +51,9 @@ async function handle(request: NextRequest) {
 
   const userIds = Array.from(byUser.keys());
   const { data: profiles } = userIds.length
-    ? await admin.from("profiles").select("id, email, full_name, is_active, notification_prefs, company:companies(name)").in("id", userIds)
+    ? await admin.from("profiles").select("id, email, full_name, is_active, notification_prefs, company_id, company:companies(name)").in("id", userIds)
     : { data: [] };
-  const profileById = new Map(((profiles ?? []) as unknown as { id: string; email: string | null; full_name: string; is_active: boolean; notification_prefs: { email?: boolean } | null; company: { name: string } | null }[]).map((p) => [p.id, p]));
+  const profileById = new Map(((profiles ?? []) as unknown as { id: string; email: string | null; full_name: string; is_active: boolean; notification_prefs: { email?: boolean } | null; company_id: string | null; company: { name: string } | null }[]).map((p) => [p.id, p]));
 
   let sent = 0;
   let skipped = 0;
@@ -65,7 +69,7 @@ async function handle(request: NextRequest) {
       continue;
     }
     const items: DigestItem[] = list.map((n) => ({ kind: n.kind, title: n.title, body: n.body, url: n.link ? `${base}${n.link}` : null, createdAt: n.created_at }));
-    const mail = notificationDigestEmail({ name: p.full_name || p.email, companyName: p.company?.name ?? null, items, url: `${base}/notifications` });
+    const mail = await notificationDigestEmail({ name: p.full_name || p.email, companyName: p.company?.name ?? null, items, url: `${base}/notifications`, companyId: p.company_id });
     const res = await sendMail({ to: p.email, ...mail });
     if (res.ok) {
       await markDone();

@@ -107,12 +107,13 @@ export function PasswordForm() {
   );
 }
 
-export function NotificationPrefsForm({ prefs }: { prefs: { email?: boolean; in_app?: boolean } }) {
+export function NotificationPrefsForm({ prefs }: { prefs: { email?: boolean; in_app?: boolean; sms?: boolean } }) {
   const session = useSession();
   const [email, setEmail] = React.useState(prefs.email ?? true);
   const [inApp, setInApp] = React.useState(prefs.in_app ?? true);
+  const [sms, setSms] = React.useState(prefs.sms ?? true);
 
-  async function save(next: { email: boolean; in_app: boolean }) {
+  async function save(next: { email: boolean; in_app: boolean; sms: boolean }) {
     const supabase = createClient();
     const { error } = await supabase.from("profiles").update({ notification_prefs: next }).eq("id", session.userId);
     if (error) toast.error(error.message);
@@ -131,7 +132,7 @@ export function NotificationPrefsForm({ prefs }: { prefs: { email?: boolean; in_
           checked={email}
           onCheckedChange={(v) => {
             setEmail(v);
-            save({ email: v, in_app: inApp });
+            save({ email: v, in_app: inApp, sms });
           }}
         />
       </Field>
@@ -144,7 +145,21 @@ export function NotificationPrefsForm({ prefs }: { prefs: { email?: boolean; in_
           checked={inApp}
           onCheckedChange={(v) => {
             setInApp(v);
-            save({ email, in_app: v });
+            save({ email, in_app: v, sms });
+          }}
+        />
+      </Field>
+      <Field orientation="horizontal">
+        <div className="flex-1">
+          <FieldLabel htmlFor="pref_sms">{t("profile.notifications_sms")}</FieldLabel>
+          <FieldDescription>{t("profile.notifications_sms_hint")}</FieldDescription>
+        </div>
+        <Switch
+          id="pref_sms"
+          checked={sms}
+          onCheckedChange={(v) => {
+            setSms(v);
+            save({ email, in_app: inApp, sms: v });
           }}
         />
       </Field>

@@ -528,4 +528,156 @@ begin
   perform pg_temp.as_admin();
 end $$;
 
+-- Approval messages by email and SMS with personal links; engine type and fuel price per engine type
+create or replace function pg_temp.link_for(p_user uuid, p_template text default 'approval_request') returns text language sql as $$
+  select substr(data ->> 'path', 4) from public.message_outbox
+  where user_id = p_user and template = p_template and channel = 'email' and status = 'pending'
+  order by created_at desc, id desc limit 1
+$$;
+
+do $$
+declare
+  company uuid := '11111111-1111-1111-1111-111111111111';
+  admin_id uuid := '33333333-3333-3333-3333-000000000002';
+  coord_id uuid := '33333333-3333-3333-3333-000000000003';
+  requester_id uuid := '33333333-3333-3333-3333-000000000008';
+  hse_id uuid := '33333333-3333-3333-3333-000000000009';
+  ctrl_id uuid := '33333333-3333-3333-3333-000000000010';
+  erc_id uuid := '33333333-3333-3333-3333-000000000011';
+  v_leave uuid;
+  v_trip uuid;
+  v_token text;
+  v_old_token text;
+  j jsonb;
+begin
+  perform pg_temp.as_admin();
+  delete from public.message_outbox;
+
+  -- Engine type and price per engine type
+  update public.vehicles set engine_type = 'petrol' where id = '55555555-5555-5555-5555-000000000005';
+  insert into public.fuel_prices (company_id, engine_type, price_per_litre, effective_from) values
+    (company, 'all', 3000, current_date), (company, 'petrol', 3200, current_date)
+  on conflict (company_id, engine_type, effective_from) do update set price_per_litre = excluded.price_per_litre, deleted_at = null;
+  perform pg_temp.check('petrol price for a petrol vehicle', public.fuel_price_on(company, current_date, 'petrol') = 3200);
+  perform pg_temp.check('diesel falls back to the price for all engine types', public.fuel_price_on(company, current_date, 'diesel') = 3000);
+  begin
+    update public.vehicles set engine_type = 'steam' where id = '55555555-5555-5555-5555-000000000005';
+    perform pg_temp.check('engine type is one of diesel, petrol, electric, gas', false);
+  exception when check_violation then
+    perform pg_temp.check('engine type is one of diesel, petrol, electric, gas', true);
+  end;
+
+  -- Leave: submitted goes to the approver by email and SMS with a personal link
+  insert into public.leave_requests (company_id, employee_id, category_id, date_from, date_to, reason, status, created_by)
+  values (company, coord_id, (select id from public.leave_categories where company_id = company and not counts_against_balance order by name limit 1), current_date + 30, current_date + 32, 'Family event', 'draft', coord_id)
+  returning id into v_leave;
+  perform public.submit_request('leave_requests', v_leave);
+  perform pg_temp.check('approver gets an email and an SMS', (select count(*) from public.message_outbox where user_id = admin_id and template = 'approval_request' and data ->> 'path' like '/a/%') = 2);
+  perform pg_temp.check('the requester is not asked to approve their own request', not exists (select 1 from public.message_outbox where user_id = coord_id and template = 'approval_request'));
+  perform pg_temp.check('the SMS goes to the phone number', exists (select 1 from public.message_outbox where user_id = admin_id and channel = 'sms' and recipient = '+255700000002'));
+  perform pg_temp.check('in-app notification is not emailed again by the digest',
+    not exists (select 1 from public.notifications where user_id = admin_id and link like '%' || v_leave and emailed_at is null));
+
+  v_token := pg_temp.link_for(admin_id);
+  perform pg_temp.check('link opens', public.approval_link_open(v_token) ->> 'state' = 'open');
+  perform pg_temp.check('wrong token is not found', public.approval_link_open('nope') ->> 'state' = 'not_found');
+  perform pg_temp.check('link is stored only as a hash', not exists (select 1 from public.approval_links where token_hash = v_token));
+
+  -- Reject through the link (no sign-in): acts as the approver
+  j := public.approval_link_decide(v_token, 'rejected', 'Clashes with the audit week');
+  perform pg_temp.as_admin();
+  perform pg_temp.check('rejected through the link', (select status from public.leave_requests where id = v_leave) = 'rejected'
+    and (select approved_by from public.leave_requests where id = v_leave) = admin_id);
+  perform pg_temp.check('requester told by email and SMS with the reason', (select count(*) from public.message_outbox where user_id = coord_id and template = 'request_rejected' and data ->> 'reason' = 'Clashes with the audit week') = 2);
+  perform pg_temp.check('used link cannot be used again', public.approval_link_open(v_token) ->> 'state' = 'done');
+  begin
+    perform public.approval_link_decide(v_token, 'approved');
+    perform pg_temp.check('used link refuses a second decision', false);
+  exception when invalid_parameter_value then
+    perform pg_temp.check('used link refuses a second decision', true);
+  end;
+  perform pg_temp.as_admin();
+  perform pg_temp.check('history records the link', exists (select 1 from public.approval_events where record_id = v_leave and action = 'rejected' and via = 'link' and actor_id = admin_id));
+
+  -- Changed and sent again: back to the approver, then approved through a new link
+  update public.leave_requests set date_from = current_date + 40, date_to = current_date + 41 where id = v_leave;
+  perform public.submit_request('leave_requests', v_leave);
+  perform pg_temp.check('resubmission is recorded', exists (select 1 from public.approval_events where record_id = v_leave and action = 'resubmitted'));
+  v_token := pg_temp.link_for(admin_id);
+  j := public.approval_link_decide(v_token, 'approved', null, '{"approver_name": "Amani Mushi", "approver_position": "Fleet Manager"}'::jsonb);
+  perform pg_temp.as_admin();
+  perform pg_temp.check('approved through the link', (select status from public.leave_requests where id = v_leave) = 'approved'
+    and (select approver_position from public.leave_requests where id = v_leave) = 'Fleet Manager');
+  perform pg_temp.check('requester told it was approved', exists (select 1 from public.message_outbox where user_id = coord_id and template = 'request_approved'));
+
+  -- Long trip: approval, then each JMP step in turn
+  insert into public.vehicle_requests (company_id, requester_id, requester_name, requester_phone, trip_type, date_needed, date_to, time_from, time_to, purpose_type, purpose, departure_time, duration_hours, occupants, destination, status, created_by)
+  values (company, requester_id, 'Peter Mollel', '0700 000 808', 'long', current_date + 20, current_date + 22, '06:00', '18:00', 'official', 'Arusha site visit', '06:00', 10, 2, 'Arusha', 'submitted', requester_id)
+  returning id into v_trip;
+  v_token := pg_temp.link_for(admin_id);
+  j := public.approval_link_decide(v_token, 'approved', null, '{"driver_id": "66666666-6666-6666-6666-000000000001", "vehicle_id": "55555555-5555-5555-5555-000000000002"}'::jsonb);
+  perform pg_temp.as_admin();
+  perform pg_temp.check('trip approved through the link with the assignment', (select status from public.vehicle_requests where id = v_trip) = 'approved'
+    and exists (select 1 from public.vehicle_assignments where vehicle_request_id = v_trip and driver_id = '66666666-6666-6666-6666-000000000001'));
+  perform pg_temp.check('long trip: not final yet, the requester is not told approved', not exists (select 1 from public.message_outbox where template = 'request_approved' and data ->> 'path' like '%' || v_trip));
+  perform pg_temp.check('HSE manager gets the next step', exists (select 1 from public.message_outbox where user_id = hse_id and template = 'approval_request' and data ->> 'step' like 'HSE%'));
+  perform pg_temp.check('control room waits for its turn', not exists (select 1 from public.message_outbox where user_id = ctrl_id and template = 'approval_request'));
+  v_old_token := v_token;
+
+  -- HSE rejects; the trip is changed and sent again; it resumes at the HSE step
+  v_token := pg_temp.link_for(hse_id);
+  j := public.approval_link_decide(v_token, 'rejected', 'Route plan missing rest stops');
+  perform pg_temp.as_admin();
+  perform pg_temp.check('JMP rejection rejects the trip', (select status from public.vehicle_requests where id = v_trip) = 'rejected');
+  perform pg_temp.check('requester SMS uses the phone on the request', exists (select 1 from public.message_outbox where template = 'request_rejected' and channel = 'sms' and recipient = '0700000808'));
+  delete from public.message_outbox where user_id = hse_id;
+  perform public.submit_request('vehicle_requests', v_trip);
+  perform pg_temp.check('resubmitted trip resumes at the JMP step', (select status from public.vehicle_requests where id = v_trip) = 'approved'
+    and (select decision from public.jmp_reviews where vehicle_request_id = v_trip and step = 'hse_manager') is null);
+  perform pg_temp.check('the approver is not asked again', public.approval_link_open(v_old_token) ->> 'state' = 'done');
+  perform pg_temp.check('HSE manager gets a new link', pg_temp.link_for(hse_id) is not null);
+
+  j := public.approval_link_decide(pg_temp.link_for(hse_id), 'approved');
+  perform pg_temp.as_admin();
+  j := public.approval_link_decide(pg_temp.link_for(ctrl_id), 'approved');
+  perform pg_temp.as_admin();
+  perform pg_temp.check('emergency commander is last', pg_temp.link_for(erc_id) is not null);
+  j := public.approval_link_decide(pg_temp.link_for(erc_id), 'approved');
+  perform pg_temp.as_admin();
+  perform pg_temp.check('all JMP steps signed', not exists (select 1 from public.jmp_reviews where vehicle_request_id = v_trip and decision is distinct from 'approved'));
+  perform pg_temp.check('requester told the trip is fully approved', exists (select 1 from public.message_outbox where user_id = requester_id and template = 'request_approved'));
+  perform pg_temp.check('no open links left', not exists (select 1 from public.approval_links where record_id = v_trip and used_at is null));
+
+  -- Not reachable through the API
+  perform pg_temp.as_user(requester_id);
+  begin
+    perform public.approval_link_open('x');
+    perform pg_temp.check('signed-in users cannot call the link functions', false);
+  exception when insufficient_privilege then
+    perform pg_temp.check('signed-in users cannot call the link functions', true);
+  end;
+  begin
+    perform count(*) from public.message_outbox;
+    perform pg_temp.check('outbox is not readable', false);
+  exception when insufficient_privilege then
+    perform pg_temp.check('outbox is not readable', true);
+  end;
+  perform pg_temp.as_admin();
+
+  -- Templates: the owner keeps platform defaults, the company admin keeps company wording
+  perform pg_temp.as_user(admin_id);
+  insert into public.message_templates (company_id, key, content) values (company, 'email.approval_request', '{"subject": "Please decide: {request}"}');
+  perform pg_temp.check('company template saved for the company', exists (select 1 from public.message_templates where company_id = company and key = 'email.approval_request'));
+  begin
+    insert into public.message_templates (company_id, key, content) values (null, 'email.approval_request', '{}');
+    perform pg_temp.check('admin cannot change platform defaults', false);
+  exception when insufficient_privilege then
+    perform pg_temp.check('admin cannot change platform defaults', true);
+  end;
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000001');
+  insert into public.message_templates (company_id, key, content) values (null, 'email.approval_request', '{"subject": "Decision needed: {request}"}');
+  perform pg_temp.check('owner keeps platform defaults', exists (select 1 from public.message_templates where company_id is null and key = 'email.approval_request'));
+  perform pg_temp.as_admin();
+end $$;
+
 select 'ALL TESTS PASSED' as result;

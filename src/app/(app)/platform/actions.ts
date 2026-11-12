@@ -207,7 +207,7 @@ export async function rejectRegistration(id: string, reason: string): Promise<Ac
     if (error) return fail(error);
     if (reg) {
       const r = reg as { company_name: string; contact_name: string; email: string };
-      const sent = await sendMail({ to: r.email, ...registrationRejectedEmail({ name: r.contact_name, companyName: r.company_name, reason: reason.trim() }) });
+      const sent = await sendMail({ to: r.email, ...(await registrationRejectedEmail({ name: r.contact_name, companyName: r.company_name, reason: reason.trim() })) });
       if (!sent.ok) console.error("[registration rejected email]", sent.error);
     }
     revalidatePath("/platform/registrations");

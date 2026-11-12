@@ -58,7 +58,7 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
       <RecordTitle title={title} />
       <PageHeader
         title={`${v.registration}`}
-        description={`${v.make} ${v.model}${v.yom ? `, ${v.yom}` : ""} · ${formatNumber(v.odometer_km as number)} km`}
+        description={`${v.make} ${v.model}${v.yom ? `, ${v.yom}` : ""}${v.engine_type ? ` · ${t(`engine.${v.engine_type}`)}` : ""} · ${formatNumber(v.odometer_km as number)} km`}
         actions={
           <>
             <PrintButton />

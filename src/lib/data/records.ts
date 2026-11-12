@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { Option, OptionSource } from "@/lib/forms/schema";
+import { sendMessagesSoon, WORKFLOW_RPCS, WORKFLOW_TABLES } from "@/lib/messaging/soon";
 
 export type ActionResult<T = unknown> = { ok: true; data: T } | { ok: false; error: string; hint?: string };
 
@@ -92,6 +93,7 @@ export async function saveRecord(input: SaveInput): Promise<ActionResult<{ id: s
   }
 
   for (const p of input.revalidate ?? []) revalidatePath(p);
+  if (WORKFLOW_TABLES.has(input.table)) await sendMessagesSoon();
   return { ok: true, data: { id: id! } };
 }
 
@@ -112,6 +114,7 @@ export async function callRpc<T = unknown>(fn: string, args: Record<string, unkn
   const { data, error } = await supabase.rpc(fn, args);
   if (error) return friendly(error);
   for (const p of revalidate) revalidatePath(p);
+  if (WORKFLOW_RPCS.has(fn)) await sendMessagesSoon();
   return { ok: true, data: data as T };
 }
 
@@ -126,7 +129,7 @@ export async function loadOptions(sources: OptionSource[]): Promise<LoadedOption
       switch (s) {
         case "vehicles": {
           const [{ data }, { data: activity }] = await Promise.all([
-            supabase.from("vehicles").select("id, registration, make, model, odometer_km, fuel_tank_capacity_l, target_km_per_l, yom, owner_name, status").is("deleted_at", null).order("registration"),
+            supabase.from("vehicles").select("id, registration, make, model, odometer_km, fuel_tank_capacity_l, target_km_per_l, yom, owner_name, status, engine_type").is("deleted_at", null).order("registration"),
             supabase.from("v_vehicle_activity").select("vehicle_id, last_km_end, last_fuel_odometer"),
           ]);
           const act = new Map(((activity ?? []) as Record<string, unknown>[]).map((a) => [a.vehicle_id as string, a]));

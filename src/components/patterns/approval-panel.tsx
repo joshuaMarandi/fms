@@ -173,7 +173,9 @@ export function ApprovalPanel({
           {request.status === "draft"
             ? t("approval.not_submitted")
             : request.status === "submitted"
-              ? t("approval.awaiting")
+              ? table === "leave_requests" || table === "vehicle_requests"
+                ? `${t("approval.awaiting")}. ${t("approval.sent_by_link")}`
+                : t("approval.awaiting")
               : request.status === "rejected"
                 ? t("approval.rejected_by", { name: approverName ?? request.approver_name ?? "" })
                 : t("approval.approved_by", { name: approverName ?? request.approver_name ?? "" })}
@@ -198,6 +200,7 @@ export function ApprovalPanel({
           <div className="rounded-lg bg-danger-bg p-3 text-sm text-danger">
             <p className="font-medium">{t("approval.reason")}</p>
             <p>{request.rejection_reason}</p>
+            {mayEdit && (table === "leave_requests" || table === "vehicle_requests") ? <p className="mt-2 text-xs text-foreground/80">{t("approval.resume_hint")}</p> : null}
           </div>
         ) : null}
 
