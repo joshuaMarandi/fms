@@ -90,7 +90,7 @@ begin
   select count(*) into n from public.vehicles;
   perform pg_temp.check('HOD reads vehicles', n > 0);
   begin
-    update public.vehicles set location = 'x' where registration = 'T 123 ABC';
+    update public.vehicles set location = 'x' where registration = 'T123ABC';
     get diagnostics n = row_count;
     v_ok := n = 0;
   exception when others then v_ok := true;
@@ -242,8 +242,8 @@ begin
   perform pg_temp.check('fuel issues produced fuel expenses', n > 0);
   select not_safe_for_use::int into v from public.v_vehicle_safety where vehicle_id = '55555555-5555-5555-5555-000000000004';
   perform pg_temp.check('vehicle with immediate open anomaly is not safe', v = 1);
-  select count(*) into n from public.vehicles where status = 'in_garage';
-  perform pg_temp.check('open work order puts vehicle in garage', n >= 1);
+  select count(*) into n from public.vehicles where status = 'out_of_service' and status_reason like 'In garage%' and status_work_order_id is not null;
+  perform pg_temp.check('open work order takes the vehicle out of service with the garage as reason', n >= 1);
 end $$;
 
 
@@ -271,7 +271,7 @@ begin
   -- Vehicle limit (5 vehicles already, Starter allows 5)
   perform pg_temp.as_user('33333333-3333-3333-3333-000000000003');
   begin
-    insert into public.vehicles (company_id, make, model, registration, status) values ('11111111-1111-1111-1111-111111111111', 'Isuzu', 'D-Max', 'T 999 ZZZ', 'in_service');
+    insert into public.vehicles (company_id, make, model, registration, status) values ('11111111-1111-1111-1111-111111111111', 'Isuzu', 'D-Max', 'T999ZZZ', 'in_service');
     v_ok := false;
   exception when others then v_ok := sqlerrm like '%allows 5 vehicles%';
   end;
@@ -472,13 +472,59 @@ begin
   select * into r from public.incidents where id = v_inc;
   perform pg_temp.check('outside driver is saved as typed', r.driver_id is null and r.driver_name = 'Hamisi Bakari');
   insert into public.incident_vehicles (company_id, incident_id, vehicle_source, vehicle_id, registration, make, driver_name)
-  values ('11111111-1111-1111-1111-111111111111', v_inc, 'other', '55555555-5555-5555-5555-000000000002', 'T 999 ZZZ', 'Isuzu', 'Hamisi Bakari') returning id into v_iv;
+  values ('11111111-1111-1111-1111-111111111111', v_inc, 'other', '55555555-5555-5555-5555-000000000002', 'T999ZZZ', 'Isuzu', 'Hamisi Bakari') returning id into v_iv;
   select * into r from public.incident_vehicles where id = v_iv;
-  perform pg_temp.check('outside vehicle keeps typed details and no fleet link', r.vehicle_id is null and r.registration = 'T 999 ZZZ');
+  perform pg_temp.check('outside vehicle keeps typed details and no fleet link', r.vehicle_id is null and r.registration = 'T999ZZZ');
 
   update public.incidents set driver_source = 'fleet', driver_id = '66666666-6666-6666-6666-000000000001', driver_name = null, driver_contact = null where id = v_inc;
   select * into r from public.incidents where id = v_inc;
   perform pg_temp.check('fleet driver details refill from the driver record', r.driver_name = 'Juma Hassan' and r.driver_contact = '+255700000005');
+  perform pg_temp.as_admin();
+end $$;
+
+-- Vehicle status and reason, registration without spaces, hubs, readings from the last record
+do $$
+declare v_id uuid; r record; v_prev numeric; v_fr uuid; n int;
+begin
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  insert into public.vehicles (company_id, make, model, registration, odometer_km)
+  values ('11111111-1111-1111-1111-111111111111', 'Isuzu', 'D-Max', 'T 900 XYZ', 1000) returning id into v_id;
+  perform pg_temp.check('registration is saved without spaces', (select registration from public.vehicles where id = v_id) = 'T900XYZ');
+
+  update public.vehicles set status = 'out_of_service', status_reason = 'Awaiting insurance repair' where id = v_id;
+  perform pg_temp.check('out of service keeps the reason', (select status_reason from public.vehicles where id = v_id) = 'Awaiting insurance repair');
+  update public.vehicles set status = 'in_service' where id = v_id;
+  perform pg_temp.check('back in service clears the reason', (select status_reason from public.vehicles where id = v_id) is null);
+  begin
+    update public.vehicles set status = 'in_garage' where id = v_id;
+    perform pg_temp.check('garage is no longer a status', false);
+  exception when check_violation then
+    perform pg_temp.check('garage is no longer a status', true);
+  end;
+
+  update public.work_orders set date_in = current_date, odometer_in = 132900 where id = '99999999-9999-9999-9999-000000000001';
+  perform pg_temp.check('returned works order puts the vehicle back in service', (select status from public.vehicles where id = '55555555-5555-5555-5555-000000000003') = 'in_service');
+
+  insert into public.fuel_requests (company_id, vehicle_id, request_date, current_odometer, fuel_required_l)
+  values ('11111111-1111-1111-1111-111111111111', v_id, current_date - 2, 1500, 40);
+  insert into public.fuel_requests (company_id, vehicle_id, request_date, current_odometer, fuel_required_l)
+  values ('11111111-1111-1111-1111-111111111111', v_id, current_date, 1900, 40) returning id into v_fr;
+  select previous_odometer into v_prev from public.fuel_requests where id = v_fr;
+  perform pg_temp.check('previous odometer is the reading at the last refuel', v_prev = 1500);
+
+  select * into r from public.v_vehicle_activity where vehicle_id = v_id;
+  perform pg_temp.check('activity shows the last refuel reading', r.last_fuel_odometer = 1900 and r.fuel_requests_this_month >= 1);
+  select * into r from public.v_vehicle_activity where vehicle_id = '55555555-5555-5555-5555-000000000001';
+  perform pg_temp.check('activity shows the last km end', r.last_km_end is not null and r.last_inspection_date is not null);
+  select count(*) into n from public.vehicle_month_counts('daily_inspections', '55555555-5555-5555-5555-000000000001', extract(year from current_date)::int);
+  perform pg_temp.check('month counts for the month picker', n >= 1);
+  begin
+    perform public.vehicle_month_counts('profiles', v_id, 2026);
+    perform pg_temp.check('month counts only for record tables', false);
+  exception when others then
+    perform pg_temp.check('month counts only for record tables', true);
+  end;
+  perform pg_temp.check('each professional course is its own row', (select count(*) from public.driver_courses where driver_id = '66666666-6666-6666-6666-000000000001' and deleted_at is null and course is not null) = 2);
   perform pg_temp.as_admin();
 end $$;
 

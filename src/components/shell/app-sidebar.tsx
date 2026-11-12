@@ -55,8 +55,8 @@ export function AppSidebar({ counts }: { counts: SidebarCounts; companies?: { id
       const setting = settings ? [{ ...settings, children: settings.children.filter((c) => c.key === "settings.roles" || c.key === "settings.audit") }] : [];
       return [...items, ...setting];
     }
-    // Fleet database and Driver details open one page each; their sections are tabs on that page.
-    const SINGLE_PAGE = new Set(["fleet", "drivers"]);
+    // Fleet database, Driver details and Inspections open one page each (tabs or a vehicle hub).
+    const SINGLE_PAGE = new Set(["fleet", "drivers", "inspections"]);
     const visible = filterTree(permissions, all)
       .filter((n) => n.key !== "platform")
       .map((n) => (SINGLE_PAGE.has(n.key) ? { ...n, children: [] } : n));

@@ -2,7 +2,7 @@ import type { FormSchema, Option, OptionSource } from "@/lib/forms/schema";
 import type { LoadedOptions } from "@/lib/data/records";
 import type { ApprovalExtraField } from "@/components/patterns/approval-panel";
 
-export type ColumnType = "text" | "number" | "tzs" | "date" | "datetime" | "time" | "status" | "reminder" | "bool" | "tags" | "km" | "litres" | "hours" | "label";
+export type ColumnType = "text" | "number" | "tzs" | "date" | "datetime" | "time" | "status" | "reminder" | "reminder_date" | "bool" | "tags" | "km" | "litres" | "hours" | "label" | "actions";
 
 export type ColumnSpec = {
   /** Dot path into the row (joins come back nested, for example vehicle.registration) */
@@ -23,6 +23,8 @@ export type ListDef = {
   searchKeys?: string[];
   statusColumn?: string;
   orderBy?: { column: string; ascending?: boolean };
+  /** Adds the previous record's date per group (for example the vehicle's previous inspection) as `as`. */
+  previous?: { group: string; date: string; as: string };
   /** Extra equality filters applied to the list query */
   eq?: Record<string, string | number | boolean>;
 };

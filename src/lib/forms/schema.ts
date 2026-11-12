@@ -26,10 +26,16 @@ type Base = {
   placeholder?: string;
   /** Resource key a user must be able to edit for this field to be editable (defaults to the form's) */
   editResource?: string;
+  /**
+   * New records only: when one of `deps` (top-level fields) changes, set this field to compute().
+   * Inside rows, compute gets the row index; return undefined to leave a value alone.
+   */
+  prefill?: { deps: string[]; compute: (values: Record<string, unknown>, ctx: FormComputeContext, rowIndex?: number) => unknown };
 };
 
 export type Field =
-  | (Base & { control: "text" | "email" | "tel" | "textarea" | "hidden" })
+  | (Base & { control: "text"; /** Spaces are not allowed (for example registration numbers) */ noSpaces?: boolean })
+  | (Base & { control: "email" | "tel" | "textarea" | "hidden" })
   | (Base & { control: "number"; min?: number; max?: number; step?: number; unit?: string; integer?: boolean })
   | (Base & { control: "date" | "time" | "datetime" })
   | (Base & { control: "year"; from?: number })
@@ -52,7 +58,7 @@ export type Field =
       maxRows?: number;
       addLabel?: string;
       totals?: { label: string; compute: (rows: Record<string, unknown>[], values: Record<string, unknown>) => unknown; format?: "number" | "tzs" | "text" }[];
-      defaultRow?: (values: Record<string, unknown>, rows: Record<string, unknown>[]) => Record<string, unknown>;
+      defaultRow?: (values: Record<string, unknown>, rows: Record<string, unknown>[], ctx: FormComputeContext) => Record<string, unknown>;
     });
 
 export type FormComputeContext = {
@@ -106,6 +112,11 @@ function fieldZod(f: Field, values: Record<string, unknown>): z.ZodTypeAny {
   const requiredMsg = t("form.required");
   switch (f.control) {
     case "text":
+      if (f.noSpaces) {
+        const s = z.string().trim().refine((v) => !/\s/.test(v), t("form.no_spaces"));
+        return req ? s.refine((v) => v.length > 0, requiredMsg) : s.nullable().optional().or(z.literal(""));
+      }
+    // falls through
     case "textarea":
     case "tel":
     case "hidden":

@@ -15,7 +15,7 @@ export default async function FleetPage() {
     supabase.from("vehicles").select("*, site:sites(name)").is("deleted_at", null).order("registration"),
     supabase.from("v_vehicle_safety").select("*"),
     supabase.from("vehicle_insurance").select("vehicle_id, end_date").is("deleted_at", null).order("end_date", { ascending: false }),
-    supabase.from("vehicle_inspections").select("vehicle_id, kind, renewal_date").is("deleted_at", null).order("renewal_date", { ascending: false }),
+    supabase.from("vehicle_inspections").select("vehicle_id, kind, renewal_date").eq("kind", "third_party").is("deleted_at", null).order("renewal_date", { ascending: false }),
     supabase.from("service_schedules").select("vehicle_id, next_service_km").is("deleted_at", null).order("created_at", { ascending: false }),
   ]);
 
@@ -26,7 +26,6 @@ export default async function FleetPage() {
     return m;
   };
   const insMap = latest((insurance ?? []) as { vehicle_id: string; end_date: string }[]);
-  const internalMap = latest(((inspections ?? []) as { vehicle_id: string; kind: string; renewal_date: string }[]).filter((i) => i.kind === "internal"));
   const thirdMap = latest(((inspections ?? []) as { vehicle_id: string; kind: string; renewal_date: string }[]).filter((i) => i.kind === "third_party"));
   const schedMap = latest((schedules ?? []) as { vehicle_id: string; next_service_km: number }[]);
 
@@ -38,11 +37,11 @@ export default async function FleetPage() {
     yom: v.yom as number | null,
     location: (v.location as string) ?? (v.site as { name?: string } | null)?.name ?? null,
     odometer_km: v.odometer_km as number,
+    owner_name: (v.owner_name as string) ?? null,
     status: v.status as string,
+    status_reason: (v.status_reason as string) ?? null,
     not_safe: safetyMap.get(v.id as string)?.not_safe_for_use ?? false,
-    open_anomalies: safetyMap.get(v.id as string)?.open_anomalies ?? 0,
     insurance_end: insMap.get(v.id as string)?.end_date ?? null,
-    internal_renewal: internalMap.get(v.id as string)?.renewal_date ?? null,
     third_party_next: thirdMap.get(v.id as string)?.renewal_date ?? null,
     next_service_km: schedMap.get(v.id as string)?.next_service_km ?? null,
   }));

@@ -24,6 +24,7 @@ import { usePermissions } from "@/components/permissions/provider";
 import { saveRecord } from "@/lib/data/records";
 import type { LoadedOptions } from "@/lib/data/records";
 import {
+  allFields,
   buildZod,
   conditionMet,
   defaultValues,
@@ -98,6 +99,43 @@ export function SchemaForm({ schemaKey, record, options = {}, afterSavePath, can
     resolver: async (values, context, opts) => zodResolver(buildZod(schema, values))(values, context, opts),
     mode: "onBlur",
   });
+
+  // Prefill (new records): when a dependency changes, fill the dependent fields and row fields.
+  const isNew = !record?.id;
+  React.useEffect(() => {
+    if (!isNew) return;
+    const fields = allFields(schema);
+    const run = (values: Record<string, unknown>, changed: string, onlyEmpty: boolean) => {
+      const empty = (v: unknown) => v === undefined || v === null || v === "";
+      for (const f of fields) {
+        if (f.prefill?.deps.includes(changed) && (!onlyEmpty || empty(values[f.name]))) {
+          const v = f.prefill.compute(values, ctx);
+          if (v !== undefined) form.setValue(f.name, v ?? "", { shouldDirty: true });
+        }
+        if (f.control === "rows") {
+          const rows = (values[f.name] as Record<string, unknown>[] | undefined) ?? [];
+          for (const s of f.fields) {
+            if (!s.prefill?.deps.includes(changed)) continue;
+            rows.forEach((row, i) => {
+              if (onlyEmpty && !empty(row?.[s.name])) return;
+              const v = s.prefill!.compute(values, ctx, i);
+              if (v !== undefined) form.setValue(`${f.name}.${i}.${s.name}`, v ?? "", { shouldDirty: true });
+            });
+          }
+        }
+      }
+    };
+    // Dependencies already set when the form opens (for example a vehicle chosen on the hub).
+    const initial = form.getValues();
+    for (const dep of new Set(fields.flatMap((f) => [...(f.prefill?.deps ?? []), ...(f.control === "rows" ? f.fields.flatMap((s) => s.prefill?.deps ?? []) : [])]))) {
+      if (initial[dep] !== undefined && initial[dep] !== null && initial[dep] !== "") run(initial, dep, true);
+    }
+    const sub = form.watch((values, { name: changed }) => {
+      if (!changed || changed.includes(".")) return;
+      run(values, changed, false);
+    });
+    return () => sub.unsubscribe();
+  }, [isNew, schema, form, ctx]);
   const [busy, setBusy] = React.useState(false);
   const formId = React.useId();
 
@@ -206,9 +244,29 @@ function FieldRenderer({ field: f, form, ctx, disabled, recordId, schema, prefix
     case "text":
     case "email":
     case "tel":
-      return wrap(<Input id={id} type={f.control === "text" ? "text" : f.control} inputMode={f.control === "tel" ? "tel" : undefined} disabled={isDisabled} aria-invalid={!!error} placeholder={f.placeholder} className="h-10" {...form.register(name)} />);
+    {
+      const reg = form.register(name);
+      const noSpaces = f.control === "text" && f.noSpaces;
+      return wrap(
+        <Input
+          id={id}
+          type={f.control === "text" ? "text" : f.control}
+          inputMode={f.control === "tel" ? "tel" : undefined}
+          disabled={isDisabled}
+          aria-invalid={!!error}
+          placeholder={f.placeholder ? tl(f.placeholder) : undefined}
+          className="h-10"
+          {...reg}
+          onKeyDown={noSpaces ? (e) => e.key === " " && e.preventDefault() : undefined}
+          onChange={(e) => {
+            if (noSpaces && /\s/.test(e.target.value)) e.target.value = e.target.value.replace(/\s+/g, "");
+            return reg.onChange(e);
+          }}
+        />,
+      );
+    }
     case "textarea":
-      return wrap(<Textarea id={id} rows={3} disabled={isDisabled} aria-invalid={!!error} placeholder={f.placeholder} {...form.register(name)} />);
+      return wrap(<Textarea id={id} rows={3} disabled={isDisabled} aria-invalid={!!error} placeholder={f.placeholder ? tl(f.placeholder) : undefined} {...form.register(name)} />);
     case "number":
       return wrap(
         <div className="relative">
@@ -404,7 +462,7 @@ function RowsField({ field: f, form, ctx, disabled, name, schema, recordId }: { 
       <div className="flex items-center justify-between">
         <FieldLegend variant="label">{tl(f.label)}</FieldLegend>
         {!disabled && (!f.maxRows || rows.length < f.maxRows) ? (
-          <Button type="button" variant="outline" size="sm" onClick={() => append(f.defaultRow ? f.defaultRow(values, rowValues) : defaultRow(f))}>
+          <Button type="button" variant="outline" size="sm" onClick={() => append(f.defaultRow ? f.defaultRow(values, rowValues, ctx) : defaultRow(f))}>
             <Plus /> {f.addLabel ? tl(f.addLabel) : t("common.add_row")}
           </Button>
         ) : null}

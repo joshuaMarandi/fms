@@ -45,6 +45,19 @@ export function renderCell(spec: ColumnSpec, value: unknown): React.ReactNode {
       return <StatusChip status={String(value)} />;
     case "reminder":
       return <ReminderChip date={value as string} />;
+    case "reminder_date":
+      return <ReminderChip date={value as string} showDate />;
+    case "actions": {
+      const list = (Array.isArray(value) ? (value as { action_required?: string; status?: string; deleted_at?: string | null }[]) : []).filter((a) => !a.deleted_at);
+      if (list.length === 0) return <span className="text-muted-foreground">{"—"}</span>;
+      const open = list.filter((a) => a.status === "open").length;
+      return (
+        <span className="flex max-w-[360px] items-center gap-2">
+          <StatusChip status={open ? "open" : "closed"} tone={open ? "danger" : "success"} label={open ? t("inspections.actions_open", { count: open }) : t("inspections.actions_closed")} />
+          <span className="truncate text-sm">{list.map((a) => a.action_required).filter(Boolean).join("; ")}</span>
+        </span>
+      );
+    }
     case "bool":
       return value ? t("common.yes") : t("common.no");
     case "label": {
@@ -76,21 +89,27 @@ export function exportValue(spec: ColumnSpec, value: unknown): unknown {
   if (spec.type === "label") return spec.options?.find((o) => o.value === String(value))?.label ? tl(spec.options.find((o) => o.value === String(value))!.label) : value;
   if (spec.type === "tags" && Array.isArray(value)) return value.map((v) => (spec.options?.find((o) => o.value === v) ? tl(spec.options.find((o) => o.value === v)!.label) : v)).join(", ");
   if (spec.type === "status") return hasKey(`status.${value}`) ? t(`status.${value}`) : value;
-  if (spec.type === "date") return formatDate(value as string);
+  if (spec.type === "date" || spec.type === "reminder_date") return formatDate(value as string);
+  if (spec.type === "actions" && Array.isArray(value))
+    return (value as { action_required?: string; status?: string; deleted_at?: string | null }[])
+      .filter((a) => !a.deleted_at)
+      .map((a) => `${a.action_required ?? ""} (${hasKey(`status.${a.status}`) ? t(`status.${a.status}`) : a.status})`)
+      .join("; ");
   if (spec.type === "datetime") return formatDate(value as string, true);
   return value;
 }
 
-export function ModuleTable({ moduleKey, rows, pathPrefix }: { moduleKey: string; rows: Row[]; pathPrefix?: string }) {
+export function ModuleTable({ moduleKey, rows, pathPrefix, hiddenColumns }: { moduleKey: string; rows: Row[]; pathPrefix?: string; hiddenColumns?: string[] }) {
   const def = getModule(moduleKey);
   const router = useRouter();
   const { can } = usePermissions();
   const [pendingDelete, setPendingDelete] = React.useState<Row | null>(null);
   const base = pathPrefix ?? def.path;
+  const hiddenKey = (hiddenColumns ?? []).join(",");
 
   const columns = React.useMemo<ColumnDef<Row, unknown>[]>(
     () =>
-      def.list.columns.map((spec) => ({
+      def.list.columns.filter((spec) => !hiddenKey.split(",").includes(spec.key)).map((spec) => ({
         id: spec.key,
         header: tl(spec.header),
         accessorFn: (row) => exportValue(spec, getPath(row, spec.key)),
@@ -99,7 +118,7 @@ export function ModuleTable({ moduleKey, rows, pathPrefix }: { moduleKey: string
         enableHiding: true,
         meta: { hidden: spec.hidden },
       })),
-    [def],
+    [def, hiddenKey],
   );
 
   const canEdit = can(def.resource, "edit");

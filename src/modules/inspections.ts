@@ -81,7 +81,7 @@ export const dailyInspections: ModuleDef = {
     sections: [{ fields: inspectionCore("daily_inspection_id") }],
   },
   list: {
-    select: "*, vehicle:vehicles(registration), driver:drivers(full_name)",
+    select: "*, vehicle:vehicles(registration), driver:drivers(full_name), actions:inspection_anomalies(action_required, status, deleted_at)",
     orderBy: { column: "inspection_date", ascending: false },
     searchKeys: ["vehicle.registration", "driver.full_name"],
     statusColumn: "remark",
@@ -89,8 +89,8 @@ export const dailyInspections: ModuleDef = {
       { key: "inspection_date", header: "inspections.date", type: "date" },
       { key: "vehicle.registration", header: "inspections.vehicle" },
       { key: "driver.full_name", header: "inspections.driver_name" },
-      { key: "mileage_km", header: "inspections.mileage", type: "km" },
       { key: "remark", header: "inspections.remark", type: "status" },
+      { key: "actions", header: "inspections.action", type: "actions", sortable: false },
     ],
   },
 };
@@ -125,13 +125,13 @@ export const thirdPartyInspections: ModuleDef = {
     orderBy: { column: "inspection_date", ascending: false },
     searchKeys: ["vehicle.registration", "inspector"],
     statusColumn: "remark",
+    previous: { group: "vehicle_id", date: "inspection_date", as: "previous_date" },
     columns: [
       { key: "inspection_date", header: "inspections.date", type: "date" },
       { key: "vehicle.registration", header: "inspections.vehicle" },
       { key: "inspector", header: "inspections.inspector" },
-      { key: "mileage_km", header: "inspections.mileage", type: "km" },
-      { key: "remark", header: "inspections.remark", type: "status" },
-      { key: "renewal_date", header: "inspections.renewal_date", type: "reminder" },
+      { key: "previous_date", header: "inspections.previous_date", type: "date" },
+      { key: "renewal_date", header: "inspections.next_date", type: "reminder_date" },
     ],
   },
 };
@@ -195,7 +195,7 @@ export const firstAidInspections: ModuleDef = {
       { key: "inspected_on", header: "inspections.first_aid.inspected_on", type: "date" },
       { key: "vehicle.registration", header: "inspections.vehicle" },
       { key: "inspector_name", header: "inspections.first_aid.inspector_name" },
-      { key: "next_inspection_date", header: "inspections.first_aid.next", type: "reminder" },
+      { key: "next_inspection_date", header: "inspections.first_aid.next", type: "reminder_date" },
     ],
   },
 };

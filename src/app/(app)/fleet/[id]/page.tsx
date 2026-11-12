@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SchemaForm } from "@/components/patterns/schema-form";
 import { AttachmentsBox } from "@/components/patterns/attachments-box";
 import { KmReminderChip, ReminderChip, StatusChip } from "@/components/patterns/status-chip";
+import { VehicleStatus } from "@/components/patterns/vehicle-status";
 import { RecordTitle } from "@/components/modules/record-title";
 import { PrintButton } from "@/components/shell/print-frame";
 import { RemarksThread } from "./remarks-thread";
@@ -61,7 +62,7 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
         actions={
           <>
             <PrintButton />
-            <StatusChip status={v.status as string} />
+            <VehicleStatus status={v.status as string} reason={v.status_reason as string | null} />
             {safe?.not_safe_for_use ? <StatusChip status="not_safe" /> : null}
             {safe && safe.open_anomalies > 0 ? (
               <Link href={`/inspections/anomalies?vehicle=${id}`} className="status-chip status-chip-danger hover:underline">

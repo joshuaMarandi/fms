@@ -125,8 +125,18 @@ export async function loadOptions(sources: OptionSource[]): Promise<LoadedOption
     sources.map(async (s) => {
       switch (s) {
         case "vehicles": {
-          const { data } = await supabase.from("vehicles").select("id, registration, make, model, odometer_km, fuel_tank_capacity_l, target_km_per_l, yom, owner_name, status").is("deleted_at", null).order("registration");
-          out.vehicles = (data ?? []).map((v: Record<string, unknown>) => ({ ...v, value: v.id as string, label: `${v.registration} (${v.make} ${v.model})` }));
+          const [{ data }, { data: activity }] = await Promise.all([
+            supabase.from("vehicles").select("id, registration, make, model, odometer_km, fuel_tank_capacity_l, target_km_per_l, yom, owner_name, status").is("deleted_at", null).order("registration"),
+            supabase.from("v_vehicle_activity").select("vehicle_id, last_km_end, last_fuel_odometer"),
+          ]);
+          const act = new Map(((activity ?? []) as Record<string, unknown>[]).map((a) => [a.vehicle_id as string, a]));
+          out.vehicles = (data ?? []).map((v: Record<string, unknown>) => ({
+            ...v,
+            last_km_end: act.get(v.id as string)?.last_km_end ?? null,
+            last_fuel_odometer: act.get(v.id as string)?.last_fuel_odometer ?? null,
+            value: v.id as string,
+            label: `${v.registration} (${v.make} ${v.model})`,
+          }));
           break;
         }
         case "drivers": {

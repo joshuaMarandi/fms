@@ -199,6 +199,19 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
     { label: t("dashboard.bucket.90_plus"), count: an.filter((a) => age(a.date_opened) > 90).length },
   ];
 
+  // Open actions grouped per vehicle: one row each, with the count and the most urgent timing.
+  const URGENCY: Record<string, number> = { immediately: 0, before_next_service: 1, at_next_service: 2 };
+  const actionsByVehicle = Array.from(
+    an.reduce((m, a) => {
+      const cur = m.get(a.vehicle_id) ?? { vehicle_id: a.vehicle_id, registration: a.vehicle?.registration ?? "", count: 0, when: a.when_to_act, latest: a.description };
+      cur.count += 1;
+      if ((URGENCY[a.when_to_act] ?? 9) < (URGENCY[cur.when] ?? 9)) cur.when = a.when_to_act;
+      cur.latest = a.description;
+      m.set(a.vehicle_id, cur);
+      return m;
+    }, new Map<string, { vehicle_id: string; registration: string; count: number; when: string; latest: string }>()).values(),
+  ).sort((x, y) => (URGENCY[x.when] ?? 9) - (URGENCY[y.when] ?? 9) || y.count - x.count);
+
   const expiring = rem.filter((r) => r.due_date && r.due_date <= in30).slice(0, 8);
   const isHod = session.roles.some((r) => r.name === "Head of department") && !session.permissions.isAdmin && !session.permissions.isOwner;
   const isCoordinator = session.roles.some((r) => r.name === "Fleet coordinator") && !session.permissions.isAdmin && !session.permissions.isOwner;
@@ -206,7 +219,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
   const change = (cur: number, prev: number) => (prev === 0 ? null : ((cur - prev) / prev) * 100);
 
   const kpiCards = [
-    { show: can("fleet.details", "view"), title: t("dashboard.kpi.vehicles"), value: `${formatNumber(k.vehicles_in_service ?? 0)} / ${formatNumber(k.vehicles_total ?? 0)}`, sub: t("dashboard.kpi.vehicles_desc", { garage: k.vehicles_in_garage ?? 0 }), spark: [], href: "/fleet" },
+    { show: can("fleet.details", "view"), title: t("dashboard.kpi.vehicles"), value: `${formatNumber(k.vehicles_in_service ?? 0)} / ${formatNumber(k.vehicles_total ?? 0)}`, sub: t("dashboard.kpi.vehicles_desc", { count: Math.max(0, (k.vehicles_total ?? 0) - (k.vehicles_in_service ?? 0)) }), spark: [], href: "/fleet" },
     { show: approvable.length > 0, title: t("dashboard.kpi.pending"), value: formatNumber(k.pending_approvals ?? 0), sub: approvable.map((a) => t(a.label)).slice(0, 2).join(", "), spark: [], href: approvable[0]?.path },
     { show: true, title: t("dashboard.kpi.expiring"), value: formatNumber(k.expiring_30 ?? 0), sub: `${t("dashboard.kpi.overdue", { count: k.overdue ?? 0 })} · ${t("dashboard.kpi.expiring_desc")}`, spark: [], tone: (k.overdue ?? 0) > 0 ? "danger" : undefined },
     { show: can("inspections", "view"), title: t("dashboard.kpi.anomalies"), value: formatNumber(k.open_anomalies ?? 0), sub: an.filter((a) => a.when_to_act === "immediately").length ? `${an.filter((a) => a.when_to_act === "immediately").length} ${t("inspections.anomaly.when.immediately").toLowerCase()}` : "", spark: [], href: "/inspections/anomalies", tone: an.some((a) => a.when_to_act === "immediately") ? "danger" : undefined },
@@ -265,13 +278,18 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             {an.length === 0 ? <p className="text-muted-foreground">{t("dashboard.lists.nothing_pending")}</p> : null}
-            {an.slice(0, 8).map((a) => (
-              <Link key={a.id} href="/inspections/anomalies" className="flex items-center justify-between gap-2 rounded-lg border p-2 hover:bg-muted/40">
-                <span className="min-w-0">
-                  <span className="block truncate font-medium">{a.vehicle?.registration}</span>
-                  <span className="block truncate text-xs text-muted-foreground">{a.description}</span>
+            {actionsByVehicle.slice(0, 8).map((a) => (
+              <Link key={a.vehicle_id} href={`/inspections/anomalies?vehicle=${a.vehicle_id}`} className="flex items-center justify-between gap-2 rounded-lg border p-2 hover:bg-muted/40">
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="flex h-7 min-w-7 shrink-0 items-center justify-center rounded-full bg-danger-bg px-2 text-xs font-semibold tabular-nums text-danger" aria-label={t("dashboard.lists.actions_count", { count: a.count })}>
+                    {a.count}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium">{a.registration}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{a.count > 1 ? t("dashboard.lists.actions_count", { count: a.count }) : a.latest}</span>
+                  </span>
                 </span>
-                <StatusChip status={a.when_to_act} tone={a.when_to_act === "immediately" ? "danger" : a.when_to_act === "before_next_service" ? "warning" : "neutral"} label={t(`inspections.anomaly.when.${a.when_to_act}`)} />
+                <StatusChip status={a.when} tone={a.when === "immediately" ? "danger" : a.when === "before_next_service" ? "warning" : "neutral"} label={t(`inspections.anomaly.when.${a.when}`)} />
               </Link>
             ))}
           </CardContent>

@@ -31,7 +31,7 @@ export async function loadRecordWithChildren(moduleKey: string, id: string) {
   return rec;
 }
 
-export async function ModuleRecordPage({ moduleKey, id }: { moduleKey: string; id?: string }) {
+export async function ModuleRecordPage({ moduleKey, id, preset }: { moduleKey: string; id?: string; preset?: Record<string, unknown> }) {
   const def = getModule(moduleKey);
   const session = await requirePermission(def.resource, id ? "view" : "create");
   const supabase = await createClient();
@@ -60,7 +60,7 @@ export async function ModuleRecordPage({ moduleKey, id }: { moduleKey: string; i
         <div className={showApproval ? "lg:col-span-2" : undefined}>
           <SchemaForm
             schemaKey={def.key}
-            record={record}
+            record={record ?? preset ?? null}
             options={options}
             readOnly={locked}
             cancelHref={def.path}

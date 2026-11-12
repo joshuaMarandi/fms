@@ -3,6 +3,19 @@ import type { Field } from "@/lib/forms/schema";
 
 const num = (v: unknown) => (v === "" || v === null || v === undefined ? NaN : Number(v));
 
+type Ctx = { options: { vehicles?: Record<string, unknown>[] } };
+const vehicleOf = (values: Record<string, unknown>, ctx: Ctx) => (ctx.options.vehicles ?? []).find((v) => v.value === values.vehicle_id);
+/** Km at the end of the vehicle's last logged trip (or its odometer when it has none). */
+const lastKmEnd = (values: Record<string, unknown>, ctx: Ctx) => {
+  const v = vehicleOf(values, ctx);
+  return v ? ((v.last_km_end ?? v.odometer_km ?? "") as number | string) : "";
+};
+/** Current odometer reading at the vehicle's last refuel (or its odometer when it has none). */
+const lastFuelOdometer = (values: Record<string, unknown>, ctx: Ctx) => {
+  const v = vehicleOf(values, ctx);
+  return v ? ((v.last_fuel_odometer ?? v.odometer_km ?? "") as number | string) : "";
+};
+
 export const kmLogs: ModuleDef = {
   key: "daily_use.km_log",
   path: "/daily-use/km-log",
@@ -33,15 +46,15 @@ export const kmLogs: ModuleDef = {
             fields: [
               { name: "departing_location", label: "daily_use.km_log.departing", control: "text", required: true },
               { name: "departure_time", label: "daily_use.km_log.departure_time", control: "time" },
-              { name: "km_start", label: "daily_use.km_log.km_start", control: "number", min: 0, unit: "km", required: true },
+              { name: "km_start", label: "daily_use.km_log.km_start", control: "number", min: 0, unit: "km", required: true, prefill: { deps: ["vehicle_id"], compute: (values, ctx, i) => (i === 0 ? lastKmEnd(values, ctx) : undefined) } },
               { name: "km_end", label: "daily_use.km_log.km_end", control: "number", min: 0, unit: "km", required: true },
               { name: "destination", label: "daily_use.km_log.destination", control: "text", required: true },
               { name: "arrival_time", label: "daily_use.km_log.arrival_time", control: "time" },
               { name: "trip_km", label: "daily_use.km_log.trip_km", control: "auto", format: "km", compute: (row) => (Number.isNaN(num(row.km_end) - num(row.km_start)) ? null : num(row.km_end) - num(row.km_start)) },
             ],
-            defaultRow: (values, rows) => {
+            defaultRow: (values, rows, ctx) => {
               const last = rows[rows.length - 1];
-              return { departing_location: (last?.destination as string) ?? "", departure_time: "", km_start: last ? last.km_end : "", km_end: "", destination: "", arrival_time: "" };
+              return { departing_location: (last?.destination as string) ?? "", departure_time: "", km_start: last ? last.km_end : lastKmEnd(values, ctx), km_end: "", destination: "", arrival_time: "" };
             },
             totals: [
               { label: "daily_use.km_log.total_km", format: "number", compute: (rows) => rows.reduce((s, r) => s + (Number.isNaN(num(r.km_end) - num(r.km_start)) ? 0 : num(r.km_end) - num(r.km_start)), 0) },
@@ -78,7 +91,7 @@ const fuelDriverFields: Field[] = [
     compute: (values, ctx) => (ctx.options.vehicles ?? []).find((v) => v.value === values.vehicle_id)?.fuel_tank_capacity_l ?? null,
   },
   { name: "request_date", label: "daily_use.fuel.request_date", control: "date", required: true },
-  { name: "previous_odometer", label: "daily_use.fuel.previous_odometer", control: "number", min: 0, unit: "km", description: "Prefilled from the vehicle when left empty" },
+  { name: "previous_odometer", label: "daily_use.fuel.previous_odometer", control: "number", min: 0, unit: "km", description: "daily_use.fuel.previous_odometer_hint", prefill: { deps: ["vehicle_id"], compute: lastFuelOdometer } },
   { name: "current_odometer", label: "daily_use.fuel.current_odometer", control: "number", min: 0, unit: "km", required: true },
   { name: "fuel_filled_l", label: "daily_use.fuel.fuel_filled", control: "number", min: 0, unit: "L" },
   { name: "fuel_required_l", label: "daily_use.fuel.fuel_required", control: "number", min: 0, unit: "L", required: true },

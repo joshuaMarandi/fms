@@ -336,11 +336,11 @@ on conflict do nothing;
 -- Vehicles
 -- ---------------------------------------------------------------------------
 insert into public.vehicles (id, company_id, make, model, registration, chassis_number, engine_number, yom, year_first_use, site_id, location, odometer_km, fuel_tank_capacity_l, target_km_per_l, owner_name, status) values
-  ('55555555-5555-5555-5555-000000000001', '11111111-1111-1111-1111-111111111111', 'Toyota', 'Land Cruiser 79', 'T 123 ABC', 'JTERB71J5K7001234', '1GD-0012345', 2019, 2019, '11111111-1111-1111-1111-00000000000a', 'Dar es Salaam HQ', 84210, 130, 8.5, 'Demo Company', 'in_service'),
-  ('55555555-5555-5555-5555-000000000002', '11111111-1111-1111-1111-111111111111', 'Toyota', 'Hilux Double Cab', 'T 456 DEF', 'MR0FB8CD900123456', '2GD-0023456', 2021, 2021, '11111111-1111-1111-1111-00000000000a', 'Dar es Salaam HQ', 41560, 80, 11, 'Demo Company', 'in_service'),
-  ('55555555-5555-5555-5555-000000000003', '11111111-1111-1111-1111-111111111111', 'Nissan', 'Patrol', 'T 789 GHI', 'JN1TESY61Z0123456', 'ZD30-0034567', 2017, 2018, '11111111-1111-1111-1111-00000000000b', 'Mwanza site', 132880, 95, 7.5, 'Demo Company', 'in_garage'),
-  ('55555555-5555-5555-5555-000000000004', '11111111-1111-1111-1111-111111111111', 'Toyota', 'Coaster', 'T 321 JKL', 'JTGFB518000123456', 'N04C-0045678', 2016, 2016, '11111111-1111-1111-1111-00000000000c', 'Dodoma office', 210340, 95, 6, 'Demo Company', 'in_service'),
-  ('55555555-5555-5555-5555-000000000005', '11111111-1111-1111-1111-111111111111', 'Mitsubishi', 'L200', 'T 654 MNO', 'MMBJNKL10LH012345', '4N15-0056789', 2022, 2022, '11111111-1111-1111-1111-00000000000a', 'Dar es Salaam HQ', 18230, 75, 12, 'Demo Company', 'in_service')
+  ('55555555-5555-5555-5555-000000000001', '11111111-1111-1111-1111-111111111111', 'Toyota', 'Land Cruiser 79', 'T123ABC', 'JTERB71J5K7001234', '1GD-0012345', 2019, 2019, '11111111-1111-1111-1111-00000000000a', 'Dar es Salaam HQ', 84210, 130, 8.5, 'Demo Company', 'in_service'),
+  ('55555555-5555-5555-5555-000000000002', '11111111-1111-1111-1111-111111111111', 'Toyota', 'Hilux Double Cab', 'T456DEF', 'MR0FB8CD900123456', '2GD-0023456', 2021, 2021, '11111111-1111-1111-1111-00000000000a', 'Dar es Salaam HQ', 41560, 80, 11, 'Demo Company', 'in_service'),
+  ('55555555-5555-5555-5555-000000000003', '11111111-1111-1111-1111-111111111111', 'Nissan', 'Patrol', 'T789GHI', 'JN1TESY61Z0123456', 'ZD30-0034567', 2017, 2018, '11111111-1111-1111-1111-00000000000b', 'Mwanza site', 132880, 95, 7.5, 'Demo Company', 'in_service'),
+  ('55555555-5555-5555-5555-000000000004', '11111111-1111-1111-1111-111111111111', 'Toyota', 'Coaster', 'T321JKL', 'JTGFB518000123456', 'N04C-0045678', 2016, 2016, '11111111-1111-1111-1111-00000000000c', 'Dodoma office', 210340, 95, 6, 'Demo Company', 'in_service'),
+  ('55555555-5555-5555-5555-000000000005', '11111111-1111-1111-1111-111111111111', 'Mitsubishi', 'L200', 'T654MNO', 'MMBJNKL10LH012345', '4N15-0056789', 2022, 2022, '11111111-1111-1111-1111-00000000000a', 'Dar es Salaam HQ', 18230, 75, 12, 'Demo Company', 'in_service')
 on conflict (id) do nothing;
 
 insert into public.vehicle_inspections (company_id, vehicle_id, kind, inspection_date, renewal_date)
@@ -378,11 +378,13 @@ insert into public.drivers (id, company_id, profile_id, full_name, phone, email,
   ('66666666-6666-6666-6666-000000000004', '11111111-1111-1111-1111-111111111111', null, 'Elizabeth Shayo', '+255700000013', null, 'Demo Company', '2023-06-01', 'EMP-0104', 'Driver', 'Transport', '1995-05-30', 'female', 5)
 on conflict (id) do nothing;
 
-insert into public.driver_courses (company_id, driver_id, courses, provider, date_completed) values
-  ('11111111-1111-1111-1111-111111111111', '66666666-6666-6666-6666-000000000001', '{advanced_vip2,hgv}', 'nit', '2022-05-20'),
-  ('11111111-1111-1111-1111-111111111111', '66666666-6666-6666-6666-000000000002', '{senior_vip1}', 'veta', '2023-02-11'),
-  ('11111111-1111-1111-1111-111111111111', '66666666-6666-6666-6666-000000000003', '{advanced_vip2,psv}', 'nit', '2019-08-30'),
-  ('11111111-1111-1111-1111-111111111111', '66666666-6666-6666-6666-000000000004', '{senior_vip1}', 'other', '2024-01-15');
+insert into public.driver_courses (company_id, driver_id, courses, course, institution, date_completed) values
+  ('11111111-1111-1111-1111-111111111111', '66666666-6666-6666-6666-000000000001', '{advanced_vip2}', 'advanced_vip2', 'NIT', '2022-05-20'),
+  ('11111111-1111-1111-1111-111111111111', '66666666-6666-6666-6666-000000000001', '{hgv}', 'hgv', 'VETA', '2021-03-12'),
+  ('11111111-1111-1111-1111-111111111111', '66666666-6666-6666-6666-000000000002', '{senior_vip1}', 'senior_vip1', 'VETA', '2023-02-11'),
+  ('11111111-1111-1111-1111-111111111111', '66666666-6666-6666-6666-000000000003', '{advanced_vip2}', 'advanced_vip2', 'NIT', '2019-08-30'),
+  ('11111111-1111-1111-1111-111111111111', '66666666-6666-6666-6666-000000000003', '{psv}', 'psv', 'NIT', '2020-06-04'),
+  ('11111111-1111-1111-1111-111111111111', '66666666-6666-6666-6666-000000000004', '{senior_vip1}', 'senior_vip1', 'Arusha Technical College', '2024-01-15');
 update public.driver_courses set provider_other = 'Tanzania Driving Academy' where provider = 'other';
 
 insert into public.driver_licences (company_id, driver_id, licence_number, licence_class, date_issued, expiry_date) values
@@ -586,10 +588,10 @@ end $$;
 -- Equipment checks
 insert into public.vehicle_equipment (company_id, vehicle_id, check_date, items, remarks)
 select '11111111-1111-1111-1111-111111111111', v.id, current_date - 14,
-  case when v.registration = 'T 321 JKL'
+  case when v.registration = 'T321JKL'
     then '{wheel_spanner,wheel_chocks,lifting_jack,reflective_triangles,spare_tyre,first_aid_box,towing_rope}'::text[]
     else '{wheel_spanner,wheel_chocks,lifting_jack,reflective_triangles,spare_tyre,fire_extinguisher,first_aid_box,jumping_cable,towing_rope,spade}'::text[] end,
-  case when v.registration = 'T 321 JKL' then 'Fire extinguisher expired, replacement ordered.' else null end
+  case when v.registration = 'T321JKL' then 'Fire extinguisher expired, replacement ordered.' else null end
 from public.vehicles v where v.company_id = '11111111-1111-1111-1111-111111111111';
 
 -- Timesheets for the last two months for the two driver users

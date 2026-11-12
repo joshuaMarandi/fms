@@ -8,6 +8,7 @@ import { ReminderChip, StatusChip } from "@/components/patterns/status-chip";
 import { RecordTitle } from "@/components/modules/record-title";
 import { PrintButton } from "@/components/shell/print-frame";
 import { Button } from "@/components/ui/button";
+import { CoursesEditor } from "./courses-editor";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { loadOptions } from "@/lib/data/records";
@@ -24,7 +25,7 @@ export default async function DriverPage({ params, searchParams }: PageProps<"/d
 
   const [{ data: driver }, { data: courses }, { data: licence }, { data: osha }, { data: trainings }, options] = await Promise.all([
     supabase.from("drivers").select("*").eq("id", id).is("deleted_at", null).maybeSingle(),
-    supabase.from("driver_courses").select("*").eq("driver_id", id).is("deleted_at", null).order("date_completed", { ascending: false }),
+    supabase.from("driver_courses").select("*").eq("driver_id", id).not("course", "is", null).is("deleted_at", null).order("date_completed", { ascending: false }),
     supabase.from("driver_licences").select("*").eq("driver_id", id).is("deleted_at", null).order("expiry_date", { ascending: false }).limit(1).maybeSingle(),
     supabase.from("driver_osha").select("*").eq("driver_id", id).is("deleted_at", null).order("redo_date", { ascending: false }).limit(1).maybeSingle(),
     supabase.from("mandatory_trainings").select("id, courses, date_completed, refresher_date, trainer").eq("driver_id", id).is("deleted_at", null).order("date_completed", { ascending: false }),
@@ -63,17 +64,7 @@ export default async function DriverPage({ params, searchParams }: PageProps<"/d
         </TabsContent>
 
         <TabsContent value="training" className="space-y-6">
-          {courseRows.map((c) => (
-            <SchemaForm key={c.id as string} schemaKey="drivers.training" record={c} extra={extra} revalidate={paths} readOnly={!session.can("drivers.training", "edit")} />
-          ))}
-          {session.can("drivers.training", "create") ? (
-            <details className="page-card p-4" open={courseRows.length === 0}>
-              <summary className="cursor-pointer text-sm font-medium">{t("common.add")}: {t("drivers.tab.training")}</summary>
-              <div className="mt-4">
-                <SchemaForm schemaKey="drivers.training" record={null} extra={extra} revalidate={paths} />
-              </div>
-            </details>
-          ) : null}
+          <CoursesEditor key={courseRows.map((c) => `${c.id}:${c.updated_at}`).join(",")} driverId={id} rows={courseRows as { id: string; course: string }[]} readOnly={!session.can("drivers.training", "edit") && !session.can("drivers.training", "create")} />
           {trainings && trainings.length > 0 ? (
             <div className="page-card p-4">
               <div className="mb-2 flex items-center justify-between">

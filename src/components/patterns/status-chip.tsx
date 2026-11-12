@@ -1,4 +1,5 @@
-import { cn, daysUntil, formatNumber } from "@/lib/utils";
+import type * as React from "react";
+import { cn, daysUntil, formatDate, formatNumber } from "@/lib/utils";
 import { t, hasKey } from "@/i18n";
 
 export type ChipTone = "success" | "warning" | "danger" | "neutral" | "info";
@@ -46,29 +47,39 @@ export function StatusChip({ status, tone, label, className }: { status: string;
   );
 }
 
-/** Green Valid, amber under 30 days with days left, red Overdue. */
-export function ReminderChip({ date, leadDays = 30, className }: { date: string | Date | null | undefined; leadDays?: number; className?: string }) {
+/** Green Valid, amber under 30 days with days left, red Overdue. With showDate: the date and the days left always. */
+export function ReminderChip({ date, leadDays = 30, className, showDate }: { date: string | Date | null | undefined; leadDays?: number; className?: string; showDate?: boolean }) {
   if (!date) {
     return <StatusChip status="no_date" tone="neutral" label={t("reminder.no_date")} className={className} />;
   }
   const days = daysUntil(date)!;
-  if (days < 0) {
-    return <StatusChip status="overdue" tone="danger" label={t("reminder.overdue_days", { days: Math.abs(days) })} className={className} />;
-  }
-  if (days === 0) {
-    return <StatusChip status="due_soon" tone="warning" label={t("reminder.due_today")} className={className} />;
-  }
-  if (days <= leadDays) {
-    return <StatusChip status="due_soon" tone="warning" label={t("reminder.days_left", { days })} className={className} />;
-  }
-  return <StatusChip status="valid" tone="success" label={t("reminder.valid")} className={className} />;
+  let chip: React.ReactNode;
+  if (days < 0) chip = <StatusChip status="overdue" tone="danger" label={t("reminder.overdue_days", { days: Math.abs(days) })} className={className} />;
+  else if (days === 0) chip = <StatusChip status="due_soon" tone="warning" label={t("reminder.due_today")} className={className} />;
+  else if (days <= leadDays) chip = <StatusChip status="due_soon" tone="warning" label={t("reminder.days_left", { days })} className={className} />;
+  else chip = <StatusChip status="valid" tone="success" label={showDate ? t("reminder.days_left", { days }) : t("reminder.valid")} className={className} />;
+  if (!showDate) return chip;
+  return (
+    <span className="flex flex-wrap items-center gap-x-2 gap-y-1 whitespace-nowrap">
+      <span className="tabular-nums">{formatDate(date)}</span>
+      {chip}
+    </span>
+  );
 }
 
-/** Km-based reminder: next service vs current odometer. */
-export function KmReminderChip({ dueKm, currentKm, leadKm = 500, className }: { dueKm: number | null | undefined; currentKm: number | null | undefined; leadKm?: number; className?: string }) {
+/** Km-based reminder: next service vs current odometer. With showKm: the service km and the km left always. */
+export function KmReminderChip({ dueKm, currentKm, leadKm = 500, className, showKm }: { dueKm: number | null | undefined; currentKm: number | null | undefined; leadKm?: number; className?: string; showKm?: boolean }) {
   if (dueKm === null || dueKm === undefined) return <StatusChip status="no_date" tone="neutral" label={t("reminder.no_date")} className={className} />;
   const remaining = dueKm - (currentKm ?? 0);
-  if (remaining < 0) return <StatusChip status="overdue" tone="danger" label={`${t("status.overdue")} ${formatNumber(Math.abs(remaining))} km`} className={className} />;
-  if (remaining <= leadKm) return <StatusChip status="due_soon" tone="warning" label={`${formatNumber(remaining)} km`} className={className} />;
-  return <StatusChip status="valid" tone="success" label={t("reminder.valid")} className={className} />;
+  let chip: React.ReactNode;
+  if (remaining < 0) chip = <StatusChip status="overdue" tone="danger" label={`${t("status.overdue")} ${formatNumber(Math.abs(remaining))} km`} className={className} />;
+  else if (remaining <= leadKm) chip = <StatusChip status="due_soon" tone="warning" label={`${formatNumber(remaining)} km`} className={className} />;
+  else chip = <StatusChip status="valid" tone="success" label={showKm ? t("reminder.km_left", { km: formatNumber(remaining) }) : t("reminder.valid")} className={className} />;
+  if (!showKm) return chip;
+  return (
+    <span className="flex flex-wrap items-center gap-x-2 gap-y-1 whitespace-nowrap">
+      <span className="tabular-nums">{formatNumber(dueKm)} km</span>
+      {chip}
+    </span>
+  );
 }

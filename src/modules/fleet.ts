@@ -11,7 +11,7 @@ export const vehicleDetailsSchema: FormSchema = {
       fields: [
         { name: "make", label: "fleet.make", control: "text", required: true },
         { name: "model", label: "fleet.model", control: "text", required: true },
-        { name: "registration", label: "fleet.registration", control: "text", required: true, description: "Unique per company" },
+        { name: "registration", label: "fleet.registration", control: "text", required: true, noSpaces: true, description: "fleet.registration_hint" },
         { name: "chassis_number", label: "fleet.chassis_number", control: "text" },
         { name: "engine_number", label: "fleet.engine_number", control: "text" },
         { name: "yom", label: "fleet.yom", control: "year", from: 1980 },
@@ -28,11 +28,11 @@ export const vehicleDetailsSchema: FormSchema = {
           control: "select",
           options: [
             { value: "in_service", label: "status.in_service" },
-            { value: "in_garage", label: "status.in_garage" },
             { value: "out_of_service", label: "status.out_of_service" },
           ],
           required: true,
         },
+        { name: "status_reason", label: "fleet.status_reason", control: "textarea", required: true, showWhen: { field: "status", equals: "out_of_service" }, placeholder: "fleet.status_reason_placeholder" },
       ],
     },
   ],
