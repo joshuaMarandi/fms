@@ -8,7 +8,7 @@
 -- ---------------------------------------------------------------------------
 alter table public.vehicles
   add column if not exists status_reason text,
-  add column if not exists status_work_order_id uuid references public.work_orders(id) on delete set null deferrable initially deferred;
+  add column if not exists status_work_order_id uuid;  -- foreign key added at the end of this file
 
 update public.vehicles v set
   status = 'out_of_service',
@@ -187,4 +187,17 @@ from public.driver_courses c
 cross join lateral unnest(c.courses) as x(course)
 where c.course is null and c.deleted_at is null;
 
+-- The old combined rows are retired by the migration itself (no signed-in user), so the soft delete
+-- permission guard is paused for this one statement.
+alter table public.driver_courses disable trigger driver_courses_soft_delete_guard;
 update public.driver_courses set deleted_at = now() where course is null and deleted_at is null;
+alter table public.driver_courses enable trigger driver_courses_soft_delete_guard;
+
+-- ---------------------------------------------------------------------------
+-- Foreign key for the works order that took a vehicle out of service. Added last: it is checked at
+-- commit (the works order trigger sets it before the order row exists), and pending checks would
+-- block the ALTER TABLE statements above on a database that already has vehicles in garage.
+-- ---------------------------------------------------------------------------
+alter table public.vehicles drop constraint if exists vehicles_status_work_order_id_fkey;
+alter table public.vehicles add constraint vehicles_status_work_order_id_fkey
+  foreign key (status_work_order_id) references public.work_orders(id) on delete set null deferrable initially deferred;
