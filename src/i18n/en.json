@@ -443,7 +443,7 @@
   "fleet.registration": "Registration",
   "fleet.chassis_number": "Chassis number",
   "fleet.engine_number": "Engine number",
-  "fleet.yom": "YOM (year of manufacture)",
+  "fleet.yom": "YOM",
   "fleet.year_first_use": "Year of first use",
   "fleet.location": "Location",
   "fleet.site": "Site",
