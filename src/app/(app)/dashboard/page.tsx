@@ -1,9 +1,35 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
+import {
+  Activity,
+  AlertTriangle,
+  ArrowDownRight,
+  ArrowRight,
+  ArrowUpRight,
+  BadgeCheck,
+  BarChart3,
+  CalendarClock,
+  CalendarDays,
+  Clock,
+  Fuel,
+  Gauge,
+  GraduationCap,
+  HardDrive,
+  Inbox,
+  MessageSquareText,
+  Minus,
+  PieChart,
+  Route,
+  ShieldAlert,
+  ShieldCheck,
+  Timer,
+  Truck,
+  Users,
+  Wrench,
+} from "lucide-react";
+import { TONE, CLICKABLE_CARD, type Tone } from "@/components/patterns/tone";
 import { PageHeader } from "@/components/shell/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { ReminderChip, StatusChip } from "@/components/patterns/status-chip";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
@@ -101,8 +127,8 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
     can("expenses.safety", "view") ? supabase.from("v_incident_totals").select("*").gte("month", mk[0] + "-01").lte("month", to) : { data: [] },
     can("inspections", "view") ? supabase.from("inspection_anomalies").select("id, vehicle_id, description, when_to_act, date_opened, vehicle:vehicles(registration)").is("deleted_at", null).eq("status", "open").order("date_opened") : { data: [] },
     Promise.all(approvable.map(async (r) => ({ ...r, rows: ((await supabase.from(r.table).select(r.select).eq("status", "submitted").is("deleted_at", null).order("created_at").limit(10)).data ?? []) as unknown as Row[] }))),
-    can("settings.audit", "view") ? supabase.from("audit_log").select("id, created_at, action, table_name, actor_id").order("created_at", { ascending: false }).limit(8) : supabase.from("notifications").select("id, created_at, title, kind").order("created_at", { ascending: false }).limit(8),
-    can("fleet.remarks", "view") ? supabase.from("vehicle_remarks").select("id, body, created_at, vehicle:vehicles(registration)").is("deleted_at", null).order("created_at", { ascending: false }).limit(5) : { data: [] },
+    can("settings.audit", "view") ? supabase.from("audit_log").select("id, created_at, action, table_name, actor_id").order("created_at", { ascending: false }).limit(8) : supabase.from("notifications").select("id, created_at, title, kind, link").order("created_at", { ascending: false }).limit(8),
+    can("fleet.remarks", "view") ? supabase.from("vehicle_remarks").select("id, body, created_at, vehicle_id, vehicle:vehicles(registration)").is("deleted_at", null).order("created_at", { ascending: false }).limit(5) : { data: [] },
     session.permissions.isOwner || session.permissions.isAdmin
       ? Promise.all([
           supabase.from("profiles").select("id", { count: "exact", head: true }).eq("is_active", true),
@@ -218,50 +244,69 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
 
   const change = (cur: number, prev: number) => (prev === 0 ? null : ((cur - prev) / prev) * 100);
 
-  const kpiCards = [
-    { show: can("fleet.details", "view"), title: t("dashboard.kpi.vehicles"), value: `${formatNumber(k.vehicles_in_service ?? 0)} / ${formatNumber(k.vehicles_total ?? 0)}`, sub: t("dashboard.kpi.vehicles_desc", { count: Math.max(0, (k.vehicles_total ?? 0) - (k.vehicles_in_service ?? 0)) }), spark: [], href: "/fleet" },
-    { show: approvable.length > 0, title: t("dashboard.kpi.pending"), value: formatNumber(k.pending_approvals ?? 0), sub: approvable.map((a) => t(a.label)).slice(0, 2).join(", "), spark: [], href: approvable[0]?.path },
-    { show: true, title: t("dashboard.kpi.expiring"), value: formatNumber(k.expiring_30 ?? 0), sub: `${t("dashboard.kpi.overdue", { count: k.overdue ?? 0 })} · ${t("dashboard.kpi.expiring_desc")}`, spark: [], tone: (k.overdue ?? 0) > 0 ? "danger" : undefined },
-    { show: can("inspections", "view"), title: t("dashboard.kpi.anomalies"), value: formatNumber(k.open_anomalies ?? 0), sub: an.filter((a) => a.when_to_act === "immediately").length ? `${an.filter((a) => a.when_to_act === "immediately").length} ${t("inspections.anomaly.when.immediately").toLowerCase()}` : "", spark: [], href: "/inspections/anomalies", tone: an.some((a) => a.when_to_act === "immediately") ? "danger" : undefined },
-    { show: can("expenses.fuel", "view") || can("daily_use.fuel_log", "view"), title: t("dashboard.kpi.fuel_cost"), value: formatTzs(k.fuel_cost ?? 0), change: change(k.fuel_cost ?? 0, k.fuel_cost_prev ?? 0), spark: sparkFuel, href: "/expenses/fuel", invert: true },
-    { show: can("expenses.safety", "view"), title: t("dashboard.kpi.incidents"), value: formatNumber(k.incidents ?? 0), change: change(k.incidents ?? 0, k.incidents_prev ?? 0), spark: incidentsByMonth.map((p) => ({ v: p.incidents })), href: "/expenses/safety/incidents", invert: true },
-  ].filter((c) => c.show);
+  const fuelHref = can("expenses.fuel", "view") ? "/expenses/fuel" : "/daily-use/fuel-log";
+  const kpiList: { show: boolean; title: string; value: string; sub?: string; change?: number | null; spark: { v: number }[]; href: string; invert?: boolean; danger?: boolean; icon: typeof Truck; tone: Tone }[] = [
+    { show: can("fleet.details", "view"), title: t("dashboard.kpi.vehicles"), value: `${formatNumber(k.vehicles_in_service ?? 0)} / ${formatNumber(k.vehicles_total ?? 0)}`, sub: t("dashboard.kpi.vehicles_desc", { count: Math.max(0, (k.vehicles_total ?? 0) - (k.vehicles_in_service ?? 0)) }), spark: [], href: "/fleet", icon: Truck, tone: "green" },
+    { show: approvable.length > 0, title: t("dashboard.kpi.pending"), value: formatNumber(k.pending_approvals ?? 0), sub: approvable.map((a) => t(a.label)).slice(0, 2).join(", "), spark: [], href: (pending.find((p) => p.rows.length > 0) ?? approvable[0])?.path ?? "/requests", icon: Inbox, tone: "blue" },
+    { show: true, title: t("dashboard.kpi.expiring"), value: formatNumber(k.expiring_30 ?? 0), sub: `${t("dashboard.kpi.overdue", { count: k.overdue ?? 0 })} · ${t("dashboard.kpi.expiring_desc")}`, spark: [], href: "#expiring", icon: CalendarClock, tone: "amber", danger: (k.overdue ?? 0) > 0 },
+    { show: can("inspections", "view"), title: t("dashboard.kpi.anomalies"), value: formatNumber(k.open_anomalies ?? 0), sub: an.filter((a) => a.when_to_act === "immediately").length ? `${an.filter((a) => a.when_to_act === "immediately").length} ${t("inspections.anomaly.when.immediately").toLowerCase()}` : "", spark: [], href: "/inspections/anomalies", icon: AlertTriangle, tone: "red", danger: an.some((a) => a.when_to_act === "immediately") },
+    { show: can("expenses.fuel", "view") || can("daily_use.fuel_log", "view"), title: t("dashboard.kpi.fuel_cost"), value: formatTzs(k.fuel_cost ?? 0), change: change(k.fuel_cost ?? 0, k.fuel_cost_prev ?? 0), spark: sparkFuel, href: fuelHref, invert: true, icon: Fuel, tone: "purple" },
+    { show: can("expenses.safety", "view"), title: t("dashboard.kpi.incidents"), value: formatNumber(k.incidents ?? 0), change: change(k.incidents ?? 0, k.incidents_prev ?? 0), spark: incidentsByMonth.map((p) => ({ v: p.incidents })), href: "/expenses/safety/incidents", invert: true, icon: ShieldAlert, tone: "slate" },
+  ];
+  const kpiCards = kpiList.filter((c) => c.show);
+
+  /** Header of a list card: coloured icon, title and a "view all" link. */
+  const listHeader = (title: string, icon: typeof Truck, tone: Tone, href?: string) => {
+    const Icon = icon;
+    return (
+      <CardHeader className="flex flex-row items-center justify-between gap-3">
+        <span className="flex items-center gap-3">
+          <span className={cn("flex size-9 items-center justify-center rounded-lg", TONE[tone].tile)} aria-hidden="true">
+            <Icon className="size-[18px]" />
+          </span>
+          <CardTitle className="text-base">{title}</CardTitle>
+        </span>
+        {href ? (
+          <Link href={href} className="inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-4 hover:underline">
+            {t("dashboard.view_all")} <ArrowRight className="size-3.5" aria-hidden="true" />
+          </Link>
+        ) : null}
+      </CardHeader>
+    );
+  };
+  const rowLink = "flex items-center justify-between gap-2 rounded-lg border bg-card p-2.5 transition-colors hover:border-primary/40 hover:bg-primary/5";
 
   const tasks = (
     <div className="grid gap-6 lg:grid-cols-3">
       {approvable.length > 0 ? (
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">{t("dashboard.lists.needs_approval")}</CardTitle>
-          </CardHeader>
+          {listHeader(t("dashboard.lists.needs_approval"), Inbox, "blue", "/requests")}
           <CardContent className="space-y-2 text-sm">
             {pending.every((p) => p.rows.length === 0) ? <p className="text-muted-foreground">{t("dashboard.lists.nothing_pending")}</p> : null}
             {pending.flatMap((p) =>
               p.rows.map((r) => (
-                <div key={`${p.table}-${r.id}`} className="flex items-center justify-between gap-2 rounded-lg border p-2">
+                <Link key={`${p.table}-${r.id}`} href={`${p.path}/${r.id}`} className={cn(rowLink, "group")}>
                   <span className="min-w-0">
                     <span className="block truncate font-medium">{t(p.label)}</span>
                     <span className="block truncate text-xs text-muted-foreground">
                       {(r.vehicle as { registration?: string } | null)?.registration ?? (r.employee as { full_name?: string } | null)?.full_name ?? (r.employee_name as string) ?? (r.requester_name as string) ?? ""} · {formatDate((r.request_date as string) ?? (r.date_from as string) ?? (r.period_month as string) ?? (r.created_at as string))}
                     </span>
                   </span>
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`${p.path}/${r.id}`}>{t("approval.review")}</Link>
-                  </Button>
-                </div>
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#deedf5] px-2 py-1 text-xs font-medium text-[#1f5f80] group-hover:bg-[#2e7da6] group-hover:text-white">
+                    {t("approval.review")} <ArrowRight className="size-3.5" aria-hidden="true" />
+                  </span>
+                </Link>
               )),
             )}
           </CardContent>
         </Card>
       ) : null}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{t("dashboard.lists.expiring")}</CardTitle>
-        </CardHeader>
+      <Card id="expiring" className="scroll-mt-20">
+        {listHeader(t("dashboard.lists.expiring"), CalendarClock, "amber", "/notifications")}
         <CardContent className="space-y-2 text-sm">
           {expiring.length === 0 ? <p className="text-muted-foreground">{t("dashboard.lists.nothing_pending")}</p> : null}
           {expiring.map((r, i) => (
-            <Link key={i} href={r.vehicle_id ? `/fleet/${r.vehicle_id}` : r.driver_id ? `/drivers/${r.driver_id}` : "#"} className="flex items-center justify-between gap-2 rounded-lg border p-2 hover:bg-muted/40">
+            <Link key={i} href={r.vehicle_id ? `/fleet/${r.vehicle_id}` : r.driver_id ? `/drivers/${r.driver_id}` : "/notifications"} className={rowLink}>
               <span className="min-w-0">
                 <span className="block truncate font-medium">{r.title}</span>
                 <span className="block text-xs text-muted-foreground">{formatDate(r.due_date)}</span>
@@ -273,13 +318,11 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
       </Card>
       {can("inspections", "view") ? (
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">{t("dashboard.lists.anomalies")}</CardTitle>
-          </CardHeader>
+          {listHeader(t("dashboard.lists.anomalies"), AlertTriangle, "red", "/inspections/anomalies")}
           <CardContent className="space-y-2 text-sm">
             {an.length === 0 ? <p className="text-muted-foreground">{t("dashboard.lists.nothing_pending")}</p> : null}
             {actionsByVehicle.slice(0, 8).map((a) => (
-              <Link key={a.vehicle_id} href={`/inspections/anomalies?vehicle=${a.vehicle_id}`} className="flex items-center justify-between gap-2 rounded-lg border p-2 hover:bg-muted/40">
+              <Link key={a.vehicle_id} href={`/inspections/anomalies?vehicle=${a.vehicle_id}`} className={rowLink}>
                 <span className="flex min-w-0 items-center gap-2">
                   <span className="flex h-7 min-w-7 shrink-0 items-center justify-center rounded-full bg-danger-bg px-2 text-xs font-semibold tabular-nums text-danger" aria-label={t("dashboard.lists.actions_count", { count: a.count })}>
                     {a.count}
@@ -301,72 +344,72 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
   const charts = (
     <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
       {can("daily_use.fuel_log", "view") && !isHod ? (
-        <Widget title={t("dashboard.chart.fuel_trend")} description={t("dashboard.chart.fuel_trend_desc")} empty={fuelTrend.every((p) => p.cost === 0)}>
+        <Widget href={fuelHref} icon={<Fuel />} tone="purple" title={t("dashboard.chart.fuel_trend")} description={t("dashboard.chart.fuel_trend_desc")} empty={fuelTrend.every((p) => p.cost === 0)}>
           <MonthlyLineChart data={fuelTrend} series={[{ key: "cost", label: t("dashboard.series.cost") }]} unit="tzs" />
         </Widget>
       ) : null}
       {can("expenses.fuel", "view") ? (
-        <Widget title={t("dashboard.chart.consumption")} description={t("dashboard.chart.consumption_desc")} empty={consumption.length === 0}>
+        <Widget href={"/expenses/fuel"} icon={<Gauge />} tone="green" title={t("dashboard.chart.consumption")} description={t("dashboard.chart.consumption_desc")} empty={consumption.length === 0}>
           <TargetBarChart data={consumption} />
         </Widget>
       ) : null}
       {can("expenses", "view") && !isCoordinator ? (
-        <Widget title={t("dashboard.chart.cost_by_category")} description={t("dashboard.chart.cost_by_category_desc")} empty={cost.length === 0}>
+        <Widget href={"/expenses/reports"} icon={<BarChart3 />} tone="blue" title={t("dashboard.chart.cost_by_category")} description={t("dashboard.chart.cost_by_category_desc")} empty={cost.length === 0}>
           <MonthlyBarChart data={costByMonth} series={categories.map((c) => ({ key: c, label: t(`dashboard.series.${c}`) }))} stacked unit="tzs" />
         </Widget>
       ) : null}
       {can("expenses", "view") && !isCoordinator ? (
-        <Widget title={t("dashboard.chart.cost_share")} description={t("dashboard.chart.cost_share_desc")} empty={costShare.length === 0}>
+        <Widget href={"/expenses"} icon={<PieChart />} tone="amber" title={t("dashboard.chart.cost_share")} description={t("dashboard.chart.cost_share_desc")} empty={costShare.length === 0}>
           <DonutChart data={costShare} unit="tzs" />
         </Widget>
       ) : null}
       {can("daily_use.km_log", "view") && !isHod ? (
-        <Widget title={t("dashboard.chart.km_per_vehicle")} description={t("dashboard.chart.km_per_vehicle_desc")} empty={kmPerVehicle.length === 0}>
+        <Widget href={"/daily-use/km-log"} icon={<Route />} tone="green" title={t("dashboard.chart.km_per_vehicle")} description={t("dashboard.chart.km_per_vehicle_desc")} empty={kmPerVehicle.length === 0}>
           <MonthlyBarChart data={kmPerVehicle} series={[{ key: "km", label: t("dashboard.series.km") }]} />
         </Widget>
       ) : null}
       {can("daily_use.km_log", "view") && (isCoordinator || session.permissions.isOwner || session.permissions.isAdmin) ? (
-        <Widget title={t("dashboard.chart.trips_per_day")} description={t("dashboard.chart.trips_per_day_desc")} empty={tripsByDay.length === 0}>
+        <Widget href={"/daily-use/km-log"} icon={<Activity />} tone="blue" title={t("dashboard.chart.trips_per_day")} description={t("dashboard.chart.trips_per_day_desc")} empty={tripsByDay.length === 0}>
           <SimpleAreaChart data={tripsByDay} dataKey="trips" label={t("dashboard.series.trips")} />
         </Widget>
       ) : null}
       {can("daily_use.trip_requests", "view") && !isHod ? (
-        <Widget title={t("dashboard.chart.requests_by_status")} description={t("dashboard.chart.requests_by_status_desc")} empty={requestsByStatus.length === 0}>
+        <Widget href={"/daily-use/trip-requests"} icon={<Inbox />} tone="purple" title={t("dashboard.chart.requests_by_status")} description={t("dashboard.chart.requests_by_status_desc")} empty={requestsByStatus.length === 0}>
           <DonutChart data={requestsByStatus} />
         </Widget>
       ) : null}
       {can("expenses.maintenance.work_orders", "view") && !isCoordinator ? (
-        <Widget title={t("dashboard.chart.days_out")} description={t("dashboard.chart.days_out_desc")} empty={daysOut.length === 0}>
+        <Widget href={"/expenses/maintenance/work-orders"} icon={<Wrench />} tone="amber" title={t("dashboard.chart.days_out")} description={t("dashboard.chart.days_out_desc")} empty={daysOut.length === 0}>
           <MonthlyBarChart data={daysOut} series={[{ key: "days", label: t("dashboard.series.days") }]} />
         </Widget>
       ) : null}
       {(can("fleet", "view") || can("drivers", "view")) ? (
-        <Widget title={t("dashboard.chart.compliance")} description={t("dashboard.chart.compliance_desc")} empty={compliance.every((c) => c.valid + c.due_soon + c.overdue === 0)}>
+        <Widget href={"/fleet"} icon={<ShieldCheck />} tone="green" title={t("dashboard.chart.compliance")} description={t("dashboard.chart.compliance_desc")} empty={compliance.every((c) => c.valid + c.due_soon + c.overdue === 0)}>
           <ComplianceChart data={compliance} />
         </Widget>
       ) : null}
       {can("expenses.trainings.mandatory", "view") ? (
-        <Widget title={t("dashboard.chart.training")} description={`${t("dashboard.chart.training_desc")} (${driverCount} ${t("nav.drivers").toLowerCase()})`} empty={training.every((x) => x.count === 0)}>
+        <Widget href={"/expenses/trainings/mandatory"} icon={<GraduationCap />} tone="purple" title={t("dashboard.chart.training")} description={`${t("dashboard.chart.training_desc")} (${driverCount} ${t("nav.drivers").toLowerCase()})`} empty={training.every((x) => x.count === 0)}>
           <MonthlyBarChart data={training} series={[{ key: "count", label: t("dashboard.series.count") }]} horizontal />
         </Widget>
       ) : null}
       {can("expenses.leave", "view") ? (
-        <Widget title={t("dashboard.chart.leave")} description={t("dashboard.chart.leave_desc")} empty={leaveByMonth.every((x) => x.days === 0)}>
+        <Widget href={"/expenses/leave/requests"} icon={<CalendarDays />} tone="blue" title={t("dashboard.chart.leave")} description={t("dashboard.chart.leave_desc")} empty={leaveByMonth.every((x) => x.days === 0)}>
           <MonthlyBarChart data={leaveByMonth} series={[{ key: "days", label: t("dashboard.series.days") }]} />
         </Widget>
       ) : null}
       {can("expenses.timesheet", "view") ? (
-        <Widget title={t("dashboard.chart.timesheet")} description={t("dashboard.chart.timesheet_desc")} empty={hoursByMonth.every((x) => x.normal + x.overtime === 0)}>
+        <Widget href={"/expenses/timesheet"} icon={<Clock />} tone="slate" title={t("dashboard.chart.timesheet")} description={t("dashboard.chart.timesheet_desc")} empty={hoursByMonth.every((x) => x.normal + x.overtime === 0)}>
           <MonthlyBarChart data={hoursByMonth} series={[{ key: "normal", label: t("dashboard.series.normal") }, { key: "overtime", label: t("dashboard.series.overtime") }]} />
         </Widget>
       ) : null}
       {can("expenses.safety", "view") ? (
-        <Widget title={t("dashboard.chart.incidents")} description={t("dashboard.chart.incidents_desc")} empty={incidentsByMonth.every((x) => x.incidents === 0)}>
+        <Widget href={"/expenses/safety/incidents"} icon={<ShieldAlert />} tone="red" title={t("dashboard.chart.incidents")} description={t("dashboard.chart.incidents_desc")} empty={incidentsByMonth.every((x) => x.incidents === 0)}>
           <MonthlyLineChart data={incidentsByMonth} series={[{ key: "incidents", label: t("dashboard.series.incidents") }, { key: "injuries", label: t("dashboard.series.injuries") }, { key: "fatalities", label: t("dashboard.series.fatalities") }]} />
         </Widget>
       ) : null}
       {can("inspections", "view") && !isHod ? (
-        <Widget title={t("dashboard.chart.anomaly_ageing")} description={t("dashboard.chart.anomaly_ageing_desc")} empty={an.length === 0}>
+        <Widget href={"/inspections/anomalies"} icon={<Timer />} tone="red" title={t("dashboard.chart.anomaly_ageing")} description={t("dashboard.chart.anomaly_ageing_desc")} empty={an.length === 0}>
           <MonthlyBarChart data={ageing} series={[{ key: "count", label: t("dashboard.series.count") }]} />
         </Widget>
       ) : null}
@@ -378,32 +421,63 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
       <PageHeader title={t("dashboard.title")} description={t("dashboard.description")} actions={<DashboardFilters vehicles={((vehicles ?? []) as Row[]).map((v) => ({ id: v.id as string, registration: v.registration as string }))} />} />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-        {kpiCards.map((c) => (
-          <Card key={c.title} className={cn(c.tone === "danger" && "border-danger/40")}>
-            <CardHeader className="pb-2">
-              <CardDescription className="text-xs">{c.title}</CardDescription>
-              <CardTitle className="text-2xl tabular-nums">{c.href ? <Link href={c.href} className="hover:underline">{c.value}</Link> : c.value}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1">
-              {"change" in c && c.change !== null && c.change !== undefined ? (
-                <p className={cn("flex items-center gap-1 text-xs", (c.invert ? c.change <= 0 : c.change >= 0) ? "text-success" : "text-danger")}>
-                  {c.change > 0 ? <ArrowUpRight className="size-3.5" aria-hidden="true" /> : c.change < 0 ? <ArrowDownRight className="size-3.5" aria-hidden="true" /> : <Minus className="size-3.5" aria-hidden="true" />}
-                  {Math.abs(c.change).toFixed(0)}% {t("common.change_vs_previous")}
-                </p>
-              ) : c.sub ? (
-                <p className="text-xs text-muted-foreground">{c.sub}</p>
-              ) : null}
-              {c.spark.length > 1 ? <Sparkline data={c.spark} color={c.tone === "danger" ? "var(--chart-4)" : "var(--chart-1)"} /> : null}
-            </CardContent>
-          </Card>
-        ))}
+        {kpiCards.map((c) => {
+          const Icon = c.icon;
+          const tone = TONE[c.danger ? "red" : c.tone];
+          return (
+            <Link key={c.title} href={c.href} className={cn("group rounded-xl", CLICKABLE_CARD)}>
+              <Card className={cn("h-full gap-2 pt-0 transition-colors", tone.ring, c.danger && "ring-danger/40")}>
+                <span className={cn("h-1 w-full", tone.bar)} aria-hidden="true" />
+                <CardHeader className="flex flex-row items-start justify-between gap-2 pb-0">
+                  <span className="min-w-0">
+                    <CardDescription className="text-xs font-medium">{c.title}</CardDescription>
+                    <CardTitle className={cn("mt-1 truncate text-2xl tabular-nums", c.danger && "text-danger")}>{c.value}</CardTitle>
+                  </span>
+                  <span className={cn("flex size-10 shrink-0 items-center justify-center rounded-xl", tone.tile)} aria-hidden="true">
+                    <Icon className="size-5" />
+                  </span>
+                </CardHeader>
+                <CardContent className="space-y-1">
+                  {c.change !== null && c.change !== undefined ? (
+                    <p className={cn("flex items-center gap-1 text-xs", (c.invert ? c.change <= 0 : c.change >= 0) ? "text-success" : "text-danger")}>
+                      {c.change > 0 ? <ArrowUpRight className="size-3.5" aria-hidden="true" /> : c.change < 0 ? <ArrowDownRight className="size-3.5" aria-hidden="true" /> : <Minus className="size-3.5" aria-hidden="true" />}
+                      {Math.abs(c.change).toFixed(0)}% {t("common.change_vs_previous")}
+                    </p>
+                  ) : c.sub ? (
+                    <p className="line-clamp-2 text-xs text-muted-foreground">{c.sub}</p>
+                  ) : null}
+                  {c.spark.length > 1 ? <Sparkline data={c.spark} color={c.danger ? "var(--chart-4)" : `var(--chart-${{ green: 1, blue: 2, amber: 3, red: 4, purple: 5, slate: 6 }[c.tone]})`} /> : null}
+                  <span className={cn("inline-flex items-center gap-1 pt-1 text-xs font-medium opacity-80 transition-opacity group-hover:opacity-100", tone.text)}>
+                    {t("dashboard.open")} <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                  </span>
+                </CardContent>
+              </Card>
+            </Link>
+          );
+        })}
       </div>
 
       {health ? (
         <div className="grid gap-4 sm:grid-cols-3">
-          <Card><CardHeader className="pb-1"><CardDescription className="text-xs">{t("dashboard.system_health.users")}</CardDescription><CardTitle className="text-xl">{formatNumber(health[0].count ?? 0)}</CardTitle></CardHeader></Card>
-          <Card><CardHeader className="pb-1"><CardDescription className="text-xs">{t("dashboard.system_health.storage")}</CardDescription><CardTitle className="text-xl">{formatNumber(((health[1].data ?? []) as { size_bytes: number | null }[]).reduce((s, a) => s + Number(a.size_bytes ?? 0), 0) / (1024 * 1024), 1)} MB</CardTitle></CardHeader></Card>
-          <Card><CardHeader className="pb-1"><CardDescription className="text-xs">{t("dashboard.system_health.role_changes")}</CardDescription><CardTitle className="text-xl">{formatNumber(health[2].count ?? 0)}</CardTitle></CardHeader></Card>
+          {[
+            { label: t("dashboard.system_health.users"), value: formatNumber(health[0].count ?? 0), href: "/settings/users", icon: Users, tone: "green" as Tone },
+            { label: t("dashboard.system_health.storage"), value: `${formatNumber(((health[1].data ?? []) as { size_bytes: number | null }[]).reduce((s, a) => s + Number(a.size_bytes ?? 0), 0) / (1024 * 1024), 1)} MB`, href: "/settings/company", icon: HardDrive, tone: "blue" as Tone },
+            { label: t("dashboard.system_health.role_changes"), value: formatNumber(health[2].count ?? 0), href: "/settings/audit", icon: BadgeCheck, tone: "purple" as Tone },
+          ].map((h) => {
+            const Icon = h.icon;
+            return (
+              <Link key={h.href} href={h.href} className={cn("group flex items-center gap-3 rounded-xl border bg-card p-4", CLICKABLE_CARD, TONE[h.tone].ring)}>
+                <span className={cn("flex size-10 shrink-0 items-center justify-center rounded-xl", TONE[h.tone].tile)} aria-hidden="true">
+                  <Icon className="size-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-xs text-muted-foreground">{h.label}</span>
+                  <span className="block text-xl font-semibold tabular-nums">{h.value}</span>
+                </span>
+                <ArrowUpRight className="size-4 text-muted-foreground group-hover:text-foreground" aria-hidden="true" />
+              </Link>
+            );
+          })}
         </div>
       ) : null}
 
@@ -421,41 +495,30 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">{t("dashboard.lists.activity")}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="divide-y text-sm">
-              {((activity ?? []) as Row[]).map((a) => (
-                <li key={a.id as string} className="flex items-center justify-between gap-2 py-2">
-                  <span className="truncate">{(a.title as string) ?? `${String(a.action).replace(/_/g, " ")} · ${a.table_name}`}</span>
-                  <span className="shrink-0 text-xs text-muted-foreground">{formatDate(a.created_at as string, true)}</span>
-                </li>
-              ))}
-              {(activity ?? []).length === 0 ? <li className="py-2 text-muted-foreground">{t("dashboard.no_data")}</li> : null}
-            </ul>
+          {listHeader(t("dashboard.lists.activity"), Activity, "slate", can("settings.audit", "view") ? "/settings/audit" : "/notifications")}
+          <CardContent className="space-y-2 text-sm">
+            {((activity ?? []) as Row[]).map((a) => (
+              <Link key={a.id as string} href={(a.link as string) || (a.table_name ? "/settings/audit" : "/notifications")} className={rowLink}>
+                <span className="truncate">{(a.title as string) ?? `${String(a.action).replace(/_/g, " ")} · ${a.table_name}`}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">{formatDate(a.created_at as string, true)}</span>
+              </Link>
+            ))}
+            {(activity ?? []).length === 0 ? <p className="text-muted-foreground">{t("dashboard.no_data")}</p> : null}
           </CardContent>
         </Card>
         {isHod || can("fleet.remarks", "view") ? (
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">{t("dashboard.remarks")}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ul className="divide-y text-sm">
-                {((remarks ?? []) as Row[]).map((r) => (
-                  <li key={r.id as string} className="py-2">
-                    <p className="truncate">{r.body as string}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {(r.vehicle as { registration?: string } | null)?.registration} · {formatDate(r.created_at as string)}
-                    </p>
-                  </li>
-                ))}
-                {(remarks ?? []).length === 0 ? <li className="py-2 text-muted-foreground">{t("fleet.no_remarks")}</li> : null}
-              </ul>
-              <Button asChild variant="outline" size="sm" className="mt-3">
-                <Link href="/fleet">{t("fleet.title")}</Link>
-              </Button>
+            {listHeader(t("dashboard.remarks"), MessageSquareText, "amber", "/fleet")}
+            <CardContent className="space-y-2 text-sm">
+              {((remarks ?? []) as Row[]).map((r) => (
+                <Link key={r.id as string} href={r.vehicle_id ? `/fleet/${r.vehicle_id}` : "/fleet"} className={cn(rowLink, "block")}>
+                  <p className="truncate">{r.body as string}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {(r.vehicle as { registration?: string } | null)?.registration} · {formatDate(r.created_at as string)}
+                  </p>
+                </Link>
+              ))}
+              {(remarks ?? []).length === 0 ? <p className="text-muted-foreground">{t("fleet.no_remarks")}</p> : null}
             </CardContent>
           </Card>
         ) : null}

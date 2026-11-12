@@ -5,17 +5,58 @@ import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Label, Line, LineC
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatNumber, formatTzs } from "@/lib/utils";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ArrowUpRight } from "lucide-react";
+import { TONE, CLICKABLE_CARD, type Tone } from "@/components/patterns/tone";
+import { cn, formatNumber, formatTzs } from "@/lib/utils";
 import { t } from "@/i18n";
 
 export const SERIES = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)", "var(--chart-6)"];
 
-export function Widget({ title, description, children, empty, className }: { title: string; description: string; children: React.ReactNode; empty?: boolean; className?: string }) {
+export function Widget({
+  title,
+  description,
+  children,
+  empty,
+  className,
+  href,
+  icon,
+  tone = "green",
+}: {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+  empty?: boolean;
+  className?: string;
+  href?: string;
+  icon?: React.ReactNode;
+  tone?: Tone;
+}) {
+  const router = useRouter();
+  const c = TONE[tone];
+  // The whole card opens the page behind the chart; clicks on links and buttons inside keep their own action.
+  const open = (e: React.MouseEvent) => {
+    if (!href || (e.target as HTMLElement).closest("a, button, input, select")) return;
+    if (e.metaKey || e.ctrlKey) window.open(href, "_blank");
+    else router.push(href);
+  };
   return (
-    <Card className={className}>
-      <CardHeader>
-        <CardTitle className="text-base">{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
+    <Card className={cn("relative pt-0", href && cn(CLICKABLE_CARD, c.ring, "group"), className)} onClick={open}>
+      <span className={cn("h-1 w-full", c.bar)} aria-hidden="true" />
+      <CardHeader className={cn("items-start gap-x-3", icon ? "grid-cols-[auto_1fr_auto]" : "grid-cols-[1fr_auto]")}>
+        {icon ? <span className={cn("row-span-2 flex size-9 items-center justify-center rounded-lg [&_svg]:size-[18px]", c.tile)} aria-hidden="true">{icon}</span> : null}
+        <CardTitle className="text-base">
+          {href ? (
+            <Link href={href} className="outline-none hover:underline focus-visible:underline">
+              {title}
+            </Link>
+          ) : (
+            title
+          )}
+        </CardTitle>
+        {href ? <ArrowUpRight className={cn("row-span-2 size-4 text-muted-foreground transition-colors group-hover:text-foreground")} aria-hidden="true" /> : null}
+        <CardDescription className={icon ? "col-start-2" : "col-start-1"}>{description}</CardDescription>
       </CardHeader>
       <CardContent>{empty ? <p className="flex h-[220px] items-center justify-center text-sm text-muted-foreground">{t("dashboard.no_data")}</p> : children}</CardContent>
     </Card>
