@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AlertTriangle, Plus } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shell/page-header";
 import { HubSummary, VehicleHub, type HubCell, type HubColumn, type HubKind, type HubVehicle } from "@/components/hub/vehicle-hub";
-import { ViewAllMenu } from "@/components/hub/view-all-menu";
+import { AddMenu, ViewAllMenu } from "@/components/hub/view-all-menu";
 import { loadHubVehicles, num } from "@/components/hub/hub-data";
 import { requireSession } from "@/lib/auth/session";
 import { daysFromNowISO, formatDate, formatNumber, todayISO } from "@/lib/utils";
@@ -86,7 +86,6 @@ export default async function InspectionsPage() {
     <>
       <PageHeader
         title={t("inspections.title")}
-        description={t("hub.inspections_description")}
         actions={
           <>
             {session.can("inspections", "view") ? (
@@ -97,13 +96,7 @@ export default async function InspectionsPage() {
               </Button>
             ) : null}
             <ViewAllMenu items={kinds.map((k) => ({ href: `${k.path}?vehicle=all&details=1`, label: k.label }))} />
-            {newLinks.map((l, i) => (
-              <Button key={l.href} asChild variant={i === 0 ? "default" : "outline"} className="h-10">
-                <Link href={l.href}>
-                  <Plus /> {l.label}
-                </Link>
-              </Button>
-            ))}
+            <AddMenu items={newLinks} label={t("inspections.add")} />
           </>
         }
       />
