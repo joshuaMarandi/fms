@@ -41,6 +41,7 @@ export default async function DriversPage() {
     employment_number: (d.employment_number as string) ?? null,
     joining_date: (d.joining_date as string) ?? null,
     is_active: d.is_active as boolean,
+    years_driving: d.years_driving === null || d.years_driving === undefined ? null : Number(d.years_driving),
     licence_expiry: lic.get(d.id as string)?.expiry_date ?? null,
     osha_redo: osh.get(d.id as string)?.redo_date ?? null,
     ddt_refresher: trn.get(d.id as string)?.refresher_date ?? null,

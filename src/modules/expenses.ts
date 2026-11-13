@@ -528,6 +528,7 @@ export const timesheets: ModuleDef = {
             label: "expenses.timesheet.days",
             control: "rows",
             childTable: "timesheet_days",
+            addLabel: "expenses.timesheet.add_day",
             fk: "timesheet_id",
             minRows: 1,
             fields: [
@@ -603,6 +604,7 @@ export const leavePlans: ModuleDef = {
             label: "expenses.leave.plan.rows",
             control: "rows",
             childTable: "leave_plan_rows",
+            addLabel: "expenses.leave.plan.add_period",
             fk: "leave_plan_id",
             fields: [
               { name: "date_from", label: "expenses.leave.date_from", control: "date", required: true },
@@ -730,6 +732,7 @@ const personRows = (name: string, label: string): Field => ({
   label,
   control: "rows",
   childTable: "incident_people",
+  addLabel: name === "injured" ? "expenses.safety.add_injured" : "expenses.safety.add_deceased",
   fk: "incident_id",
   childFilter: { kind: name === "injured" ? "injured" : "deceased" },
   fields: [
@@ -789,6 +792,7 @@ export const incidents: ModuleDef = {
             label: "expenses.safety.vehicles",
             control: "rows",
             childTable: "incident_vehicles",
+            addLabel: "expenses.safety.add_vehicle",
             fk: "incident_id",
             fields: [
               { name: "vehicle_source", label: "expenses.safety.vehicle_source", control: "radio", inline: true, required: true, options: [

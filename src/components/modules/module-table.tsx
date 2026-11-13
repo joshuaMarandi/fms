@@ -58,6 +58,8 @@ export function renderCell(spec: ColumnSpec, value: unknown): React.ReactNode {
         </span>
       );
     }
+    case "multiline":
+      return <span className="block min-w-[200px] max-w-[420px] whitespace-pre-line text-sm">{String(value)}</span>;
     case "bool":
       return value ? t("common.yes") : t("common.no");
     case "label": {
@@ -99,7 +101,7 @@ export function exportValue(spec: ColumnSpec, value: unknown): unknown {
   return value;
 }
 
-export function ModuleTable({ moduleKey, rows, pathPrefix, hiddenColumns }: { moduleKey: string; rows: Row[]; pathPrefix?: string; hiddenColumns?: string[] }) {
+export function ModuleTable({ moduleKey, rows, pathPrefix, hiddenColumns, variant = "list" }: { moduleKey: string; rows: Row[]; pathPrefix?: string; hiddenColumns?: string[]; variant?: "list" | "details" }) {
   const def = getModule(moduleKey);
   const router = useRouter();
   const { can } = usePermissions();
@@ -109,16 +111,18 @@ export function ModuleTable({ moduleKey, rows, pathPrefix, hiddenColumns }: { mo
 
   const columns = React.useMemo<ColumnDef<Row, unknown>[]>(
     () =>
-      def.list.columns.filter((spec) => !hiddenKey.split(",").includes(spec.key)).map((spec) => ({
+      (variant === "details" && def.list.detailColumns ? def.list.detailColumns : def.list.columns).filter((spec) => !hiddenKey.split(",").includes(spec.key)).map((spec) => ({
         id: spec.key,
         header: tl(spec.header),
         accessorFn: (row) => exportValue(spec, getPath(row, spec.key)),
         cell: ({ row }) => renderCell(spec, getPath(row.original, spec.key)),
         enableSorting: spec.sortable !== false,
+        // The status filter chips hold the stored value (for example "anomalies"), not the label.
+        ...(spec.key === def.list.statusColumn ? { filterFn: (row: { original: Row }, _id: string, value: unknown) => value === undefined || String(getPath(row.original, spec.key) ?? "") === value } : {}),
         enableHiding: true,
         meta: { hidden: spec.hidden },
       })),
-    [def, hiddenKey],
+    [def, hiddenKey, variant],
   );
 
   const canEdit = can(def.resource, "edit");
@@ -132,6 +136,11 @@ export function ModuleTable({ moduleKey, rows, pathPrefix, hiddenColumns }: { mo
         getRowId={(r) => r.id}
         searchKeys={def.list.searchKeys?.map((k) => k as keyof Row & string)}
         statusColumn={def.list.statusColumn}
+        statusLabel={(s) => {
+          const spec = def.list.columns.find((c) => c.key === def.list.statusColumn);
+          const opt = spec?.type === "label" ? spec.options?.find((o) => o.value === s) : undefined;
+          return opt ? tl(opt.label) : undefined;
+        }}
         rowHref={(r) => `${base}/${r.id}`}
         canExport={can(def.resource, "export")}
         exportName={def.exportName}

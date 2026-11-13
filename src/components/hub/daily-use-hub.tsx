@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shell/page-header";
-import { HubSummary, VehicleHub, type HubKind, type HubVehicle } from "./vehicle-hub";
+import { HubSummary, VehicleHub, type HubColumn, type HubKind, type HubVehicle } from "./vehicle-hub";
 import { loadHubVehicles, num } from "./hub-data";
 import { requirePermission } from "@/lib/auth/session";
 import { daysFromNowISO, formatDate, formatNumber, formatTzs, todayISO } from "@/lib/utils";
@@ -29,6 +29,8 @@ export async function DailyUseHub({ kind }: { kind: "km_log" | "fuel_log" }) {
   const inService = rows.filter((r) => r.status === "in_service");
   let tiles: { label: string; value: string; sub?: string; tone?: "danger" | "warning" }[];
   let vehicles: HubVehicle[];
+  let columns: HubColumn[];
+  let listNote: string;
 
   if (kind === "km_log") {
     const loggedToday = inService.filter((r) => r.a.last_km_log_date === today).length;
@@ -52,9 +54,21 @@ export async function DailyUseHub({ kind }: { kind: "km_log" | "fuel_log" }) {
         notSafe: r.not_safe,
         chip,
         detail: t("hub.km_month_detail", { km: formatNumber(num(r.a.km_this_month)), trips: num(r.a.trips_this_month) }),
-        attention: r.status !== "in_service" ? 5 : !last ? 1 : last < weekAgo ? 0 : last === today ? 4 : 2,
+        cells: {
+          last: last ? { chip: { label: formatDate(last), tone: last === today ? "success" : last < weekAgo ? "warning" : "neutral" } } : t("hub.no_km_log"),
+          trips: formatNumber(num(r.a.trips_this_month)),
+          km: `${formatNumber(num(r.a.km_this_month))} km`,
+        },
       };
     });
+    columns = [
+      { key: "registration", label: "fleet.reg" },
+      { key: "makeModel", label: "fleet.make_model" },
+      { key: "last", label: "hub.col.last_log" },
+      { key: "trips", label: "hub.col.trips", align: "right" },
+      { key: "km", label: "hub.col.km_run", align: "right" },
+    ];
+    listNote = t("hub.list_note_month");
   } else {
     const litres = rows.reduce((s, r) => s + num(r.a.fuel_l_this_month), 0);
     const km = rows.reduce((s, r) => s + num(r.a.fuel_km_this_month), 0);
@@ -80,9 +94,23 @@ export async function DailyUseHub({ kind }: { kind: "km_log" | "fuel_log" }) {
         chip,
         badge: pend > 0 ? { count: pend, label: t("hub.pending"), tone: "warning" } : null,
         detail: t("hub.fuel_month_detail", { litres: formatNumber(num(r.a.fuel_l_this_month), 1) }),
-        attention: pend > 0 ? 0 : r.status !== "in_service" ? 5 : 2,
+        cells: {
+          last: r.a.last_issue_date ? { chip: { label: formatDate(r.a.last_issue_date as string), tone: r.a.last_issue_date === today ? "success" : "neutral" } } : last ? formatDate(last) : t("hub.no_refuel"),
+          filled: r.a.last_issue_l !== null && r.a.last_issue_l !== undefined ? `${formatNumber(num(r.a.last_issue_l), 1)} L` : null,
+          balance: r.a.last_issue_balance_l !== null && r.a.last_issue_balance_l !== undefined ? `${formatNumber(num(r.a.last_issue_balance_l), 1)} L` : null,
+          km: r.a.last_issue_km_run !== null && r.a.last_issue_km_run !== undefined ? `${formatNumber(num(r.a.last_issue_km_run))} km` : null,
+        },
       };
     });
+    columns = [
+      { key: "registration", label: "fleet.reg" },
+      { key: "makeModel", label: "fleet.make_model" },
+      { key: "last", label: "hub.col.last_refill" },
+      { key: "filled", label: "hub.col.fuel_filled", align: "right" },
+      { key: "balance", label: "hub.col.fuel_balance", align: "right" },
+      { key: "km", label: "hub.col.km_run", align: "right" },
+    ];
+    listNote = t("hub.list_note_last_refill");
   }
 
   return (
@@ -106,7 +134,7 @@ export async function DailyUseHub({ kind }: { kind: "km_log" | "fuel_log" }) {
         }
       />
       <HubSummary tiles={tiles} />
-      <VehicleHub vehicles={vehicles} kinds={[hubKind]} currentYear={cy} currentMonth={cm} />
+      <VehicleHub vehicles={vehicles} kinds={[hubKind]} currentYear={cy} currentMonth={cm} columns={columns} listNote={listNote} />
     </>
   );
 }

@@ -1,5 +1,39 @@
-import type { ModuleDef } from "./types";
+import type { ColumnSpec, ModuleDef } from "./types";
 import type { Field } from "@/lib/forms/schema";
+import { formatDate } from "@/lib/utils";
+import { hasKey, t } from "@/i18n";
+
+type Anomaly = { description?: string | null; action_required?: string | null; when_to_act?: string | null; status?: string | null; date_opened?: string | null; date_closed?: string | null; deleted_at?: string | null };
+const label = (k: string, fallback: string) => (hasKey(k) ? t(k) : fallback);
+
+/** One line per anomaly for the description, action, timing and status columns. */
+function anomalyLines(row: Record<string, unknown>) {
+  const list = ((row.actions as Anomaly[] | null) ?? []).filter((a) => !a.deleted_at);
+  const many = list.length > 1;
+  const pre = (i: number) => (many ? `${i + 1}. ` : "");
+  return {
+    anomaly_description: list.map((a, i) => pre(i) + (a.description ?? "")).join("\n"),
+    anomaly_action: list.map((a, i) => pre(i) + (a.action_required ?? "")).join("\n"),
+    anomaly_when: list.map((a, i) => pre(i) + (a.when_to_act ? label(`inspections.anomaly.when.${a.when_to_act}`, a.when_to_act) : "")).join("\n"),
+    anomaly_status: list
+      .map((a, i) => pre(i) + label(`status.${a.status}`, a.status ?? "") + (a.status === "closed" && a.date_closed ? ` (${formatDate(a.date_closed)})` : a.date_opened ? ` (${t("inspections.opened_on", { date: formatDate(a.date_opened) })})` : ""))
+      .join("\n"),
+  };
+}
+
+const REMARK_OPTIONS = [
+  { value: "safe", label: "inspections.remark.short.safe" },
+  { value: "anomalies", label: "inspections.remark.short.anomalies" },
+];
+const ANOMALY_SELECT = "actions:inspection_anomalies(description, action_required, when_to_act, status, date_opened, date_closed, deleted_at)";
+
+const anomalyDetailColumns: ColumnSpec[] = [
+  { key: "remark", header: "inspections.remark", type: "label", options: REMARK_OPTIONS },
+  { key: "anomaly_description", header: "inspections.col.description", type: "multiline", sortable: false },
+  { key: "anomaly_action", header: "inspections.col.action", type: "multiline", sortable: false },
+  { key: "anomaly_when", header: "inspections.anomaly.when", type: "multiline", sortable: false },
+  { key: "anomaly_status", header: "inspections.anomaly.status", type: "multiline", sortable: false },
+];
 
 const anomalyRowFields: Field[] = [
   { name: "description", label: "inspections.anomaly.description", control: "textarea", required: true, colSpan: 2 },
@@ -59,6 +93,7 @@ const inspectionCore = (childFk: string): Field[] => [
     minRows: 1,
     showWhen: { field: "remark", equals: "anomalies" },
     fields: anomalyRowFields,
+    addLabel: "inspections.add_anomaly",
     defaultRow: () => ({ description: "", action_required: "", when_to_act: "before_next_service", status: "open", date_opened: new Date().toISOString().slice(0, 10), date_closed: "" }),
   },
   { name: "scan", label: "inspections.scanned_report", control: "file", bucket: "inspection-scans", labels: ["inspections.scanned_report"] },
@@ -81,16 +116,25 @@ export const dailyInspections: ModuleDef = {
     sections: [{ fields: inspectionCore("daily_inspection_id") }],
   },
   list: {
-    select: "*, vehicle:vehicles(registration), driver:drivers(full_name), actions:inspection_anomalies(action_required, status, deleted_at)",
+    select: `*, vehicle:vehicles(registration), driver:drivers(full_name), ${ANOMALY_SELECT}`,
     orderBy: { column: "inspection_date", ascending: false },
     searchKeys: ["vehicle.registration", "driver.full_name"],
     statusColumn: "remark",
+    derive: anomalyLines,
     columns: [
       { key: "inspection_date", header: "inspections.date", type: "date" },
       { key: "vehicle.registration", header: "inspections.vehicle" },
-      { key: "driver.full_name", header: "inspections.driver_name" },
-      { key: "remark", header: "inspections.remark", type: "status" },
-      { key: "actions", header: "inspections.action", type: "actions", sortable: false },
+      { key: "driver.full_name", header: "inspections.driver" },
+      { key: "remark", header: "inspections.remark", type: "label", options: REMARK_OPTIONS },
+      { key: "anomaly_description", header: "inspections.col.description", type: "multiline", sortable: false },
+      { key: "actions", header: "inspections.col.action", type: "actions", sortable: false },
+    ],
+    detailColumns: [
+      { key: "inspection_date", header: "inspections.date", type: "date" },
+      { key: "vehicle.registration", header: "inspections.vehicle" },
+      { key: "driver.full_name", header: "inspections.driver" },
+      { key: "mileage_km", header: "inspections.mileage", type: "km" },
+      ...anomalyDetailColumns,
     ],
   },
 };
@@ -121,11 +165,22 @@ export const thirdPartyInspections: ModuleDef = {
     ],
   },
   list: {
-    select: "*, vehicle:vehicles(registration), driver:drivers(full_name)",
+    select: `*, vehicle:vehicles(registration), driver:drivers(full_name), ${ANOMALY_SELECT}`,
     orderBy: { column: "inspection_date", ascending: false },
     searchKeys: ["vehicle.registration", "inspector"],
     statusColumn: "remark",
     previous: { group: "vehicle_id", date: "inspection_date", as: "previous_date" },
+    derive: anomalyLines,
+    detailColumns: [
+      { key: "inspection_date", header: "inspections.date", type: "date" },
+      { key: "vehicle.registration", header: "inspections.vehicle" },
+      { key: "driver.full_name", header: "inspections.driver" },
+      { key: "mileage_km", header: "inspections.mileage", type: "km" },
+      { key: "inspector", header: "inspections.inspector" },
+      ...anomalyDetailColumns,
+      { key: "previous_date", header: "inspections.previous_date", type: "date" },
+      { key: "renewal_date", header: "inspections.next_date", type: "reminder_date" },
+    ],
     columns: [
       { key: "inspection_date", header: "inspections.date", type: "date" },
       { key: "vehicle.registration", header: "inspections.vehicle" },
@@ -172,6 +227,7 @@ export const firstAidInspections: ModuleDef = {
             control: "rows",
             childTable: "first_aid_items",
             fk: "inspection_id",
+            addLabel: "inspections.first_aid.add_item",
             fields: [
               { name: "item_name", label: "inspections.first_aid.item", control: "text", required: true },
               { name: "present", label: "inspections.first_aid.present", control: "checkbox" },
@@ -188,9 +244,31 @@ export const firstAidInspections: ModuleDef = {
     ],
   },
   list: {
-    select: "*, vehicle:vehicles(registration)",
+    select: "*, vehicle:vehicles(registration), items:first_aid_items(item_name, present, quantity, expiry_date, remark, deleted_at)",
     orderBy: { column: "inspected_on", ascending: false },
     searchKeys: ["vehicle.registration", "inspector_name"],
+    derive: (row) => {
+      const items = ((row.items as { item_name: string; present: boolean | null; expiry_date: string | null; remark: string | null; deleted_at: string | null }[] | null) ?? []).filter((i) => !i.deleted_at);
+      const day = String(row.inspected_on ?? "");
+      return {
+        items_present: items.length ? t("inspections.first_aid.present_of", { present: items.filter((i) => i.present).length, total: items.length }) : "",
+        items_missing: items.filter((i) => !i.present).map((i) => i.item_name).join("\n"),
+        items_expired: items.filter((i) => i.expiry_date && i.expiry_date < day).map((i) => `${i.item_name} (${formatDate(i.expiry_date)})`).join("\n"),
+        items_remarks: items.filter((i) => i.remark).map((i) => `${i.item_name}: ${i.remark}`).join("\n"),
+      };
+    },
+    detailColumns: [
+      { key: "inspected_on", header: "inspections.first_aid.inspected_on", type: "date" },
+      { key: "vehicle.registration", header: "inspections.vehicle" },
+      { key: "inspector_name", header: "inspections.first_aid.inspector_name" },
+      { key: "inspector_qualification", header: "inspections.first_aid.qualification" },
+      { key: "items_present", header: "inspections.first_aid.col.present" },
+      { key: "items_missing", header: "inspections.first_aid.col.missing", type: "multiline", sortable: false },
+      { key: "items_expired", header: "inspections.first_aid.col.expired", type: "multiline", sortable: false },
+      { key: "items_remarks", header: "common.remarks", type: "multiline", sortable: false },
+      { key: "notes", header: "common.notes", type: "multiline", sortable: false },
+      { key: "next_inspection_date", header: "inspections.first_aid.next", type: "reminder_date" },
+    ],
     columns: [
       { key: "inspected_on", header: "inspections.first_aid.inspected_on", type: "date" },
       { key: "vehicle.registration", header: "inspections.vehicle" },

@@ -15,6 +15,24 @@ const lastFuelOdometer = (values: Record<string, unknown>, ctx: Ctx) => {
   const v = vehicleOf(values, ctx);
   return v ? ((v.last_fuel_odometer ?? v.odometer_km ?? "") as number | string) : "";
 };
+/** Litres put in at the vehicle's last refuel. */
+const lastFuelFilled = (values: Record<string, unknown>, ctx: Ctx) => {
+  const v = vehicleOf(values, ctx);
+  return v ? ((v.last_fuel_filled ?? "") as number | string) : "";
+};
+/** Km run since the last refuel: current minus previous reading. */
+const fuelKmRun = (values: Record<string, unknown>, ctx: Ctx) => {
+  const prev = num(values.previous_odometer === "" || values.previous_odometer == null ? lastFuelOdometer(values, ctx) : values.previous_odometer);
+  const run = num(values.current_odometer) - prev;
+  return Number.isNaN(run) || run < 0 ? null : run;
+};
+/** Fuel required: km run divided by the vehicle's consumption rate (km per litre). */
+const fuelRequired = (values: Record<string, unknown>, ctx: Ctx) => {
+  const run = fuelKmRun(values, ctx);
+  const rate = num(vehicleOf(values, ctx)?.target_km_per_l);
+  if (run === null || Number.isNaN(rate) || rate <= 0) return undefined;
+  return Math.round((run / rate) * 10) / 10;
+};
 
 export const kmLogs: ModuleDef = {
   key: "daily_use.km_log",
@@ -43,6 +61,7 @@ export const kmLogs: ModuleDef = {
             childTable: "km_log_trips",
             fk: "km_log_id",
             minRows: 1,
+            addLabel: "daily_use.km_log.add_trip",
             fields: [
               { name: "departing_location", label: "daily_use.km_log.departing", control: "text", required: true },
               { name: "departure_time", label: "daily_use.km_log.departure_time", control: "time" },
@@ -67,15 +86,23 @@ export const kmLogs: ModuleDef = {
     ],
   },
   list: {
-    select: "*, vehicle:vehicles(registration), driver:drivers(full_name)",
+    select: "*, vehicle:vehicles(registration), driver:drivers(full_name), trips:km_log_trips(km_start, km_end, deleted_at)",
     orderBy: { column: "log_date", ascending: false },
     searchKeys: ["vehicle.registration", "driver.full_name"],
+    derive: (row) => {
+      const trips = ((row.trips as { km_start: number | null; km_end: number | null; deleted_at: string | null }[] | null) ?? []).filter((x) => !x.deleted_at);
+      const starts = trips.map((x) => x.km_start).filter((v): v is number => v !== null).map(Number);
+      const ends = trips.map((x) => x.km_end).filter((v): v is number => v !== null).map(Number);
+      return { km_start: starts.length ? Math.min(...starts) : null, km_end: ends.length ? Math.max(...ends) : null };
+    },
     columns: [
       { key: "log_date", header: "common.date", type: "date" },
       { key: "vehicle.registration", header: "inspections.vehicle" },
-      { key: "driver.full_name", header: "inspections.driver_name" },
-      { key: "trip_count", header: "daily_use.km_log.trip_count", type: "number", digits: 0 },
-      { key: "total_km", header: "daily_use.km_log.total_km", type: "km" },
+      { key: "driver.full_name", header: "inspections.driver" },
+      { key: "trip_count", header: "daily_use.km_log.col.trips", type: "number", digits: 0 },
+      { key: "km_start", header: "daily_use.km_log.km_start", type: "km" },
+      { key: "km_end", header: "daily_use.km_log.km_end", type: "km" },
+      { key: "total_km", header: "daily_use.km_log.col.km_run", type: "km" },
     ],
   },
 };
@@ -91,10 +118,11 @@ const fuelDriverFields: Field[] = [
     compute: (values, ctx) => (ctx.options.vehicles ?? []).find((v) => v.value === values.vehicle_id)?.fuel_tank_capacity_l ?? null,
   },
   { name: "request_date", label: "daily_use.fuel.request_date", control: "date", required: true },
-  { name: "previous_odometer", label: "daily_use.fuel.previous_odometer", control: "number", min: 0, unit: "km", description: "daily_use.fuel.previous_odometer_hint", prefill: { deps: ["vehicle_id"], compute: lastFuelOdometer } },
+  { name: "previous_odometer", label: "daily_use.fuel.previous_odometer", control: "number", min: 0, unit: "km", readOnly: true, description: "daily_use.fuel.previous_odometer_hint", prefill: { deps: ["vehicle_id"], compute: lastFuelOdometer } },
   { name: "current_odometer", label: "daily_use.fuel.current_odometer", control: "number", min: 0, unit: "km", required: true },
-  { name: "fuel_filled_l", label: "daily_use.fuel.fuel_filled", control: "number", min: 0, unit: "L" },
-  { name: "fuel_required_l", label: "daily_use.fuel.fuel_required", control: "number", min: 0, unit: "L", required: true },
+  { name: "km_run", label: "daily_use.fuel.km_run_since", control: "auto", format: "km", digits: 0, compute: (values, ctx) => fuelKmRun(values, ctx) },
+  { name: "fuel_required_l", label: "daily_use.fuel.fuel_required", control: "number", min: 0, step: 0.1, unit: "L", required: true, description: "daily_use.fuel.fuel_required_hint", prefill: { deps: ["vehicle_id", "current_odometer"], compute: fuelRequired } },
+  { name: "fuel_filled_l", label: "daily_use.fuel.fuel_filled", control: "number", min: 0, unit: "L", readOnly: true, description: "daily_use.fuel.fuel_filled_hint", prefill: { deps: ["vehicle_id"], compute: lastFuelFilled } },
   { name: "confirmation", label: "daily_use.fuel.confirmation", control: "signature", required: true },
 ];
 
@@ -120,17 +148,21 @@ export const fuelLog: ModuleDef = {
     sections: [{ title: "daily_use.fuel.driver_request", fields: fuelDriverFields }],
   },
   list: {
-    select: "*, vehicle:vehicles(registration), driver:drivers(full_name)",
+    select: "*, vehicle:vehicles(registration, fuel_tank_capacity_l), driver:drivers(full_name)",
     orderBy: { column: "request_date", ascending: false },
     searchKeys: ["vehicle.registration", "driver.full_name", "status"],
     statusColumn: "status",
+    keepVehicleColumn: true,
     columns: [
-      { key: "request_date", header: "daily_use.fuel.request_date", type: "date" },
-      { key: "vehicle.registration", header: "inspections.vehicle" },
-      { key: "driver.full_name", header: "inspections.driver_name" },
-      { key: "current_odometer", header: "daily_use.fuel.current_odometer", type: "km" },
-      { key: "fuel_required_l", header: "daily_use.fuel.fuel_required", type: "litres" },
-      { key: "approved_l", header: "daily_use.fuel.approved_litres", type: "litres" },
+      { key: "driver.full_name", header: "inspections.driver" },
+      { key: "vehicle.registration", header: "fleet.reg" },
+      { key: "vehicle.fuel_tank_capacity_l", header: "daily_use.fuel.col.tank", type: "litres", digits: 0 },
+      { key: "request_date", header: "daily_use.fuel.col.request_date", type: "date" },
+      { key: "previous_odometer", header: "daily_use.fuel.col.previous", type: "km" },
+      { key: "current_odometer", header: "daily_use.fuel.col.current", type: "km" },
+      { key: "km_run", header: "daily_use.fuel.col.km_run", type: "km" },
+      { key: "fuel_required_l", header: "daily_use.fuel.col.required", type: "litres" },
+      { key: "fuel_filled_l", header: "daily_use.fuel.col.filled", type: "litres" },
       { key: "status", header: "common.status", type: "status" },
     ],
   },

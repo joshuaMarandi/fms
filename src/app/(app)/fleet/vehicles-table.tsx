@@ -4,7 +4,7 @@ import * as React from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/patterns/data-table";
 import { KmReminderChip, ReminderChip } from "@/components/patterns/status-chip";
-import { VehicleStatus } from "@/components/patterns/vehicle-status";
+import { VehicleStatus, vehicleStatusKey } from "@/components/patterns/vehicle-status";
 import { useCan } from "@/components/permissions/provider";
 import { formatNumber } from "@/lib/utils";
 import { t } from "@/i18n";
@@ -42,7 +42,7 @@ export function VehiclesTable({ rows }: { rows: VehicleRow[] }) {
       {
         id: "status",
         header: t("fleet.status"),
-        accessorFn: (r) => (r.not_safe ? "not_safe" : r.status),
+        accessorFn: (r) => vehicleStatusKey(r.status, r.not_safe),
         cell: ({ row }) => <VehicleStatus status={row.original.status} reason={row.original.status_reason} notSafe={row.original.not_safe} />,
       },
     ],

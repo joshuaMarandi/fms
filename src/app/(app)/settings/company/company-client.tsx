@@ -178,7 +178,7 @@ export function CompanyClient({ company, sites, prices, categories, vehicles, ca
             ))}
             {!ro ? (
               <Button variant="outline" size="sm" onClick={() => setSiteRows([...siteRows, { id: "", name: "", region: "" }])}>
-                <Plus /> {t("common.add_row")}
+                <Plus /> {t("settings.company.add_site")}
               </Button>
             ) : null}
           </CardContent>
@@ -223,7 +223,7 @@ export function CompanyClient({ company, sites, prices, categories, vehicles, ca
             ))}
             {!ro ? (
               <Button variant="outline" size="sm" onClick={() => setCatRows([...catRows, { id: "", name: "", counts_against_balance: true }])}>
-                <Plus /> {t("common.add_row")}
+                <Plus /> {t("settings.company.add_category")}
               </Button>
             ) : null}
           </CardContent>

@@ -17,6 +17,15 @@ import { t } from "@/i18n";
 
 export type HubChip = { label: string; tone: ChipTone };
 
+/** A cell in the list view: plain text, or a coloured chip. */
+export type HubCell = string | { chip: HubChip } | null;
+
+/**
+ * A column of the list view. registration, makeModel and status are built in; any other key is
+ * read from the vehicle's cells.
+ */
+export type HubColumn = { key: string; label: string; align?: "right" };
+
 export type HubVehicle = {
   id: string;
   registration: string;
@@ -31,8 +40,8 @@ export type HubVehicle = {
   badge?: { count: number; label: string; tone: ChipTone } | null;
   /** One short line, for example 1,240 km this month. */
   detail?: string | null;
-  /** Lower is shown first in "Needs attention" order. */
-  attention?: number;
+  /** Values for the list view columns. */
+  cells?: Record<string, HubCell>;
 };
 
 export type HubKind = {
@@ -56,11 +65,16 @@ const VIEW_KEY = "fms.hub.view";
  * Vehicles as cards (or a compact list). Clicking a vehicle asks what to open: the kind of record
  * when there are several, then the month for daily records, and goes straight to those records.
  */
-export function VehicleHub({ vehicles, kinds, currentYear, currentMonth }: { vehicles: HubVehicle[]; kinds: HubKind[]; currentYear: number; currentMonth: number }) {
+const DEFAULT_COLUMNS: HubColumn[] = [
+  { key: "registration", label: "fleet.reg" },
+  { key: "makeModel", label: "fleet.make_model" },
+  { key: "status", label: "common.status" },
+];
+
+export function VehicleHub({ vehicles, kinds, currentYear, currentMonth, columns = DEFAULT_COLUMNS, listNote }: { vehicles: HubVehicle[]; kinds: HubKind[]; currentYear: number; currentMonth: number; columns?: HubColumn[]; listNote?: string }) {
   const router = useRouter();
   const [view, setView] = React.useState<"cards" | "list">("cards");
   const [query, setQuery] = React.useState("");
-  const [order, setOrder] = React.useState<"attention" | "registration">("attention");
   const [picked, setPicked] = React.useState<HubVehicle | null>(null);
   const [kind, setKind] = React.useState<HubKind | null>(null);
 
@@ -87,8 +101,8 @@ export function VehicleHub({ vehicles, kinds, currentYear, currentMonth }: { veh
   const shown = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     const list = q ? vehicles.filter((v) => `${v.registration} ${v.makeModel}`.toLowerCase().includes(q)) : vehicles;
-    return [...list].sort((a, b) => (order === "attention" ? (a.attention ?? 9) - (b.attention ?? 9) : 0) || a.registration.localeCompare(b.registration));
-  }, [vehicles, query, order]);
+    return [...list].sort((a, b) => a.registration.localeCompare(b.registration));
+  }, [vehicles, query]);
 
   const go = (href: string) => {
     startNavigationProgress();
@@ -118,13 +132,6 @@ export function VehicleHub({ vehicles, kinds, currentYear, currentMonth }: { veh
         <div className="relative min-w-[200px] flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("hub.search")} aria-label={t("hub.search")} className="h-10 pl-9" />
-        </div>
-        <div className="flex items-center rounded-lg border bg-card p-0.5" role="group" aria-label={t("hub.order")}>
-          {(["attention", "registration"] as const).map((o) => (
-            <button key={o} type="button" onClick={() => setOrder(o)} aria-pressed={order === o} className={cn("h-9 rounded-md px-3 text-sm", order === o ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
-              {t(`hub.order.${o}`)}
-            </button>
-          ))}
         </div>
         <div className="flex items-center rounded-lg border bg-card p-0.5" role="group" aria-label={t("hub.view")}>
           <button type="button" onClick={() => changeView("cards")} aria-pressed={view === "cards"} aria-label={t("hub.view.cards")} className={cn("flex size-9 items-center justify-center rounded-md", view === "cards" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}>
@@ -167,25 +174,52 @@ export function VehicleHub({ vehicles, kinds, currentYear, currentMonth }: { veh
           ))}
         </ul>
       ) : (
-        <ul className="page-card divide-y">
-          {shown.map((v) => (
-            <li key={v.id}>
-              <button type="button" onClick={() => open(v)} className="flex w-full flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 text-left hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none">
-                <span className="w-28 shrink-0 font-semibold">{v.registration}</span>
-                <span className="min-w-[120px] flex-1 truncate text-sm text-muted-foreground">{v.makeModel}</span>
-                <StatusChip status="hub" tone={v.chip.tone} label={v.chip.label} />
-                {v.badge && v.badge.count > 0 ? (
-                  <span className={cn("status-chip", `status-chip-${v.badge.tone}`)}>
-                    <span className="font-semibold tabular-nums">{v.badge.count}</span> {v.badge.label}
-                  </span>
-                ) : null}
-                {v.status !== "in_service" || v.notSafe ? <VehicleStatus status={v.status} reason={v.statusReason} notSafe={v.notSafe} /> : null}
-                <span className="hidden text-xs text-muted-foreground md:inline">{v.detail ?? ""}</span>
-                <span className="ml-auto text-xs tabular-nums text-muted-foreground">{v.odometerKm !== null ? `${formatNumber(v.odometerKm)} km` : ""}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className="page-card overflow-x-auto">
+          {listNote ? <p className="border-b px-4 py-2 text-xs text-muted-foreground">{listNote}</p> : null}
+          <table className="w-full min-w-[640px] text-sm">
+            <thead className="bg-muted/50 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <tr>
+                {columns.map((c) => (
+                  <th key={c.key} scope="col" className={cn("px-4 py-2.5 font-medium", c.align === "right" && "text-right")}>
+                    {t(c.label)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {shown.map((v) => (
+                <tr
+                  key={v.id}
+                  tabIndex={0}
+                  role="link"
+                  aria-label={`${v.registration} ${v.makeModel}`}
+                  onClick={() => open(v)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      open(v);
+                    }
+                  }}
+                  className="cursor-pointer transition-colors hover:bg-primary/5 focus-visible:bg-primary/5 focus-visible:outline-none"
+                >
+                  {columns.map((c) => (
+                    <td key={c.key} className={cn("px-4 py-3 align-middle", c.align === "right" && "text-right tabular-nums")}>
+                      {c.key === "registration" ? (
+                        <span className="font-semibold">{v.registration}</span>
+                      ) : c.key === "makeModel" ? (
+                        <span className="text-muted-foreground">{v.makeModel}</span>
+                      ) : c.key === "status" ? (
+                        <VehicleStatus status={v.status} reason={v.statusReason} notSafe={v.notSafe} />
+                      ) : (
+                        <Cell value={v.cells?.[c.key] ?? null} />
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       <Dialog open={!!picked} onOpenChange={(o) => !o && setPicked(null)}>
@@ -299,6 +333,12 @@ function MonthPicker({ vehicleId, kind, currentYear, currentMonth, onBack, onPic
       </Button>
     </div>
   );
+}
+
+function Cell({ value }: { value: HubCell }) {
+  if (value === null || value === "") return <span className="text-muted-foreground">—</span>;
+  if (typeof value === "string") return <>{value}</>;
+  return <StatusChip status="hub" tone={value.chip.tone} label={value.chip.label} />;
 }
 
 /** Summary tiles above the vehicles. */

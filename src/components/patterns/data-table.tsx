@@ -52,6 +52,8 @@ export type DataTableProps<T> = {
   /** Column id holding a status for the filter chips */
   statusColumn?: string;
   statusOptions?: string[];
+  /** Chip label for a status value (defaults to the status.* wording). */
+  statusLabel?: (status: string) => string | undefined;
   rowHref?: (row: T) => string | undefined;
   /** Called on row click when there is no rowHref (for actions such as opening a workspace). */
   onRowClick?: (row: T) => void;
@@ -73,6 +75,7 @@ export function DataTable<T extends Record<string, unknown>>({
   searchKeys,
   statusColumn,
   statusOptions,
+  statusLabel,
   rowHref,
   onRowClick,
   rowActions,
@@ -194,7 +197,7 @@ export function DataTable<T extends Record<string, unknown>>({
                   onClick={() => table.getColumn(statusColumn)?.setFilterValue(active ? undefined : s)}
                   className={cn("rounded-full border px-1 py-0.5 transition-colors", active ? "border-primary ring-2 ring-primary/30" : "border-transparent hover:border-border")}
                 >
-                  <StatusChip status={s} />
+                  <StatusChip status={s} label={statusLabel?.(s)} />
                 </button>
               );
             })}

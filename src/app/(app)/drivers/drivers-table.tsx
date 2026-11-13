@@ -3,7 +3,7 @@
 import * as React from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/patterns/data-table";
-import { ReminderChip, StatusChip } from "@/components/patterns/status-chip";
+import { ReminderChip } from "@/components/patterns/status-chip";
 import { useCan } from "@/components/permissions/provider";
 import { formatDate } from "@/lib/utils";
 import { t } from "@/i18n";
@@ -16,6 +16,7 @@ export type DriverRow = {
   employment_number: string | null;
   joining_date: string | null;
   is_active: boolean;
+  years_driving: number | null;
   licence_expiry: string | null;
   osha_redo: string | null;
   ddt_refresher: string | null;
@@ -27,7 +28,7 @@ export function DriversTable({ rows }: { rows: DriverRow[] }) {
   const columns = React.useMemo<ColumnDef<DriverRow, unknown>[]>(
     () => [
       { id: "full_name", header: t("drivers.names"), accessorKey: "full_name", cell: ({ row }) => <span className="font-medium">{row.original.full_name}</span> },
-      { id: "employment_number", header: t("drivers.no"), accessorKey: "employment_number" },
+      { id: "phone", header: t("drivers.phone_no"), accessorKey: "phone", cell: ({ row }) => (row.original.phone ? <span className="tabular-nums">{row.original.phone}</span> : <span className="text-muted-foreground">—</span>) },
       { id: "employer", header: t("drivers.company"), accessorKey: "employer" },
       { id: "joining_date", header: t("drivers.employment_date"), accessorKey: "joining_date", cell: ({ row }) => formatDate(row.original.joining_date) },
       ...(can("drivers.training", "view")
@@ -54,7 +55,12 @@ export function DriversTable({ rows }: { rows: DriverRow[] }) {
       ...(can("drivers.licence", "view") ? [{ id: "licence_expiry", header: t("drivers.licence_expiry"), accessorKey: "licence_expiry", cell: ({ row }) => <ReminderChip date={row.original.licence_expiry} showDate /> } as ColumnDef<DriverRow, unknown>] : []),
       ...(can("expenses.trainings.mandatory", "view") ? [{ id: "ddt_refresher", header: t("drivers.ddt_refresher"), accessorKey: "ddt_refresher", cell: ({ row }) => <ReminderChip date={row.original.ddt_refresher} showDate /> } as ColumnDef<DriverRow, unknown>] : []),
       ...(can("drivers.osha", "view") ? [{ id: "osha_redo", header: t("drivers.osha_refresher"), accessorKey: "osha_redo", cell: ({ row }) => <ReminderChip date={row.original.osha_redo} showDate /> } as ColumnDef<DriverRow, unknown>] : []),
-      { id: "status", header: t("common.status"), accessorFn: (r) => (r.is_active ? "active" : "inactive"), cell: ({ row }) => <StatusChip status={row.original.is_active ? "active" : "inactive"} /> },
+      {
+        id: "years_driving",
+        header: t("drivers.experience_years"),
+        accessorKey: "years_driving",
+        cell: ({ row }) => (row.original.years_driving !== null ? <span className="tabular-nums">{row.original.years_driving}</span> : <span className="text-muted-foreground">—</span>),
+      },
     ],
     [can],
   );
@@ -65,8 +71,6 @@ export function DriversTable({ rows }: { rows: DriverRow[] }) {
       data={rows}
       getRowId={(r) => r.id}
       searchKeys={["full_name", "phone", "employer", "employment_number"]}
-      statusColumn="status"
-      statusOptions={["active", "inactive"]}
       rowHref={(r) => `/drivers/${r.id}`}
       canExport={can("drivers.personal", "export")}
       exportName="drivers"

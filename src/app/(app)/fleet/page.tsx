@@ -1,5 +1,8 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { BadgeCheck, Gauge, HardHat, Plus, ShieldCheck } from "lucide-react";
+import { StatCard } from "@/components/patterns/stat-card";
+import type { Tone } from "@/components/patterns/tone";
+import { daysFromNowISO, formatNumber, todayISO } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shell/page-header";
 import { requirePermission } from "@/lib/auth/session";
@@ -11,13 +14,18 @@ export default async function FleetPage() {
   const session = await requirePermission("fleet.details", "view");
   const supabase = await createClient();
 
-  const [{ data: vehicles }, { data: safety }, { data: insurance }, { data: inspections }, { data: schedules }] = await Promise.all([
+  const [{ data: vehicles }, { data: safety }, { data: insurance }, { data: inspections }, { data: schedules }, { data: activity }, { data: osha }, { data: activeDrivers }] = await Promise.all([
     supabase.from("vehicles").select("*, site:sites(name)").is("deleted_at", null).order("registration"),
     supabase.from("v_vehicle_safety").select("*"),
     supabase.from("vehicle_insurance").select("vehicle_id, end_date").is("deleted_at", null).order("end_date", { ascending: false }),
     supabase.from("vehicle_inspections").select("vehicle_id, kind, renewal_date").eq("kind", "third_party").is("deleted_at", null).order("renewal_date", { ascending: false }),
     supabase.from("service_schedules").select("vehicle_id, next_service_km").is("deleted_at", null).order("created_at", { ascending: false }),
+    supabase.from("v_vehicle_activity").select("vehicle_id, third_party_next"),
+    session.can("drivers.osha", "view") ? supabase.from("driver_osha").select("driver_id, redo_date").is("deleted_at", null).order("redo_date", { ascending: false }) : Promise.resolve({ data: null }),
+    session.can("drivers.osha", "view") ? supabase.from("drivers").select("id").is("deleted_at", null).eq("is_active", true) : Promise.resolve({ data: null }),
   ]);
+  // Third-party inspection: the later of the fleet record and the inspections module.
+  const tpActivity = new Map(((activity ?? []) as { vehicle_id: string; third_party_next: string | null }[]).map((a) => [a.vehicle_id, a.third_party_next]));
 
   const safetyMap = new Map((safety ?? []).map((s: { vehicle_id: string; not_safe_for_use: boolean; open_anomalies: number }) => [s.vehicle_id, s]));
   const latest = <T extends { vehicle_id: string }>(rows: T[] | null) => {
@@ -42,9 +50,36 @@ export default async function FleetPage() {
     status_reason: (v.status_reason as string) ?? null,
     not_safe: safetyMap.get(v.id as string)?.not_safe_for_use ?? false,
     insurance_end: insMap.get(v.id as string)?.end_date ?? null,
-    third_party_next: thirdMap.get(v.id as string)?.renewal_date ?? null,
+    third_party_next: [thirdMap.get(v.id as string)?.renewal_date ?? null, tpActivity.get(v.id as string) ?? null].filter((d): d is string => !!d).sort().pop() ?? null,
     next_service_km: schedMap.get(v.id as string)?.next_service_km ?? null,
   }));
+
+  // Summary cards: insurance, third-party inspection, driver OSHA retests and vehicle status.
+  const today = todayISO();
+  const in30 = daysFromNowISO(30);
+  const dueCounts = (dates: (string | null)[]) => ({
+    valid: dates.filter((d) => d && d > in30).length,
+    soon: dates.filter((d) => d && d >= today && d <= in30).length,
+    expired: dates.filter((d) => d && d < today).length,
+    missing: dates.filter((d) => !d).length,
+  });
+  const ins = dueCounts(rows.map((r) => r.insurance_end));
+  const tp = dueCounts(rows.map((r) => r.third_party_next));
+  const oshaByDriver = new Map<string, string>();
+  for (const o of (osha ?? []) as { driver_id: string; redo_date: string | null }[]) if (!oshaByDriver.has(o.driver_id) && o.redo_date) oshaByDriver.set(o.driver_id, o.redo_date);
+  const oshaCounts = activeDrivers ? dueCounts((activeDrivers as { id: string }[]).map((d) => oshaByDriver.get(d.id) ?? null)) : null;
+  const inUse = rows.filter((r) => r.status === "in_service" && !r.not_safe).length;
+  const notSafe = rows.filter((r) => r.status === "in_service" && r.not_safe).length;
+  const outOfUse = rows.filter((r) => r.status === "out_of_service").length;
+  const breakdown = (c: { valid: number; soon: number; expired: number; missing: number }) => (
+    <ul className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
+      <li className="text-success">{t("fleet.summary.valid", { count: c.valid })}</li>
+      <li className={c.soon ? "font-medium text-warning" : "text-muted-foreground"}>{t("fleet.summary.soon", { count: c.soon })}</li>
+      <li className={c.expired ? "font-medium text-danger" : "text-muted-foreground"}>{t("fleet.summary.expired", { count: c.expired })}</li>
+      <li className="text-muted-foreground">{t("fleet.summary.missing", { count: c.missing })}</li>
+    </ul>
+  );
+  const tone = (c: { soon: number; expired: number }, base: Tone): Tone => (c.expired ? "red" : c.soon ? "amber" : base);
 
   const max = session.subscription?.maxVehicles ?? null;
   const atLimit = !session.permissions.isOwner && max !== null && rows.length >= max;
@@ -72,7 +107,29 @@ export default async function FleetPage() {
           </div>
         </div>
       ) : null}
-      <VehiclesTable rows={rows} />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard title={t("fleet.summary.insurance")} value={`${formatNumber(rows.length - ins.expired - ins.missing)} / ${formatNumber(rows.length)}`} href="#vehicle-list" icon={ShieldCheck} tone={tone(ins, "green")}>
+          {breakdown(ins)}
+        </StatCard>
+        <StatCard title={t("fleet.summary.third_party")} value={`${formatNumber(rows.length - tp.expired - tp.missing)} / ${formatNumber(rows.length)}`} href="#vehicle-list" icon={BadgeCheck} tone={tone(tp, "blue")}>
+          {breakdown(tp)}
+        </StatCard>
+        {oshaCounts ? (
+          <StatCard title={t("fleet.summary.osha")} value={`${formatNumber(oshaCounts.valid + oshaCounts.soon)} / ${formatNumber((activeDrivers ?? []).length)}`} href="/drivers" icon={HardHat} tone={tone(oshaCounts, "purple")}>
+            {breakdown(oshaCounts)}
+          </StatCard>
+        ) : null}
+        <StatCard title={t("fleet.summary.status")} value={`${formatNumber(inUse)} / ${formatNumber(rows.length)}`} href="#vehicle-list" icon={Gauge} tone={notSafe ? "red" : outOfUse ? "amber" : "green"}>
+          <ul className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
+            <li className="text-success">{t("fleet.summary.in_use", { count: inUse })}</li>
+            <li className={outOfUse ? "font-medium text-warning" : "text-muted-foreground"}>{t("fleet.summary.out_of_use", { count: outOfUse })}</li>
+            {notSafe ? <li className="col-span-2 font-medium text-danger">{t("fleet.summary.not_safe", { count: notSafe })}</li> : null}
+          </ul>
+        </StatCard>
+      </div>
+      <div id="vehicle-list" className="scroll-mt-20">
+        <VehiclesTable rows={rows} />
+      </div>
     </>
   );
 }

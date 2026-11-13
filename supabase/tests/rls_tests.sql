@@ -844,4 +844,40 @@ begin
   update public.message_outbox set status = 'skipped' where status = 'pending';
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- Migration 16: fuel request takes the previous reading and fuel filled from the last records
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  admin_id uuid := '33333333-3333-3333-3333-000000000002';
+  v_vehicle uuid;
+  v_company uuid;
+  v_req uuid;
+  v_last_odo numeric;
+  v_last_issue numeric;
+  r record;
+begin
+  perform pg_temp.as_admin();
+  select i.vehicle_id, i.company_id into v_vehicle, v_company from public.fuel_issues i where i.deleted_at is null order by i.issue_date desc limit 1;
+  select current_odometer into v_last_odo from public.fuel_requests
+    where vehicle_id = v_vehicle and deleted_at is null and current_odometer is not null order by request_date desc, created_at desc limit 1;
+  select fuel_issued_l into v_last_issue from public.fuel_issues
+    where vehicle_id = v_vehicle and deleted_at is null order by issue_date desc, created_at desc limit 1;
+
+  perform pg_temp.as_user(admin_id);
+  insert into public.fuel_requests (company_id, vehicle_id, request_date, previous_odometer, current_odometer, fuel_filled_l, fuel_required_l, status)
+  values (v_company, v_vehicle, current_date + 1, 1, v_last_odo + 250, 999, 25, 'draft')
+  returning id into v_req;
+  select * into r from public.fuel_requests where id = v_req;
+  perform pg_temp.check('m16: previous odometer comes from the last refuel, not the form', r.previous_odometer = v_last_odo);
+  perform pg_temp.check('m16: fuel filled comes from the last fuel issue, not the form', r.fuel_filled_l = v_last_issue);
+  perform pg_temp.check('m16: km run is current minus previous', r.km_run = 250);
+
+  perform pg_temp.check('m16: activity view has the last refuel',
+    (select last_issue_l is not null and last_fuel_filled is not null from public.v_vehicle_activity where vehicle_id = v_vehicle));
+
+  perform pg_temp.as_admin();
+  delete from public.fuel_requests where id = v_req;
+end $$;
+
 select 'ALL TESTS PASSED' as result;

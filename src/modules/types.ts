@@ -2,7 +2,7 @@ import type { FormSchema, Option, OptionSource } from "@/lib/forms/schema";
 import type { LoadedOptions } from "@/lib/data/records";
 import type { ApprovalExtraField } from "@/components/patterns/approval-panel";
 
-export type ColumnType = "text" | "number" | "tzs" | "date" | "datetime" | "time" | "status" | "reminder" | "reminder_date" | "bool" | "tags" | "km" | "litres" | "hours" | "label" | "actions";
+export type ColumnType = "text" | "number" | "tzs" | "date" | "datetime" | "time" | "status" | "reminder" | "reminder_date" | "bool" | "tags" | "km" | "litres" | "hours" | "label" | "actions" | "multiline";
 
 export type ColumnSpec = {
   /** Dot path into the row (joins come back nested, for example vehicle.registration) */
@@ -27,6 +27,14 @@ export type ListDef = {
   previous?: { group: string; date: string; as: string };
   /** Extra equality filters applied to the list query */
   eq?: Record<string, string | number | boolean>;
+  /** Extra values worked out from each row on the server (for example km start from the trips). */
+  derive?: (row: Record<string, unknown>) => Record<string, unknown>;
+  /** "All details" view: every field of every record in one table. */
+  detailColumns?: ColumnSpec[];
+  /** Select used by the "All details" view (defaults to select). */
+  detailSelect?: string;
+  /** Keep the vehicle column when the records of one vehicle are shown. */
+  keepVehicleColumn?: boolean;
 };
 
 export type ModuleDef = {

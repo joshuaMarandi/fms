@@ -1,7 +1,6 @@
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { Breadcrumbs } from "./breadcrumbs";
-import { CommandPalette } from "./command-palette";
 import { NotificationsBell, type NotificationRow } from "./notifications-bell";
 import { ProfileBlock } from "./profile-menu";
 import { QuickAction } from "./quick-action";
@@ -19,7 +18,6 @@ export function Topbar({ notifications, unread }: { notifications: NotificationR
         </div>
       </div>
       <div className="flex items-center gap-1 md:gap-2">
-        <CommandPalette />
         <QuickAction />
         <NotificationsBell initial={notifications} initialUnread={unread} />
         <ProfileBlock variant="topbar" />
