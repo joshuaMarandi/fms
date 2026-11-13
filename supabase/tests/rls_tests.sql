@@ -880,4 +880,25 @@ begin
   delete from public.fuel_requests where id = v_req;
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- Migration 17: last trip destination per vehicle
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_vehicle uuid;
+  v_dest text;
+begin
+  perform pg_temp.as_admin();
+  select l.vehicle_id, t.destination into v_vehicle, v_dest
+  from public.km_log_trips t join public.km_logs l on l.id = t.km_log_id
+  where l.deleted_at is null and t.deleted_at is null and t.km_end is not null
+  order by l.log_date desc, t.km_end desc limit 1;
+  perform pg_temp.check('m17: activity view has the last trip destination',
+    (select last_km_destination from public.v_vehicle_activity where vehicle_id = v_vehicle) is not distinct from
+    (select t.destination from public.km_log_trips t join public.km_logs l on l.id = t.km_log_id
+      where l.vehicle_id = v_vehicle and l.deleted_at is null and t.deleted_at is null and t.km_end is not null
+      order by l.log_date desc, t.km_end desc limit 1));
+  perform pg_temp.check('m17: seed has a destination to test with', v_dest is not null);
+end $$;
+
 select 'ALL TESTS PASSED' as result;

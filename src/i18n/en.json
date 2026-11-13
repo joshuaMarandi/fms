@@ -1568,5 +1568,7 @@
   "settings.company.add_site": "Add site",
   "settings.company.add_category": "Add leave category",
   "daily_use.description": "Your requests and the ones waiting for your decision.",
-  "inspections.add": "Add inspection"
+  "inspections.add": "Add inspection",
+  "daily_use.km_log.departing_hint": "Taken from where the last trip ended.",
+  "daily_use.km_log.km_start_hint": "Taken from the km at the end of the last trip."
 }

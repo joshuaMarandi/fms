@@ -31,6 +31,10 @@ type Base = {
    * Inside rows, compute gets the row index; return undefined to leave a value alone.
    */
   prefill?: { deps: string[]; compute: (values: Record<string, unknown>, ctx: FormComputeContext, rowIndex?: number) => unknown };
+  /** Inside rows: this field always equals the previous row's field of that name (rows after the first). */
+  chainFrom?: string;
+  /** Read only while this returns true, for example when the value was taken from earlier records. */
+  lockWhen?: (values: Record<string, unknown>, ctx: FormComputeContext, rowIndex?: number) => boolean;
 };
 
 export type Field =

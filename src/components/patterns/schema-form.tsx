@@ -213,7 +213,7 @@ export function SchemaForm({ schemaKey, record, options = {}, afterSavePath, can
   );
 }
 
-function FieldRenderer({ field: f, form, ctx, disabled, recordId, schema, prefix }: { field: Field; form: UseFormReturn<FieldValues>; ctx: FormComputeContext; disabled: boolean; recordId: string | null; schema: FormSchema; prefix?: string }) {
+function FieldRenderer({ field: f, form, ctx, disabled, recordId, schema, prefix, rowIndex }: { field: Field; form: UseFormReturn<FieldValues>; ctx: FormComputeContext; disabled: boolean; recordId: string | null; schema: FormSchema; prefix?: string; rowIndex?: number }) {
   const name = prefix ? `${prefix}.${f.name}` : f.name;
   const values = form.watch();
   const scopeValues = prefix ? (getPath(values, prefix) as Record<string, unknown>) ?? {} : values;
@@ -222,7 +222,7 @@ function FieldRenderer({ field: f, form, ctx, disabled, recordId, schema, prefix
   const id = `f-${name.replace(/\./g, "-")}`;
   const label = tl(f.label);
   const span = f.colSpan === 2 || f.control === "textarea" || f.control === "rows" || f.control === "checkbox_group" || f.control === "signature" || f.control === "file" ? "md:col-span-2" : "";
-  const isDisabled = disabled || !!f.readOnly;
+  const isDisabled = disabled || !!f.readOnly || (!!f.lockWhen && f.lockWhen(values, ctx, rowIndex));
 
   const wrap = (control: React.ReactNode, opts?: { noLabel?: boolean }) => (
     <UiField className={cn(span)} data-invalid={!!error}>
@@ -457,6 +457,21 @@ function RowsField({ field: f, form, ctx, disabled, name, schema, recordId }: { 
   const rowValues = (getPath(values, name) as Record<string, unknown>[]) ?? [];
   const error = getPath(form.formState.errors, name) as { message?: string; root?: { message?: string } } | undefined;
 
+  // Chained fields: each row after the first takes the previous row's value (for example km start = previous km end).
+  const chained = f.fields.filter((s) => s.chainFrom);
+  const chainKey = JSON.stringify(rowValues.map((r) => chained.map((s) => [r?.[s.chainFrom!], r?.[s.name]])));
+  React.useEffect(() => {
+    if (disabled || chained.length === 0) return;
+    rowValues.forEach((row, i) => {
+      if (i === 0) return;
+      for (const s of chained) {
+        const want = rowValues[i - 1]?.[s.chainFrom!] ?? "";
+        if ((row?.[s.name] ?? "") !== want) form.setValue(`${name}.${i}.${s.name}`, want, { shouldDirty: true });
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chainKey, disabled]);
+
   return (
     <FieldSet className="md:col-span-2">
       <div className="flex items-center justify-between">
@@ -484,7 +499,7 @@ function RowsField({ field: f, form, ctx, disabled, name, schema, recordId }: { 
             </div>
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
               {f.fields.map((sub) => (
-                <FieldRenderer key={sub.name} field={{ ...sub, colSpan: sub.colSpan }} form={form} ctx={ctx} disabled={disabled} recordId={recordId} schema={schema} prefix={`${name}.${idx}`} />
+                <FieldRenderer key={sub.name} field={{ ...sub, colSpan: sub.colSpan }} form={form} ctx={ctx} disabled={disabled} recordId={recordId} schema={schema} prefix={`${name}.${idx}`} rowIndex={idx} />
               ))}
             </div>
           </div>

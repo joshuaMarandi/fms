@@ -10,6 +10,12 @@ const lastKmEnd = (values: Record<string, unknown>, ctx: Ctx) => {
   const v = vehicleOf(values, ctx);
   return v ? ((v.last_km_end ?? v.odometer_km ?? "") as number | string) : "";
 };
+/** Where the vehicle's last logged trip ended. */
+const lastDestination = (values: Record<string, unknown>, ctx: Ctx) => {
+  const v = vehicleOf(values, ctx);
+  return v ? ((v.last_km_destination ?? "") as string) : "";
+};
+const filled = (v: unknown) => v !== null && v !== undefined && v !== "";
 /** Current odometer reading at the vehicle's last refuel (or its odometer when it has none). */
 const lastFuelOdometer = (values: Record<string, unknown>, ctx: Ctx) => {
   const v = vehicleOf(values, ctx);
@@ -63,9 +69,30 @@ export const kmLogs: ModuleDef = {
             minRows: 1,
             addLabel: "daily_use.km_log.add_trip",
             fields: [
-              { name: "departing_location", label: "daily_use.km_log.departing", control: "text", required: true },
+              {
+                name: "departing_location",
+                label: "daily_use.km_log.departing",
+                control: "text",
+                required: true,
+                description: "daily_use.km_log.departing_hint",
+                prefill: { deps: ["vehicle_id"], compute: (values, ctx, i) => (i === 0 ? lastDestination(values, ctx) : undefined) },
+                chainFrom: "destination",
+                // Taken from the last trip: locked. The vehicle's very first trip is typed in.
+                lockWhen: (values, ctx, i) => (i ?? 0) > 0 || filled(lastDestination(values, ctx)),
+              },
               { name: "departure_time", label: "daily_use.km_log.departure_time", control: "time" },
-              { name: "km_start", label: "daily_use.km_log.km_start", control: "number", min: 0, unit: "km", required: true, prefill: { deps: ["vehicle_id"], compute: (values, ctx, i) => (i === 0 ? lastKmEnd(values, ctx) : undefined) } },
+              {
+                name: "km_start",
+                label: "daily_use.km_log.km_start",
+                control: "number",
+                min: 0,
+                unit: "km",
+                required: true,
+                description: "daily_use.km_log.km_start_hint",
+                prefill: { deps: ["vehicle_id"], compute: (values, ctx, i) => (i === 0 ? lastKmEnd(values, ctx) : undefined) },
+                chainFrom: "km_end",
+                lockWhen: (values, ctx, i) => (i ?? 0) > 0 || filled(lastKmEnd(values, ctx)),
+              },
               { name: "km_end", label: "daily_use.km_log.km_end", control: "number", min: 0, unit: "km", required: true },
               { name: "destination", label: "daily_use.km_log.destination", control: "text", required: true },
               { name: "arrival_time", label: "daily_use.km_log.arrival_time", control: "time" },

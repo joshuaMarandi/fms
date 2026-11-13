@@ -130,12 +130,13 @@ export async function loadOptions(sources: OptionSource[]): Promise<LoadedOption
         case "vehicles": {
           const [{ data }, { data: activity }] = await Promise.all([
             supabase.from("vehicles").select("id, registration, make, model, odometer_km, fuel_tank_capacity_l, target_km_per_l, yom, owner_name, status, engine_type").is("deleted_at", null).order("registration"),
-            supabase.from("v_vehicle_activity").select("vehicle_id, last_km_end, last_fuel_odometer, last_fuel_filled"),
+            supabase.from("v_vehicle_activity").select("vehicle_id, last_km_end, last_km_destination, last_fuel_odometer, last_fuel_filled"),
           ]);
           const act = new Map(((activity ?? []) as Record<string, unknown>[]).map((a) => [a.vehicle_id as string, a]));
           out.vehicles = (data ?? []).map((v: Record<string, unknown>) => ({
             ...v,
             last_km_end: act.get(v.id as string)?.last_km_end ?? null,
+            last_km_destination: act.get(v.id as string)?.last_km_destination ?? null,
             last_fuel_odometer: act.get(v.id as string)?.last_fuel_odometer ?? null,
             last_fuel_filled: act.get(v.id as string)?.last_fuel_filled ?? null,
             value: v.id as string,
