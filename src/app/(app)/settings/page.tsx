@@ -16,6 +16,8 @@ const ITEMS = [
 export default async function SettingsPage() {
   const session = await requireSession();
   const visible = ITEMS.filter((i) => session.can(i.key, "view") && (!session.platformMode || i.key === "settings.roles" || i.key === "settings.audit" || i.key === "settings.templates"));
+  // System owners: only in the owner's own settings.
+  if (session.platformMode && session.roles.some((r) => r.is_owner)) visible.unshift({ key: "settings.owners", href: "/settings/owners", icon: "shield" });
   return (
     <>
       <PageHeader title={t("settings.title")} description={t("settings.description")} />

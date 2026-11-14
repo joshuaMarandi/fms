@@ -901,4 +901,55 @@ begin
   perform pg_temp.check('m17: seed has a destination to test with', v_dest is not null);
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- A second system owner: added by an owner, never by a company admin, removed by an owner.
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  owner_id uuid := '33333333-3333-3333-3333-000000000001';
+  admin_id uuid := '33333333-3333-3333-3333-000000000002';
+  owner_role uuid := '22222222-2222-2222-2222-000000000001';
+  v_new uuid := gen_random_uuid();
+  v_ok boolean;
+begin
+  perform pg_temp.as_admin();
+  insert into auth.users (id, email, raw_user_meta_data) values (v_new, 'second.owner@mdv.test', '{"full_name": "Second Owner"}'::jsonb);
+  update public.profiles set company_id = null, full_name = 'Second Owner' where id = v_new;
+
+  -- A company admin cannot make anyone an owner.
+  perform pg_temp.as_user(admin_id);
+  begin
+    insert into public.user_roles (user_id, role_id, is_primary) values (v_new, owner_role, true);
+    v_ok := false;
+  exception when others then
+    v_ok := sqlstate = '42501';
+  end;
+  perform pg_temp.check('owners: a company admin cannot add an owner', v_ok);
+
+  perform pg_temp.as_user(owner_id);
+  insert into public.user_roles (user_id, role_id, is_primary) values (v_new, owner_role, true);
+  perform pg_temp.check('owners: an owner adds another owner', (select count(*) from public.user_roles where role_id = owner_role) >= 2);
+
+  perform pg_temp.as_user(v_new);
+  perform pg_temp.check('owners: the new owner is an owner', public.is_owner());
+
+  perform pg_temp.as_user(owner_id);
+  delete from public.user_roles where user_id = v_new and role_id = owner_role;
+  update public.profiles set is_active = false where id = v_new;
+  perform pg_temp.check('owners: an owner removes another owner', not exists (select 1 from public.user_roles where user_id = v_new));
+
+  -- The last owner stays.
+  begin
+    delete from public.user_roles where user_id = owner_id and role_id = owner_role;
+    v_ok := false;
+  exception when others then
+    v_ok := sqlerrm like '%last owner%';
+  end;
+  perform pg_temp.check('owners: the last owner cannot be removed', v_ok);
+
+  perform pg_temp.as_admin();
+  delete from public.profiles where id = v_new;
+  delete from auth.users where id = v_new;
+end $$;
+
 select 'ALL TESTS PASSED' as result;

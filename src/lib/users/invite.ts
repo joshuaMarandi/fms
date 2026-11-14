@@ -43,17 +43,20 @@ export async function inviteUserServer(input: InviteInput): Promise<ActionResult
     caller.rpc("has_permission", { p_resource: "settings.users", p_action: "create" }),
     caller.rpc("is_owner"),
     caller.from("profiles").select("company_id, full_name").eq("id", callerId).single(),
-    caller.from("roles").select("name").eq("id", input.role_id).maybeSingle(),
+    caller.from("roles").select("name, is_owner").eq("id", input.role_id).maybeSingle(),
   ]);
   if (!allowed && !isOwner) return { ok: false, error: "You do not have permission to invite users." };
 
   const me = profile as { company_id: string | null; full_name: string } | null;
-  let companyId = me?.company_id ?? null;
-  if (input.company_id && input.company_id !== companyId) {
+  // Another system owner: only an owner may add one, and owners belong to no company.
+  const asOwner = !!(role as { is_owner?: boolean } | null)?.is_owner;
+  if (asOwner && !isOwner) return { ok: false, error: "Only a system owner can add another owner." };
+  let companyId = asOwner ? null : (me?.company_id ?? null);
+  if (!asOwner && input.company_id && input.company_id !== companyId) {
     if (!isOwner) return { ok: false, error: "Only the system owner can invite users into another company." };
     companyId = input.company_id;
   }
-  if (!companyId) return { ok: false, error: "No company to invite into." };
+  if (!companyId && !asOwner) return { ok: false, error: "No company to invite into." };
 
   let admin;
   try {
@@ -61,7 +64,7 @@ export async function inviteUserServer(input: InviteInput): Promise<ActionResult
   } catch (e) {
     return { ok: false, error: (e as Error).message };
   }
-  const { data: company } = await admin.from("companies").select("name").eq("id", companyId).maybeSingle();
+  const { data: company } = companyId ? await admin.from("companies").select("name").eq("id", companyId).maybeSingle() : { data: null };
 
   const { data: link, error: linkErr } = await admin.auth.admin.generateLink({
     type: "invite",
@@ -97,7 +100,7 @@ export async function inviteUserServer(input: InviteInput): Promise<ActionResult
     return { ok: false, error: roleErr.message, hint: roleErr.hint ?? undefined };
   }
 
-  const companyName = (company as { name: string } | null)?.name ?? "your company";
+  const companyName = (company as { name: string } | null)?.name ?? (asOwner ? (process.env.MAIL_FROM_NAME ?? "Fleet Management System") : "your company");
   const roleName = (role as { name: string } | null)?.name ?? "User";
   const invitedBy = me?.full_name || "Your administrator";
   const url = authLink(await appUrl(), link.properties.hashed_token, "invite");

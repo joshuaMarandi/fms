@@ -1570,5 +1570,19 @@
   "daily_use.description": "Your requests and the ones waiting for your decision.",
   "inspections.add": "Add inspection",
   "daily_use.km_log.departing_hint": "Taken from where the last trip ended.",
-  "daily_use.km_log.km_start_hint": "Taken from the km at the end of the last trip."
+  "daily_use.km_log.km_start_hint": "Taken from the km at the end of the last trip.",
+  "settings.owners.title": "System owners",
+  "settings.owners.description": "People with full control of the whole system: every company, package and setting.",
+  "settings.owners.add": "Add owner",
+  "settings.owners.add_description": "They get an email (and an SMS when you add a phone number) with a link to set their password.",
+  "settings.owners.phone_hint": "Optional. Used for the SMS with the link and for package requests.",
+  "settings.owners.warning": "An owner can see and change everything, including removing other owners. Add only people you fully trust.",
+  "settings.owners.send": "Send invitation",
+  "settings.owners.invited": "Invitation sent to {email}.",
+  "settings.owners.you": "You",
+  "settings.owners.since": "Added {date}",
+  "settings.owners.remove": "Remove",
+  "settings.owners.remove_title": "Remove {name} as owner?",
+  "settings.owners.remove_confirm": "They lose owner access at once and their account is switched off. The last owner can never be removed.",
+  "settings.owners.removed": "Owner removed."
 }
