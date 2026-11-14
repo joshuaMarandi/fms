@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { RegisterServiceWorker } from "@/components/pwa/register-sw";
+import { VersionWatcher } from "@/components/pwa/version-watcher";
 import { NavigationProgress } from "@/components/shell/navigation-progress";
 import "./globals.css";
 
@@ -49,6 +50,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <TooltipProvider delayDuration={300}>{children}</TooltipProvider>
         <Toaster position="top-right" richColors={false} closeButton />
         <RegisterServiceWorker />
+        <VersionWatcher />
       </body>
     </html>
   );

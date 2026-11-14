@@ -174,7 +174,7 @@ export async function requireSession(): Promise<SessionContext> {
 /** Require a permission or redirect to the No access page. */
 /** Pages the owner can use on the platform; everything else needs a company workspace. */
 export function platformAllows(resource: string) {
-  return resource.startsWith("platform") || resource === "settings" || resource === "settings.roles" || resource === "settings.audit" || resource === "settings.templates";
+  return resource.startsWith("platform") || resource === "settings" || resource === "settings.roles" || resource === "settings.audit" || resource === "settings.templates" || resource === "settings.owners";
 }
 
 export async function requirePermission(resource: string, action: PermissionAction = "view"): Promise<SessionContext> {

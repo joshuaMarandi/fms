@@ -52,12 +52,14 @@ export function AppSidebar({ counts }: { counts: SidebarCounts; companies?: { id
       const platform = all.find((n) => n.key === "platform");
       const settings = all.find((n) => n.key === "settings");
       const items = (platform?.children ?? []).map((c) => ({ ...c, children: [] }));
-      const setting = settings ? [{ ...settings, children: settings.children.filter((c) => c.key === "settings.roles" || c.key === "settings.audit" || c.key === "settings.templates") }] : [];
+      const setting = settings ? [{ ...settings, children: settings.children.filter((c) => c.key === "settings.owners" || c.key === "settings.roles" || c.key === "settings.audit" || c.key === "settings.templates") }] : [];
       return [...items, ...setting];
     }
     // Fleet database, Driver details and Inspections open one page each (tabs or a vehicle hub).
     const SINGLE_PAGE = new Set(["fleet", "drivers", "inspections"]);
-    const visible = filterTree(permissions, all)
+    // System owners is managed from the owner's own settings only.
+    const noOwners = (nodes: ResourceNode[]): ResourceNode[] => nodes.filter((n) => n.key !== "settings.owners").map((n) => ({ ...n, children: noOwners(n.children) }));
+    const visible = noOwners(filterTree(permissions, all))
       .filter((n) => n.key !== "platform")
       .map((n) => (SINGLE_PAGE.has(n.key) ? { ...n, children: [] } : n));
     if (!session.isOwner) return visible;

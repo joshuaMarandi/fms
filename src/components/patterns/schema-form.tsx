@@ -166,6 +166,7 @@ export function SchemaForm({ schemaKey, record, options = {}, afterSavePath, can
       id={formId}
       onSubmit={form.handleSubmit(onSubmit, () => toast.error(t("form.fix_errors")))}
       className="space-y-6"
+      data-dirty={form.formState.isDirty ? "true" : undefined}
       noValidate
     >
       {sections.map((section, i) => {

@@ -68,7 +68,8 @@ insert into public.resources (key, parent_key, name, label_prefix, path, icon, s
   ('settings.company', 'settings', 'Company', null, '/settings/company', 'building-2', 903, false, false),
   ('settings.reminders', 'settings', 'Reminders', null, '/settings/reminders', 'bell', 904, false, false),
   ('settings.audit', 'settings', 'Audit log', null, '/settings/audit', 'scroll-text', 905, false, false),
-  ('settings.templates', 'settings', 'Email and SMS templates', null, '/settings/templates', 'mail', 906, false, false)
+  ('settings.templates', 'settings', 'Email and SMS templates', null, '/settings/templates', 'mail', 906, false, false),
+  ('settings.owners', 'settings', 'System owners', null, '/settings/owners', 'shield', 907, false, false)
 on conflict (key) do update set
   parent_key = excluded.parent_key, name = excluded.name, label_prefix = excluded.label_prefix, path = excluded.path,
   icon = excluded.icon, sort_order = excluded.sort_order, has_reminders = excluded.has_reminders, is_request = excluded.is_request;
