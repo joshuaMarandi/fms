@@ -5,6 +5,11 @@ export const vehicleDetailsSchema: FormSchema = {
   table: "vehicles",
   resource: "fleet.details",
   titleField: "registration",
+  viewGroups: [
+    { title: "fleet.view.identity", fields: ["registration", "make", "model", "engine_type", "yom", "year_first_use", "chassis_number", "engine_number"] },
+    { title: "fleet.view.use", fields: ["odometer_km", "fuel_tank_capacity_l", "target_km_per_l", "site_id", "location", "owner_name"] },
+    { title: "fleet.view.status", fields: ["status", "status_reason"] },
+  ],
   sections: [
     {
       title: "fleet.tab.details",

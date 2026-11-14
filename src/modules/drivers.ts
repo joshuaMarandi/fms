@@ -5,6 +5,11 @@ export const driverPersonalSchema: FormSchema = {
   table: "drivers",
   resource: "drivers.personal",
   titleField: "full_name",
+  viewGroups: [
+    { title: "drivers.view.contact", fields: ["full_name", "phone", "phone_alt", "email"] },
+    { title: "drivers.view.employment", fields: ["employer", "job_title", "department", "employment_number", "joining_date", "years_driving", "is_active", "profile_id"] },
+    { title: "drivers.view.personal", fields: ["date_of_birth", "sex"] },
+  ],
   sections: [
     {
       title: "drivers.tab.personal",

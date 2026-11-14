@@ -10,6 +10,7 @@ import { VehicleStatus } from "@/components/patterns/vehicle-status";
 import { RecordTitle } from "@/components/modules/record-title";
 import { PrintButton } from "@/components/shell/print-frame";
 import { RemarksThread } from "./remarks-thread";
+import { Reveal } from "@/components/patterns/reveal";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { loadOptions } from "@/lib/data/records";
@@ -135,7 +136,9 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
             )}
           </div>
           {session.can("fleet.maintenance_schedule", "create") ? (
-            <SchemaForm key={(schedule?.id as string) ?? "first"} schemaKey="fleet.maintenance_schedule" record={nextService} extra={extra} revalidate={paths} />
+            <Reveal key={(schedule?.id as string) ?? "first"} label={t("fleet.service.record_title")}>
+              <SchemaForm schemaKey="fleet.maintenance_schedule" record={nextService} extra={extra} revalidate={paths} />
+            </Reveal>
           ) : null}
           <div className="page-card p-4 md:p-6">
             <h2 className="mb-3 text-base font-semibold">{t("fleet.service.history")}</h2>

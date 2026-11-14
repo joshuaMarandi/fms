@@ -20,6 +20,7 @@ import { SignatureField, type SignatureValue } from "./signature-field";
 import { AttachmentsBox } from "./attachments-box";
 import { SearchSelect, toSearchOptions } from "./search-select";
 import { FormActions } from "./form-actions";
+import { RecordView } from "./record-view";
 import { usePermissions } from "@/components/permissions/provider";
 import { saveRecord } from "@/lib/data/records";
 import type { LoadedOptions } from "@/lib/data/records";
@@ -54,6 +55,8 @@ export type SchemaFormProps = {
   title?: string;
   /** Called after a successful save in addition to navigation */
   onSaved?: (id: string) => void;
+  /** Open a saved record straight in the form instead of the read-only view. */
+  startInEdit?: boolean;
   children?: React.ReactNode;
   submitLabel?: string;
 };
@@ -83,7 +86,7 @@ function formatAuto(v: unknown, format?: string, digits?: number) {
   }
 }
 
-export function SchemaForm({ schemaKey, record, options = {}, afterSavePath, cancelHref, readOnly, extra, revalidate, onSaved, children, submitLabel }: SchemaFormProps) {
+export function SchemaForm({ schemaKey, record, options = {}, afterSavePath, cancelHref, readOnly, extra, revalidate, onSaved, children, submitLabel, startInEdit }: SchemaFormProps) {
   const router = useRouter();
   const schema = getSchema(schemaKey);
   const { can, session } = usePermissions();
@@ -93,6 +96,9 @@ export function SchemaForm({ schemaKey, record, options = {}, afterSavePath, can
   );
   const canEdit = !readOnly && (record?.id ? can(schema.resource, "edit") : can(schema.resource, "create"));
   const defaults = React.useMemo(() => defaultValues(schema, record, ctx), [schema, record, ctx]);
+  // A saved record opens read-only; the form shows only after Edit (new records go straight to the form).
+  const saved = !!record?.id;
+  const [editing, setEditing] = React.useState(!!startInEdit);
 
   const form = useForm<FieldValues>({
     defaultValues: defaults,
@@ -138,6 +144,10 @@ export function SchemaForm({ schemaKey, record, options = {}, afterSavePath, can
   }, [isNew, schema, form, ctx]);
   const [busy, setBusy] = React.useState(false);
   const formId = React.useId();
+  // Fresh data from the server (after a save or another person's change): the form starts from it next time.
+  React.useEffect(() => {
+    if (!editing) form.reset(defaults);
+  }, [defaults, editing, form]);
 
   async function onSubmit(values: FieldValues) {
     setBusy(true);
@@ -150,7 +160,8 @@ export function SchemaForm({ schemaKey, record, options = {}, afterSavePath, can
     }
     toast.success(t("common.saved"));
     onSaved?.(res.data.id);
-    if (afterSavePath) {
+    setEditing(false);
+    if (afterSavePath && !saved) {
       startNavigationProgress();
       router.push(`${afterSavePath}/${res.data.id}`);
       router.refresh();
@@ -160,6 +171,28 @@ export function SchemaForm({ schemaKey, record, options = {}, afterSavePath, can
   }
 
   const sections = schema.sections.filter((s) => !s.resource || can(s.resource, "view"));
+
+  if (saved && !editing) {
+    return (
+      <div className="space-y-6">
+        <RecordView schema={schema} sections={sections} values={defaults} ctx={ctx} recordId={record!.id as string} onEdit={canEdit ? () => setEditing(true) : undefined} />
+        {children}
+      </div>
+    );
+  }
+
+  if (!saved && !canEdit) {
+    return <p className="page-card p-4 text-sm text-muted-foreground">{t("view.nothing_recorded")}</p>;
+  }
+
+  const cancel = saved
+    ? () => {
+        form.reset(defaults);
+        setEditing(false);
+      }
+    : cancelHref
+      ? () => router.push(cancelHref)
+      : undefined;
 
   return (
     <form
@@ -209,7 +242,7 @@ export function SchemaForm({ schemaKey, record, options = {}, afterSavePath, can
         );
       })}
       {children}
-      {canEdit ? <FormActions formId={formId} busy={busy} saveLabel={submitLabel} onCancel={cancelHref ? () => router.push(cancelHref) : undefined} /> : null}
+      {canEdit ? <FormActions formId={formId} busy={busy} saveLabel={submitLabel} onCancel={cancel} /> : null}
     </form>
   );
 }

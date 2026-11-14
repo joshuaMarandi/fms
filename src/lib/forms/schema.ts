@@ -94,6 +94,8 @@ export type FormSchema = {
   isRequest?: boolean;
   /** Label field used for the breadcrumb and title */
   titleField?: string | ((record: Record<string, unknown>) => string);
+  /** How a saved record is grouped in view mode (field names per card); other fields go last. */
+  viewGroups?: { title: string; fields: string[] }[];
 };
 
 export function allFields(schema: FormSchema): Field[] {

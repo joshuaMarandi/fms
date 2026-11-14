@@ -55,7 +55,7 @@ export async function ModuleRecordPage({ moduleKey, id, preset }: { moduleKey: s
   return (
     <>
       <RecordTitle title={record ? title : null} />
-      <PageHeader title={title} description={t(def.description)} actions={record ? <PrintButton /> : undefined} />
+      <PageHeader title={title} description={record ? undefined : t(def.description)} actions={record ? <PrintButton /> : undefined} />
       <div className={showApproval ? "grid gap-6 lg:grid-cols-3" : undefined}>
         <div className={showApproval ? "lg:col-span-2" : undefined}>
           <SchemaForm

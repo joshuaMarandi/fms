@@ -1587,5 +1587,15 @@
   "settings.owners.removed": "Owner removed.",
   "resource.settings.owners": "System owners",
   "app.update_ready": "A new version of the system is ready. It opens when you finish this form.",
-  "app.update_now": "Update now"
+  "app.update_now": "Update now",
+  "view.nothing_recorded": "Nothing recorded yet.",
+  "view.signed_by": "Signed by {name}, {date}",
+  "fleet.view.identity": "Vehicle",
+  "fleet.view.use": "Use and location",
+  "fleet.view.status": "Status",
+  "drivers.view.contact": "Contact",
+  "drivers.view.employment": "Employment",
+  "drivers.view.personal": "Personal",
+  "inspections.remark.safe.short": "No anomalies",
+  "inspections.remark.anomalies.short": "Anomaly identified"
 }

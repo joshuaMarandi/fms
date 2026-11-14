@@ -3,7 +3,8 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { GraduationCap } from "lucide-react";
+import { GraduationCap, Pencil } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,7 +22,8 @@ type Draft = { checked: boolean; id?: string; course_other: string; institution:
 
 /**
  * Professional training: tick each course the driver has; each ticked course asks for the
- * university or college and the date, because courses are often taken at different places.
+ * institution and the date, because courses are often taken at different places.
+ * Saved courses open as a short list; the ticks show only after Edit.
  */
 export function CoursesEditor({ driverId, rows, readOnly }: { driverId: string; rows: CourseRow[]; readOnly?: boolean }) {
   const router = useRouter();
@@ -37,6 +39,8 @@ export function CoursesEditor({ driverId, rows, readOnly }: { driverId: string; 
   const [draft, setDraft] = React.useState(initial);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [busy, setBusy] = React.useState(false);
+  const [editing, setEditing] = React.useState(false);
+  const hasSaved = rows.length > 0;
 
   const set = (c: string, patch: Partial<Draft>) => setDraft((d) => ({ ...d, [c]: { ...d[c]!, ...patch } }));
   const paths = [`/drivers/${driverId}`, "/drivers"];
@@ -81,7 +85,42 @@ export function CoursesEditor({ driverId, rows, readOnly }: { driverId: string; 
     }
     setBusy(false);
     toast.success(t("common.saved"));
+    setEditing(false);
     router.refresh();
+  }
+
+  // View mode: saved courses as a short list, or the form straight away when there are none yet.
+  if (!editing && (hasSaved || readOnly)) {
+    const saved = PROFESSIONAL_COURSES.filter((c) => draft[c]!.checked);
+    return (
+      <section className="page-card p-4 md:p-5">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">{t("drivers.tab.training")}</h2>
+          {!readOnly ? (
+            <Button type="button" variant="outline" size="sm" className="h-9" onClick={() => setEditing(true)}>
+              <Pencil /> {t("common.edit")}
+            </Button>
+          ) : null}
+        </div>
+        {saved.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t("drivers.no_training")}</p>
+        ) : (
+          <ul className="divide-y">
+            {saved.map((c) => {
+              const d = draft[c]!;
+              return (
+                <li key={c} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2.5 text-sm">
+                  <GraduationCap className="size-4 shrink-0 text-primary" aria-hidden="true" />
+                  <span className="min-w-[160px] flex-1 font-medium">{c === "other" ? d.course_other || t("drivers.course.other") : t(`drivers.course.${c}`)}</span>
+                  <span className="text-muted-foreground">{d.institution}</span>
+                  <span className="tabular-nums text-muted-foreground">{formatDate(d.date_completed)}</span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+    );
   }
 
   return (
@@ -136,7 +175,19 @@ export function CoursesEditor({ driverId, rows, readOnly }: { driverId: string; 
       </div>
       {!readOnly ? (
         <div className="mt-4">
-          <FormActions onSave={save} busy={busy} />
+          <FormActions
+            onSave={save}
+            busy={busy}
+            onCancel={
+              hasSaved
+                ? () => {
+                    setDraft(initial);
+                    setErrors({});
+                    setEditing(false);
+                  }
+                : undefined
+            }
+          />
         </div>
       ) : null}
     </section>
