@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, ArrowUpRight, BellRing, ClipboardCheck, KeyRound, MailCheck, Receipt, Route, Smartphone, Truck, Users } from "lucide-react";
+import { ArrowRight, ArrowUpRight, ClipboardCheck, KeyRound, Receipt, Route, Truck, Users } from "lucide-react";
+import { LandingStory } from "@/components/landing/landing-story";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import { loadPublicPackages, PricingCards } from "@/components/landing/pricing";
@@ -23,11 +24,7 @@ const STEPS: { n: number; tone: Tone; href: string }[] = [
   { n: 3, tone: "blue", href: "/dashboard" },
 ];
 
-const HIGHLIGHTS = [
-  { key: "approvals", icon: MailCheck },
-  { key: "reminders", icon: BellRing },
-  { key: "mobile", icon: Smartphone },
-];
+const HIGHLIGHTS = ["approvals", "reminders", "mobile"];
 
 /** Flat dot grid used as decoration on the dark hero (an SVG pattern, not a gradient). */
 function DotGrid({ className }: { className?: string }) {
@@ -81,48 +78,23 @@ export default async function LandingPage() {
         </div>
       </header>
 
-      <section className="relative overflow-hidden bg-sidebar text-sidebar-foreground">
-        <DotGrid className="pointer-events-none absolute inset-0 text-white/[0.07]" />
-        <span className="pointer-events-none absolute -right-24 -top-24 size-72 rounded-full border-[28px] border-[#1b5a4c]" aria-hidden="true" />
-        <span className="pointer-events-none absolute -bottom-16 left-1/3 size-40 rounded-full bg-[#d98b1f]/15" aria-hidden="true" />
-        <div className="relative mx-auto grid max-w-6xl gap-12 px-4 py-16 md:grid-cols-2 md:items-center md:px-6 md:py-24">
-          <div>
-            <p className="inline-flex items-center gap-2 rounded-full bg-[#d98b1f] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[#2a1b00]">
-              <span className="size-1.5 rounded-full bg-[#2a1b00]" aria-hidden="true" />
-              {t("landing.eyebrow")}
-            </p>
-            <h1 className="mt-5 text-3xl font-semibold leading-tight text-white md:text-5xl">{t("landing.title")}</h1>
-            <p className="mt-5 max-w-xl text-base leading-relaxed opacity-90 md:text-lg">{t("landing.subtitle")}</p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Button asChild size="lg" className="h-12 bg-[#d98b1f] px-6 text-base text-[#2a1b00] hover:bg-[#e69c33]">
-                <Link href={mainHref}>
-                  {mainLabel} <ArrowRight />
-                </Link>
-              </Button>
-              <Button asChild size="lg" variant="outline" className="h-12 border-sidebar-foreground/40 bg-transparent px-6 text-base text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground">
-                <Link href={user ? "#how" : "/register"}>{user ? t("landing.how_title") : t("landing.register_cta")}</Link>
-              </Button>
-            </div>
-            <ul className="mt-8 flex flex-wrap gap-2">
-              {HIGHLIGHTS.map((h) => {
-                const Icon = h.icon;
-                return (
-                  <li key={h.key} className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-sm">
-                    <Icon className="size-4 text-[#7fc3b2]" aria-hidden="true" />
-                    {t(`landing.highlight.${h.key}`)}
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-          <div className="relative">
-            <span className="absolute -bottom-4 -right-4 hidden size-full rounded-xl bg-[#d98b1f] md:block" aria-hidden="true" />
-            <Link href={mainHref} className="group relative block aspect-[5/3] overflow-hidden rounded-xl border-4 border-white/10 bg-sidebar-accent">
-              <Image src="/pcviewfms.jpg" alt={t("landing.cta_dashboard")} fill priority sizes="(min-width: 768px) 50vw, 100vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.02]" />
-            </Link>
-          </div>
-        </div>
-      </section>
+      <LandingStory
+        eyebrow={t("landing.eyebrow")}
+        title={t("landing.title")}
+        subtitle={t("landing.subtitle")}
+        mainHref={mainHref}
+        mainLabel={mainLabel}
+        secondHref={user ? "#how" : "/register"}
+        secondLabel={user ? t("landing.how_title") : t("landing.register_cta")}
+        highlights={HIGHLIGHTS.map((h) => t(`landing.highlight.${h}`))}
+        steps={[1, 2, 3, 4].map((n) => ({
+          tag: t(`landing.story.${n}.tag`),
+          title: t(`landing.story.${n}.title`),
+          body: t(`landing.story.${n}.body`),
+          points: [1, 2, 3, 4].map((k) => t(`landing.story.${n}.point${k}`)),
+        }))}
+        scrollHint={t("landing.story.scroll")}
+      />
 
       <section id="how" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-14 md:px-6">
         <h2 className="text-2xl font-semibold">{t("landing.how_title")}</h2>
