@@ -21,6 +21,7 @@ export function Car3D({
   className,
   fallback,
   raiseFrom,
+  segments,
 }: {
   progress: ProgressRef;
   /** Which car to show (0 saloon, 1 SUV, 2 grand tourer), written by the page. */
@@ -29,6 +30,8 @@ export function Car3D({
   fallback?: React.ReactNode;
   /** Progress from which the car moves up to make room for a card below it. */
   raiseFrom?: number;
+  /** The stretch of progress each car is shown for; each car turns one full circle in its stretch. */
+  segments: [number, number][];
 }) {
   const host = React.useRef<HTMLDivElement>(null);
   const [failed, setFailed] = React.useState(false);
@@ -82,7 +85,7 @@ export function Car3D({
 
     // Turntable: dark green disc with an amber ring, and a soft shadow under the car.
     const table = new THREE.Group();
-    const disc = new THREE.Mesh(new THREE.CircleGeometry(2.95, 96), new THREE.MeshBasicMaterial({ color: "#14493e", toneMapped: false }));
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(2.95, 96), new THREE.MeshBasicMaterial({ color: "#0b2e27", toneMapped: false, transparent: true, opacity: 0.55, depthWrite: false }));
     disc.rotation.x = -Math.PI / 2;
     disc.receiveShadow = true;
     table.add(disc);
@@ -136,7 +139,11 @@ export function Car3D({
       raf = requestAnimationFrame(tick);
       if (!visible || document.hidden) return;
       const p = Math.min(1, Math.max(0, progress.current ?? 0));
-      const target = reduce ? -0.55 : -0.55 + p * Math.PI * 2;
+      // One full turn per car while it is on show, so its front and back (and plates) both face you.
+      const seg = Math.max(0, segments.findIndex(([a, b]) => p >= a && p < b) === -1 ? segments.length - 1 : segments.findIndex(([a, b]) => p >= a && p < b));
+      const [s0, s1] = segments[seg] ?? [0, 1];
+      const local = Math.min(1, Math.max(0, (p - s0) / Math.max(0.0001, s1 - s0)));
+      const target = reduce ? -0.55 : -0.55 + (seg + local) * Math.PI * 2;
       const prev = yaw;
       yaw += (target - yaw) * 0.08;
       table.rotation.y = yaw;
@@ -181,6 +188,7 @@ export function Car3D({
       renderer.dispose();
       renderer.domElement.remove();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- segments is read each frame; its values never change
   }, [progress, carIndex, raiseFrom]);
 
   if (failed) return <>{fallback}</>;

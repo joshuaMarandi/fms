@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, ArrowUpRight, ClipboardCheck, KeyRound, Receipt, Route, Truck, Users } from "lucide-react";
 import { LandingStory, type StorySample } from "@/components/landing/landing-story";
+import { RoadBackground } from "@/components/landing/road-background";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import { loadPublicPackages, PricingCards } from "@/components/landing/pricing";
@@ -88,7 +89,8 @@ export default async function LandingPage() {
   const mainLabel = user ? t("landing.cta_dashboard") : t("landing.cta_login");
 
   return (
-    <main className="min-h-svh bg-background">
+    <main className="relative isolate min-h-svh">
+      <RoadBackground />
       <header className="sticky top-0 z-20 border-b bg-background/95">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 md:px-6">
           <Link href="/" className="flex items-center">
@@ -117,7 +119,6 @@ export default async function LandingPage() {
 
       <LandingStory
         title={t("landing.title")}
-        carLabels={[t("landing.car.saloon"), t("landing.car.suv"), t("landing.car.gt")]}
         subtitle={t("landing.subtitle")}
         mainHref={mainHref}
         mainLabel={mainLabel}
@@ -135,7 +136,7 @@ export default async function LandingPage() {
       />
 
       <section id="how" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-14 md:px-6">
-        <h2 className="text-2xl font-semibold">{t("landing.how_title")}</h2>
+        <h2 className="text-2xl font-semibold text-white">{t("landing.how_title")}</h2>
         <ol className="mt-6 grid gap-4 md:grid-cols-3">
           {STEPS.map(({ n, tone, href }) => (
             <li key={n}>
@@ -153,10 +154,10 @@ export default async function LandingPage() {
         </ol>
       </section>
 
-      <section id="features" className="scroll-mt-20 border-y bg-card">
+      <section id="features" className="scroll-mt-20 border-y border-white/10">
         <div className="mx-auto max-w-6xl px-4 py-14 md:px-6">
-          <h2 className="text-2xl font-semibold">{t("landing.features_title")}</h2>
-          <p className="mt-2 max-w-2xl text-muted-foreground">{t("landing.features_subtitle")}</p>
+          <h2 className="text-2xl font-semibold text-white">{t("landing.features_title")}</h2>
+          <p className="mt-2 max-w-2xl text-white/80">{t("landing.features_subtitle")}</p>
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {FEATURES.map((f) => {
               const Icon = f.icon;
@@ -180,10 +181,10 @@ export default async function LandingPage() {
       </section>
 
       {packages.length ? (
-        <section id="pricing" className="bg-muted/30">
+        <section id="pricing">
           <div className="mx-auto max-w-6xl px-4 py-14 md:px-6">
-            <h2 className="text-2xl font-semibold">{t("landing.pricing_title")}</h2>
-            <p className="mt-2 max-w-2xl text-muted-foreground">{t("landing.pricing_subtitle")}</p>
+            <h2 className="text-2xl font-semibold text-white">{t("landing.pricing_title")}</h2>
+            <p className="mt-2 max-w-2xl text-white/80">{t("landing.pricing_subtitle")}</p>
             <div className="mt-8">
               <PricingCards packages={packages} />
             </div>
@@ -191,9 +192,9 @@ export default async function LandingPage() {
         </section>
       ) : null}
 
-      <footer className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-4 py-8 text-sm text-muted-foreground md:flex-row md:px-6">
+      <footer className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 border-t border-white/10 px-4 py-8 text-sm text-white/75 md:flex-row md:px-6">
         <span>{t("landing.footer")}</span>
-        <Link href="/login" className="text-primary underline-offset-4 hover:underline">
+        <Link href="/login" className="font-medium text-[#f0b35a] underline-offset-4 hover:underline">
           {t("landing.cta_login")}
         </Link>
       </footer>

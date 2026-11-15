@@ -301,3 +301,28 @@
     color: #969e9b;
   }
 }
+
+/* Landing: the highway photo drifts slowly and lane lines run past, so the lorries seem to move. */
+@keyframes road-drift {
+  0% { transform: scale(1.04) translate3d(-2%, 0, 0); }
+  50% { transform: scale(1.1) translate3d(2%, -1%, 0); }
+  100% { transform: scale(1.04) translate3d(-2%, 0, 0); }
+}
+@keyframes road-lanes {
+  from { background-position: 0 0; }
+  to { background-position: -160px 0; }
+}
+.road-drift {
+  animation: road-drift 28s ease-in-out infinite;
+  will-change: transform;
+}
+.road-lanes {
+  background-image: repeating-linear-gradient(90deg, #d98b1f 0 80px, transparent 80px 160px);
+  animation: road-lanes 0.9s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .road-drift,
+  .road-lanes {
+    animation: none;
+  }
+}

@@ -84,20 +84,6 @@ function CarPlaceholder() {
   );
 }
 
-/** Flat dot grid used as decoration on the dark stage (an SVG pattern, not a gradient). */
-function DotGrid() {
-  return (
-    <svg className="pointer-events-none absolute inset-0 text-white/[0.07]" aria-hidden="true" width="100%" height="100%">
-      <defs>
-        <pattern id="story-dots" width="22" height="22" patternUnits="userSpaceOnUse">
-          <circle cx="2" cy="2" r="1.4" fill="currentColor" />
-        </pattern>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#story-dots)" />
-    </svg>
-  );
-}
-
 /**
  * Landing hero as a scroll story: the stage stays on screen while the page scrolls; the car turns
  * once around and the text moves through the steps. Step 0 is the hero (title and buttons).
@@ -112,7 +98,6 @@ export function LandingStory({
   highlights,
   steps,
   scrollHint,
-  carLabels,
 }: {
   title: string;
   subtitle: string;
@@ -123,16 +108,22 @@ export function LandingStory({
   highlights: string[];
   steps: StoryStep[];
   scrollHint: string;
-  /** Names of the three cars, shown as a small label over the turntable. */
-  carLabels: string[];
 }) {
   const section = React.useRef<HTMLElement>(null);
   const progress = React.useRef(0);
   const [active, setActive] = React.useState(0);
   const total = steps.length + 1;
   // Which car is on the turntable for each step: saloon, saloon, SUV, SUV, grand tourer.
-  const carFor = (step: number) => Math.min(2, Math.floor((step * 3) / total));
   const carIndex = React.useRef(0);
+  // The stretch of the story each car is on the turntable for (saloon, SUV, grand tourer).
+  const segments = React.useMemo(() => {
+    const out: [number, number][] = [];
+    for (let car = 0; car < 3; car++) {
+      const steps = Array.from({ length: total }, (_, s) => s).filter((s) => Math.min(2, Math.floor((s * 3) / total)) === car);
+      out.push([steps[0]! / total, (steps[steps.length - 1]! + 1) / total]);
+    }
+    return out;
+  }, [total]);
   React.useEffect(() => {
     carIndex.current = Math.min(2, Math.floor((active * 3) / total));
   }, [active, total]);
@@ -172,15 +163,15 @@ export function LandingStory({
   };
 
   return (
-    <section ref={section} aria-label={title} className="relative bg-sidebar text-sidebar-foreground" style={{ height: `${total * 90 + 10}svh` }}>
+    <section ref={section} aria-label={title} className="relative text-sidebar-foreground" style={{ height: `${total * 90 + 10}svh` }}>
       <div className="sticky top-16 h-[calc(100svh-4rem)] overflow-hidden">
-        <DotGrid />
         <div className="relative mx-auto grid h-full max-w-6xl grid-cols-1 grid-rows-[minmax(0,42%)_minmax(0,1fr)] gap-2 px-4 md:grid-cols-2 md:grid-rows-1 md:items-center md:gap-8 md:px-6">
           {/* The car: right on wide screens, on top on phones. */}
           <div className="relative order-first h-full min-h-0 min-w-0 md:order-last md:h-[min(80%,560px)]">
             <Car3D
               progress={progress}
               carIndex={carIndex}
+              segments={segments}
               raiseFrom={1 / total}
               className="h-full w-full"
               fallback={
@@ -190,19 +181,6 @@ export function LandingStory({
               }
             />
             {steps.map((st, i) => (st.sample ? <SampleCard key={i} sample={st.sample} on={active === i + 1} /> : null))}
-            <div className="pointer-events-none absolute top-2 right-0 md:top-4">
-              {carLabels.map((label, i) => (
-                <span
-                  key={label}
-                  className={cn(
-                    "absolute top-0 right-0 inline-flex items-center gap-2 rounded-full border border-white/20 bg-[#0b2e27]/60 px-3 py-1 text-xs font-semibold whitespace-nowrap text-white transition-all duration-500",
-                    carFor(active) === i ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0",
-                  )}
-                >
-                  <span className="size-1.5 rounded-full bg-[#d98b1f]" aria-hidden="true" /> {label}
-                </span>
-              ))}
-            </div>
           </div>
 
           {/* The text: one step at a time. */}

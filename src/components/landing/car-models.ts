@@ -35,6 +35,8 @@ type Spec = {
   rails?: boolean;
   darkPillars?: boolean;
   exhaust: "twin" | "hidden" | "oval";
+  /** Tanzanian registration, for example T 482 DKM. */
+  plateNo: string;
 };
 
 const smooth = (a: number, b: number, x: number) => {
@@ -82,7 +84,7 @@ export const CARS: Spec[] = [
     },
     paint: "#a9aeb3", rim: "#d4d8db", caliper: "#2b2e30", spokes: 5,
     grille: "slats", grilleBox: { y: 0.5, h: 0.2, w: 0.92 },
-    head: "slim", headY: 0.64, tail: "wedge", tailY: 0.74, exhaust: "twin",
+    head: "slim", headY: 0.64, tail: "wedge", tailY: 0.74, exhaust: "twin", plateNo: "T 482 DKM",
   },
   {
     // Family SUV: upright and boxy, two-tone with a black roof and roof rails. Pearl white.
@@ -108,7 +110,7 @@ export const CARS: Spec[] = [
     },
     paint: "#eceeee", roof: "#141617", rim: "#5b6164", caliper: "#bfc4c6", spokes: 6,
     grille: "dots", grilleBox: { y: 0.7, h: 0.4, w: 1.2 },
-    head: "strip", headY: 0.98, tail: "bar", tailY: 1.04, rails: true, darkPillars: true, exhaust: "hidden",
+    head: "strip", headY: 0.98, tail: "bar", tailY: 1.04, rails: true, darkPillars: true, exhaust: "hidden", plateNo: "T 915 EAB",
   },
   {
     // Grand tourer: very long bonnet, wheels pushed to the corners, fastback roof. Deep red.
@@ -133,7 +135,7 @@ export const CARS: Spec[] = [
     },
     paint: "#6e1018", rim: "#dfe2e4", caliper: "#1c1e1f", spokes: 10,
     grille: "mesh", grilleBox: { y: 0.52, h: 0.34, w: 0.8 },
-    head: "round", headY: 0.62, tail: "oval", tailY: 0.72, exhaust: "oval",
+    head: "round", headY: 0.62, tail: "oval", tailY: 0.72, exhaust: "oval", plateNo: "T 207 DHX",
   },
 ];
 
@@ -150,33 +152,98 @@ function materials(spec: Spec) {
     rim: new THREE.MeshStandardMaterial({ color: spec.rim, metalness: 0.9, roughness: 0.22 }),
     disc: new THREE.MeshStandardMaterial({ color: "#5c6164", metalness: 0.85, roughness: 0.4 }),
     caliper: new THREE.MeshStandardMaterial({ color: spec.caliper, metalness: 0.3, roughness: 0.4 }),
-    head: new THREE.MeshStandardMaterial({ color: "#fdfcf5", emissive: "#fff6d8", emissiveIntensity: 1.6, metalness: 0.3, roughness: 0.1 }),
+    head: new THREE.MeshStandardMaterial({ color: "#ffffff", emissive: "#f2f6ff", emissiveIntensity: 3.2, metalness: 0.2, roughness: 0.1 }),
     lens: new THREE.MeshPhysicalMaterial({ color: "#cfd6d8", metalness: 0.6, roughness: 0.05, clearcoat: 1 }),
-    tail: new THREE.MeshStandardMaterial({ color: "#a3121a", emissive: "#d1131c", emissiveIntensity: 1.1, roughness: 0.25 }),
+    tail: new THREE.MeshStandardMaterial({ color: "#b0121b", emissive: "#ff1a24", emissiveIntensity: 2.4, roughness: 0.2 }),
     amber: new THREE.MeshStandardMaterial({ color: "#e58e1c", emissive: "#e58e1c", emissiveIntensity: 0.6 }),
   };
 }
 
-/** A number plate as a small texture (white at the front, yellow at the back, as in Tanzania). */
+/** The flag of Tanzania in a box: green and blue triangles, a black band edged in yellow. */
+function drawFlag(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
+  g.save();
+  g.beginPath();
+  g.rect(x, y, w, h);
+  g.clip();
+  g.fillStyle = "#1eb53a";
+  g.beginPath();
+  g.moveTo(x, y);
+  g.lineTo(x + w, y);
+  g.lineTo(x, y + h);
+  g.closePath();
+  g.fill();
+  g.fillStyle = "#00a3dd";
+  g.beginPath();
+  g.moveTo(x + w, y);
+  g.lineTo(x + w, y + h);
+  g.lineTo(x, y + h);
+  g.closePath();
+  g.fill();
+  g.strokeStyle = "#fcd116";
+  g.lineWidth = h * 0.42;
+  g.beginPath();
+  g.moveTo(x, y + h);
+  g.lineTo(x + w, y);
+  g.stroke();
+  g.strokeStyle = "#000";
+  g.lineWidth = h * 0.28;
+  g.stroke();
+  g.restore();
+}
+
+/** A Tanzanian number plate: white at the front, yellow at the back, flag and TZ at the left. */
 function plate(text: string, back: boolean) {
   const c = document.createElement("canvas");
-  c.width = 256;
-  c.height = 64;
+  c.width = 520;
+  c.height = 112;
   const g = c.getContext("2d")!;
-  g.fillStyle = back ? "#f4c21b" : "#f7f7f2";
-  g.fillRect(0, 0, 256, 64);
+  g.fillStyle = back ? "#f7c51e" : "#f6f6f1";
+  g.beginPath();
+  g.roundRect(0, 0, 520, 112, 10);
+  g.fill();
   g.strokeStyle = "#111";
-  g.lineWidth = 4;
-  g.strokeRect(3, 3, 250, 58);
+  g.lineWidth = 6;
+  g.beginPath();
+  g.roundRect(5, 5, 510, 102, 8);
+  g.stroke();
+  drawFlag(g, 18, 18, 52, 36);
   g.fillStyle = "#111";
-  g.font = "bold 40px Arial, sans-serif";
+  g.font = "bold 26px Arial, sans-serif";
   g.textAlign = "center";
   g.textBaseline = "middle";
-  g.fillText(text, 128, 34);
+  g.fillText("TZ", 44, 80);
+  g.font = "bold 70px 'Arial Narrow', Arial, sans-serif";
+  g.fillText(text, 295, 60);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
-  return new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.13), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.4 }));
+  tex.anisotropy = 8;
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.52, 0.112), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.35, metalness: 0.05 }));
+  // A dark surround so the plate reads as fixed to the bumper.
+  const frame = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 0.135), new THREE.MeshStandardMaterial({ color: "#0d0f10", roughness: 0.6 }));
+  frame.position.z = -0.002;
+  const g2 = new THREE.Group();
+  g2.add(frame, mesh);
+  return g2;
+}
+
+/** Soft round glow so a lamp looks switched on (added on top of the scene, not a surface colour). */
+let glowTex: THREE.Texture | null = null;
+function glow(color: string, size: number) {
+  if (!glowTex) {
+    const c = document.createElement("canvas");
+    c.width = c.height = 128;
+    const g = c.getContext("2d")!;
+    const r = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    r.addColorStop(0, "rgba(255,255,255,1)");
+    r.addColorStop(0.25, "rgba(255,255,255,0.55)");
+    r.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = r;
+    g.fillRect(0, 0, 128, 128);
+    glowTex = new THREE.CanvasTexture(c);
+  }
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.9 }));
+  sprite.scale.setScalar(size);
+  return sprite;
 }
 
 /** Extrude a side profile across the car and round it: narrower towards the top and at both ends. */
@@ -373,7 +440,19 @@ export function buildCar(spec: Spec): BuiltCar {
   }
 
   // ---------------------------------------------------------------- front
-  const noseX = L2 + 0.02;
+  // Where the body's front and back really are at a given height: the outline plus the rounded edge.
+  // Evenly spaced along every edge (straight ones too), and only the ends of the car: never the wheel arches.
+  const outline = bodyShape.getSpacedPoints(900);
+  const BEVEL = 0.07;
+  const faceX = (y: number, dir: 1 | -1) => {
+    const end = outline.filter((p) => (dir > 0 ? p.x > spec.axleF + spec.archR + 0.05 : p.x < spec.axleR - spec.archR - 0.05));
+    const near = end.filter((p) => Math.abs(p.y - y) < 0.025);
+    const xs = (near.length ? near : end).map((p) => p.x);
+    return (dir > 0 ? Math.max(...xs) : Math.min(...xs)) + dir * BEVEL;
+  };
+  /** Same meaning as the old fixed nose position (surface + 0.02), but measured at height y. */
+  const nose = (y: number) => faceX(y, 1) + 0.02;
+  const tail = (y: number) => faceX(y, -1) - 0.02;
   const gb = spec.grilleBox;
   const grille = new THREE.Group();
   const back = new THREE.Mesh(new THREE.BoxGeometry(0.03, gb.h, gb.w), m.black);
@@ -416,16 +495,17 @@ export function buildCar(spec: Spec): BuiltCar {
       }
     }
   }
-  grille.position.set(noseX - 0.01, gb.y, 0);
+  grille.position.set(nose(gb.y) - 0.01, gb.y, 0);
   car.add(grille);
 
   // Lower intake and front plate.
   const intake = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.09, H * 1.3), m.black);
-  intake.position.set(noseX - 0.04, spec.sill + 0.08, 0);
+  intake.position.set(nose(spec.sill + 0.08) - 0.04, spec.sill + 0.08, 0);
   car.add(intake);
-  const fp = plate("T 123 DKL", false);
+  const fp = plate(spec.plateNo, false);
+  fp.scale.setScalar(1.2);
   fp.rotation.y = Math.PI / 2;
-  fp.position.set(noseX + 0.005, spec.sill + 0.17 + (spec.grille === "dots" ? 0.03 : 0), 0);
+  fp.position.set(nose(spec.sill + 0.17 + (spec.grille === "dots" ? 0.03 : 0)) + 0.005, spec.sill + 0.17 + (spec.grille === "dots" ? 0.03 : 0), 0);
   car.add(fp);
 
   // Headlights.
@@ -438,71 +518,97 @@ export function buildCar(spec: Spec): BuiltCar {
       ] as [number, number][]) {
         const ring = new THREE.Mesh(new THREE.TorusGeometry(rad + 0.012, 0.012, 8, 32), m.chrome);
         ring.rotation.y = Math.PI / 2;
-        ring.position.set(noseX - 0.06, spec.headY, z + dz);
+        ring.position.set(nose(spec.headY) - 0.06, spec.headY, z + dz);
         const lamp = new THREE.Mesh(new THREE.CircleGeometry(rad, 32), m.head);
         lamp.rotation.y = Math.PI / 2;
-        lamp.position.set(noseX - 0.055, spec.headY, z + dz);
+        lamp.position.set(nose(spec.headY) - 0.055, spec.headY, z + dz);
         car.add(ring, lamp);
       }
     } else if (spec.head === "strip") {
       const drl = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.035, H * 0.62), m.head);
-      drl.position.set(noseX - 0.04, spec.headY, side * H * 0.42);
+      drl.position.set(nose(spec.headY) - 0.04, spec.headY, side * H * 0.42);
       const main = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.09, 0.22), m.lens);
-      main.position.set(noseX - 0.04, spec.headY - 0.36, side * H * 0.66);
+      main.position.set(nose(spec.headY - 0.36) - 0.04, spec.headY - 0.36, side * H * 0.66);
       const lampIn = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.05, 0.16), m.head);
-      lampIn.position.set(noseX - 0.038, spec.headY - 0.36, side * H * 0.66);
+      lampIn.position.set(nose(spec.headY - 0.36) - 0.038, spec.headY - 0.36, side * H * 0.66);
       car.add(drl, main, lampIn);
     } else {
       const housing = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, 0.36), m.lens);
-      housing.position.set(noseX - 0.1, spec.headY, z);
+      housing.position.set(nose(spec.headY) - 0.1, spec.headY, z);
       housing.rotation.x = side * 0.08;
       const drl = new THREE.Mesh(new THREE.BoxGeometry(0.062, 0.014, 0.34), m.head);
-      drl.position.set(noseX - 0.098, spec.headY - 0.025, z);
+      drl.position.set(nose(spec.headY - 0.025) - 0.098, spec.headY - 0.025, z);
       const proj = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.02, 20), m.head);
       proj.rotation.z = Math.PI / 2;
-      proj.position.set(noseX - 0.07, spec.headY + 0.01, z - side * 0.06);
+      proj.position.set(nose(spec.headY + 0.01) - 0.07, spec.headY + 0.01, z - side * 0.06);
       car.add(housing, drl, proj);
     }
   }
 
+  for (const side of [-1, 1]) {
+    const z = side * H * (spec.head === "strip" ? 0.5 : 0.66);
+    const h = glow("#eaf2ff", spec.head === "round" ? 0.42 : 0.5);
+    h.position.set(nose(spec.headY) + 0.04, spec.headY, z);
+    car.add(h);
+    if (spec.head === "strip") {
+      const low = glow("#ffffff", 0.36);
+      low.position.set(nose(spec.headY - 0.36) + 0.03, spec.headY - 0.36, side * H * 0.66);
+      car.add(low);
+    }
+    if (spec.head === "slim") {
+      // L-shaped LED daytime light inside each lamp.
+      const led = new THREE.Mesh(new THREE.BoxGeometry(0.064, 0.012, 0.2), m.head);
+      led.position.set(nose(spec.headY + 0.025) - 0.095, spec.headY + 0.025, z + side * 0.04);
+      const ledV = new THREE.Mesh(new THREE.BoxGeometry(0.064, 0.06, 0.012), m.head);
+      ledV.position.set(nose(spec.headY) - 0.095, spec.headY, z + side * 0.14);
+      car.add(led, ledV);
+    }
+  }
+
   // ---------------------------------------------------------------- rear
-  const tailX = -L2 - 0.02;
   for (const side of [-1, 1]) {
     if (spec.tail === "wedge") {
       const t = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.1, 0.42), m.tail);
-      t.position.set(tailX + 0.06, spec.tailY, side * H * 0.68);
+      t.position.set(tail(spec.tailY) + 0.06, spec.tailY, side * H * 0.68);
       t.rotation.x = side * -0.12;
       car.add(t);
     } else if (spec.tail === "oval") {
       const t = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.04, 28), m.tail);
       t.rotation.z = Math.PI / 2;
       t.scale.set(1, 1, 1.9);
-      t.position.set(tailX + 0.05, spec.tailY, side * H * 0.66);
+      t.position.set(tail(spec.tailY) + 0.05, spec.tailY, side * H * 0.66);
       const ring = new THREE.Mesh(new THREE.TorusGeometry(0.078, 0.01, 8, 32), m.chrome);
       ring.rotation.y = Math.PI / 2;
       ring.scale.set(1.9, 1, 1);
-      ring.position.set(tailX + 0.035, spec.tailY, side * H * 0.66);
+      ring.position.set(tail(spec.tailY) + 0.035, spec.tailY, side * H * 0.66);
       car.add(t, ring);
     }
   }
   if (spec.tail === "bar") {
     const bar = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.04, H * 1.7), m.tail);
-    bar.position.set(tailX + 0.03, spec.tailY, 0);
+    bar.position.set(tail(spec.tailY) + 0.03, spec.tailY, 0);
     car.add(bar);
   }
-  const rp = plate("T 123 DKL", true);
+  // Tail light glows.
+  for (const side of spec.tail === "bar" ? [-1, 0, 1] : [-1, 1]) {
+    const tg = glow("#ff3038", spec.tail === "bar" ? 0.4 : 0.36);
+    tg.position.set(tail(spec.tailY) - 0.04, spec.tailY, side * H * (spec.tail === "bar" ? 0.7 : 0.67));
+    car.add(tg);
+  }
+  const rp = plate(spec.plateNo, true);
+  rp.scale.setScalar(1.2);
   rp.rotation.y = -Math.PI / 2;
-  rp.position.set(tailX - 0.005, spec.tailY - (spec.tail === "bar" ? 0.32 : 0.24), 0);
+  rp.position.set(tail(spec.tailY - (spec.tail === "bar" ? 0.32 : 0.24)) - 0.005, spec.tailY - (spec.tail === "bar" ? 0.32 : 0.24), 0);
   car.add(rp);
   const diffuser = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.08, H * 1.4), m.black);
-  diffuser.position.set(tailX + 0.02, spec.sill + 0.06, 0);
+  diffuser.position.set(tail(spec.sill + 0.06) + 0.02, spec.sill + 0.06, 0);
   car.add(diffuser);
   if (spec.exhaust !== "hidden") {
     for (const side of [-1, 1]) {
       const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.12, 20), m.chrome);
       pipe.rotation.z = Math.PI / 2;
       if (spec.exhaust === "oval") pipe.scale.set(1, 1, 1.6);
-      pipe.position.set(tailX - 0.01, spec.sill + 0.06, side * H * 0.55);
+      pipe.position.set(tail(spec.sill + 0.06) - 0.01, spec.sill + 0.06, side * H * 0.55);
       car.add(pipe);
     }
   }
@@ -518,7 +624,7 @@ export function buildCar(spec: Spec): BuiltCar {
     }
   }
   car.traverse((o) => {
-    if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = true;
+    if ((o as THREE.Mesh).isMesh && !(o as THREE.Sprite).isSprite) (o as THREE.Mesh).castShadow = true;
   });
   return { car, wheels };
 }
