@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, ArrowUpRight, ClipboardCheck, KeyRound, Receipt, Route, Truck, Users } from "lucide-react";
-import { LandingStory } from "@/components/landing/landing-story";
+import { LandingStory, type StorySample } from "@/components/landing/landing-story";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 import { loadPublicPackages, PricingCards } from "@/components/landing/pricing";
@@ -26,18 +26,55 @@ const STEPS: { n: number; tone: Tone; href: string }[] = [
 
 const HIGHLIGHTS = ["approvals", "reminders", "mobile"];
 
-/** Flat dot grid used as decoration on the dark hero (an SVG pattern, not a gradient). */
-function DotGrid({ className }: { className?: string }) {
-  return (
-    <svg className={className} aria-hidden="true" width="100%" height="100%">
-      <defs>
-        <pattern id="fms-dots" width="22" height="22" patternUnits="userSpaceOnUse">
-          <circle cx="2" cy="2" r="1.4" fill="currentColor" />
-        </pattern>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#fms-dots)" />
-    </svg>
-  );
+/**
+ * Sample rows shown on the see-through card for each step. Cells starting with ok:, warn: or bad:
+ * show as coloured chips.
+ */
+function storySample(n: number): StorySample {
+  const c = (k: string) => t(`landing.sample.col.${k}`);
+  const v = (k: string, vars?: Record<string, string | number>) => t(`landing.sample.val.${k}`, vars);
+  switch (n) {
+    case 1:
+      return {
+        title: t("landing.sample.1.title"),
+        columns: [c("reg"), c("make_model"), c("insurance"), c("status")],
+        rows: [
+          ["T 123 DKL", "Toyota Hilux", `ok:${v("valid")}`, `ok:${v("in_use")}`],
+          ["T 456 DFE", "Land Cruiser 79", `warn:${v("due_days", { count: 12 })}`, `ok:${v("in_use")}`],
+          ["T 789 DGA", "Isuzu D-Max", `ok:${v("valid")}`, `warn:${v("out_of_use")}`],
+        ],
+      };
+    case 2:
+      return {
+        title: t("landing.sample.2.title"),
+        columns: [c("reg"), c("last_inspection"), c("remark"), c("actions")],
+        rows: [
+          ["T 123 DKL", v("today"), `ok:${v("no_anomalies")}`, v("none")],
+          ["T 456 DFE", v("today"), `warn:${v("anomaly")}`, `warn:${v("open", { count: 1 })}`],
+          ["T 789 DGA", v("yesterday"), `bad:${v("not_safe")}`, `bad:${v("open", { count: 2 })}`],
+        ],
+      };
+    case 3:
+      return {
+        title: t("landing.sample.3.title"),
+        columns: [c("reg"), c("trips"), c("km_run"), c("fuel")],
+        rows: [
+          ["T 123 DKL", "6", "184 km", "21.5 L"],
+          ["T 456 DFE", "3", "96 km", "12.0 L"],
+          ["T 789 DGA", "9", "262 km", "30.8 L"],
+        ],
+      };
+    default:
+      return {
+        title: t("landing.sample.4.title"),
+        columns: [c("request"), c("step"), c("status")],
+        rows: [
+          [v("leave_request"), v("step_approval"), `ok:${v("approved")}`],
+          [v("long_trip"), v("step_hse"), `warn:${v("waiting")}`],
+          [v("short_trip"), v("step_approval"), `bad:${v("rejected")}`],
+        ],
+      };
+  }
 }
 
 /** Public landing page: what the system does, then sign in. */
@@ -79,8 +116,8 @@ export default async function LandingPage() {
       </header>
 
       <LandingStory
-        eyebrow={t("landing.eyebrow")}
         title={t("landing.title")}
+        carLabels={[t("landing.car.saloon"), t("landing.car.suv"), t("landing.car.gt")]}
         subtitle={t("landing.subtitle")}
         mainHref={mainHref}
         mainLabel={mainLabel}
@@ -92,6 +129,7 @@ export default async function LandingPage() {
           title: t(`landing.story.${n}.title`),
           body: t(`landing.story.${n}.body`),
           points: [1, 2, 3, 4].map((k) => t(`landing.story.${n}.point${k}`)),
+          sample: storySample(n),
         }))}
         scrollHint={t("landing.story.scroll")}
       />
@@ -152,24 +190,6 @@ export default async function LandingPage() {
           </div>
         </section>
       ) : null}
-
-      <section className="relative overflow-hidden bg-sidebar text-sidebar-foreground">
-        <DotGrid className="pointer-events-none absolute inset-0 text-white/[0.06]" />
-        <div className="relative mx-auto grid max-w-6xl gap-8 px-4 py-14 md:grid-cols-[1fr_320px] md:items-center md:px-6">
-          <div>
-            <h2 className="text-2xl font-semibold text-white">{t("landing.roles_title")}</h2>
-            <p className="mt-3 max-w-2xl opacity-90">{t("landing.roles_body")}</p>
-            <Button asChild size="lg" className="mt-6 h-12 bg-[#d98b1f] px-6 text-base text-[#2a1b00] hover:bg-[#e69c33]">
-              <Link href={mainHref}>
-                {mainLabel} <ArrowRight />
-              </Link>
-            </Button>
-          </div>
-          <Link href={mainHref} className="group relative mx-auto block aspect-[2/3] w-56 overflow-hidden rounded-2xl border-4 border-white/10 md:w-full md:max-w-[280px]">
-            <Image src="/phoneviewfms.jpg" alt={t("landing.cta_dashboard")} fill sizes="280px" className="object-cover transition-transform duration-300 group-hover:scale-[1.02]" />
-          </Link>
-        </div>
-      </section>
 
       <footer className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-4 py-8 text-sm text-muted-foreground md:flex-row md:px-6">
         <span>{t("landing.footer")}</span>

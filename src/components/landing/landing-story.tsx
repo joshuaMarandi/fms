@@ -11,7 +11,67 @@ import { cn } from "@/lib/utils";
 // three.js loads only in the browser, after the page text is already on screen.
 const Car3D = dynamic(() => import("./car-3d").then((m) => m.Car3D), { ssr: false, loading: () => <CarPlaceholder /> });
 
-export type StoryStep = { tag: string; title: string; body: string; points: string[] };
+/** A few sample rows of the step's screen. Cells starting with ok:, warn: or bad: show as chips. */
+export type StorySample = { title: string; columns: string[]; rows: string[][] };
+export type StoryStep = { tag: string; title: string; body: string; points: string[]; sample?: StorySample };
+
+const CHIP: Record<string, string> = {
+  ok: "bg-[#ddefe7] text-[#0b4a3d]",
+  warn: "bg-[#fbefd5] text-[#6b4300]",
+  bad: "bg-[#f9e1de] text-[#8a1c12]",
+};
+
+function SampleCell({ value }: { value: string }) {
+  const m = /^(ok|warn|bad):(.*)$/.exec(value);
+  if (!m) return <>{value}</>;
+  return <span className={cn("inline-flex rounded-md px-1.5 py-0.5 text-[11px] font-semibold whitespace-nowrap", CHIP[m[1]!])}>{m[2]}</span>;
+}
+
+/** See-through card with sample rows, laid over the turning car. */
+function SampleCard({ sample, on }: { sample: StorySample; on: boolean }) {
+  return (
+    <div
+      aria-hidden={!on}
+      className={cn(
+        "absolute inset-x-0 bottom-0 transition-all duration-500 ease-out md:inset-x-6 md:bottom-2",
+        on ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-8 opacity-0",
+      )}
+    >
+      <div className="overflow-hidden rounded-xl border border-white/20 bg-[#0b2e27]/55 text-white shadow-[0_18px_40px_-20px_rgba(0,0,0,0.8)]">
+        <div className="flex items-center gap-2 border-b border-white/15 px-3 py-2">
+          <span className="flex gap-1" aria-hidden="true">
+            <span className="size-2 rounded-full bg-[#d98b1f]" />
+            <span className="size-2 rounded-full bg-white/40" />
+            <span className="size-2 rounded-full bg-white/40" />
+          </span>
+          <span className="truncate text-xs font-semibold tracking-wide text-white/90">{sample.title}</span>
+        </div>
+        <table className="w-full text-left text-xs">
+          <thead className="text-[10px] tracking-wide text-[#7fc3b2] uppercase">
+            <tr>
+              {sample.columns.map((c) => (
+                <th key={c} scope="col" className="px-3 py-1.5 font-semibold">
+                  {c}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/10">
+            {sample.rows.map((r, i) => (
+              <tr key={i} className={cn(i > 1 && "hidden sm:table-row")}>
+                {r.map((cell, k) => (
+                  <td key={k} className={cn("px-3 py-1.5 align-middle", k === 0 ? "font-semibold whitespace-nowrap" : "text-white/85")}>
+                    <SampleCell value={cell} />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 const STEP_ICONS = [Truck, ShieldCheck, Gauge, MailCheck];
 const HIGHLIGHT_ICONS = [MailCheck, BellRing, Smartphone];
@@ -43,7 +103,6 @@ function DotGrid() {
  * once around and the text moves through the steps. Step 0 is the hero (title and buttons).
  */
 export function LandingStory({
-  eyebrow,
   title,
   subtitle,
   mainHref,
@@ -53,8 +112,8 @@ export function LandingStory({
   highlights,
   steps,
   scrollHint,
+  carLabels,
 }: {
-  eyebrow: string;
   title: string;
   subtitle: string;
   mainHref: string;
@@ -64,11 +123,19 @@ export function LandingStory({
   highlights: string[];
   steps: StoryStep[];
   scrollHint: string;
+  /** Names of the three cars, shown as a small label over the turntable. */
+  carLabels: string[];
 }) {
   const section = React.useRef<HTMLElement>(null);
   const progress = React.useRef(0);
   const [active, setActive] = React.useState(0);
   const total = steps.length + 1;
+  // Which car is on the turntable for each step: saloon, saloon, SUV, SUV, grand tourer.
+  const carFor = (step: number) => Math.min(2, Math.floor((step * 3) / total));
+  const carIndex = React.useRef(0);
+  React.useEffect(() => {
+    carIndex.current = Math.min(2, Math.floor((active * 3) / total));
+  }, [active, total]);
 
   React.useEffect(() => {
     let frame = 0;
@@ -113,6 +180,8 @@ export function LandingStory({
           <div className="relative order-first h-full min-h-0 min-w-0 md:order-last md:h-[min(80%,560px)]">
             <Car3D
               progress={progress}
+              carIndex={carIndex}
+              raiseFrom={1 / total}
               className="h-full w-full"
               fallback={
                 <div className="relative h-full w-full overflow-hidden rounded-xl border-4 border-white/10">
@@ -120,6 +189,20 @@ export function LandingStory({
                 </div>
               }
             />
+            {steps.map((st, i) => (st.sample ? <SampleCard key={i} sample={st.sample} on={active === i + 1} /> : null))}
+            <div className="pointer-events-none absolute top-2 right-0 md:top-4">
+              {carLabels.map((label, i) => (
+                <span
+                  key={label}
+                  className={cn(
+                    "absolute top-0 right-0 inline-flex items-center gap-2 rounded-full border border-white/20 bg-[#0b2e27]/60 px-3 py-1 text-xs font-semibold whitespace-nowrap text-white transition-all duration-500",
+                    carFor(active) === i ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0",
+                  )}
+                >
+                  <span className="size-1.5 rounded-full bg-[#d98b1f]" aria-hidden="true" /> {label}
+                </span>
+              ))}
+            </div>
           </div>
 
           {/* The text: one step at a time. */}
@@ -134,11 +217,7 @@ export function LandingStory({
                 >
                   {i === 0 ? (
                     <div>
-                      <p className="inline-flex items-center gap-2 rounded-full bg-[#d98b1f] px-3 py-1 text-xs font-semibold tracking-wide text-[#2a1b00] uppercase">
-                        <span className="size-1.5 rounded-full bg-[#2a1b00]" aria-hidden="true" />
-                        {eyebrow}
-                      </p>
-                      <h1 className="mt-4 text-3xl leading-tight font-semibold text-white md:text-5xl">{title}</h1>
+                      <h1 className="text-3xl leading-tight font-semibold text-white md:text-5xl">{title}</h1>
                       <p className="mt-4 max-w-xl text-base leading-relaxed opacity-90 md:text-lg">{subtitle}</p>
                       <div className="mt-6 flex flex-wrap gap-3">
                         <Button asChild size="lg" className="h-12 bg-[#d98b1f] px-6 text-base text-[#2a1b00] shadow-[0_4px_0_0_#8a5410] hover:bg-[#e69c33] active:translate-y-[4px] active:shadow-none">
