@@ -60,7 +60,8 @@ export async function ModuleRecordPage({ moduleKey, id, preset }: { moduleKey: s
         <div className={showApproval ? "lg:col-span-2" : undefined}>
           <SchemaForm
             schemaKey={def.key}
-            record={record ?? preset ?? null}
+            record={record ?? (preset || def.fixed ? { ...def.fixed, ...preset } : null)}
+            extra={def.fixed}
             options={options}
             readOnly={locked}
             cancelHref={def.path}

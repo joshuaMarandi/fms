@@ -6,7 +6,7 @@ import { RecordTitle } from "@/components/modules/record-title";
 import { ModuleTable } from "@/components/modules/module-table";
 import { RecordsFilter } from "./records-filter";
 import { HubSummary } from "./vehicle-hub";
-import { isPeriod, monthRange, periodRange } from "./periods";
+import { isPeriod, monthRange, periodRange, yearRange } from "./periods";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { getModule } from "@/modules/registry";
@@ -70,6 +70,7 @@ export async function VehicleRecordsPage({
   searchParams,
   dateColumn,
   monthly,
+  yearly = false,
   hubHref,
   hubLabel,
 }: {
@@ -77,6 +78,8 @@ export async function VehicleRecordsPage({
   searchParams: Record<string, string | string[] | undefined>;
   dateColumn: string;
   monthly: boolean;
+  /** Records a few times a year (mobilization, third-party): filter by calendar year. */
+  yearly?: boolean;
   hubHref: string;
   hubLabel: string;
 }) {
@@ -91,7 +94,9 @@ export async function VehicleRecordsPage({
   const period = monthly && isPeriod(periodParam) ? periodParam : null;
   const monthParam = one(searchParams.month);
   const month = monthly && !period && monthParam && /^\d{4}-\d{2}$/.test(monthParam) ? monthParam : null;
-  const range = period ? periodRange(period, today) : month ? monthRange(month) : null;
+  const yearParam = one(searchParams.year);
+  const year = yearly && yearParam && /^d{4}$/.test(yearParam) ? Number(yearParam) : null;
+  const range = period ? periodRange(period, today) : month ? monthRange(month) : year ? yearRange(year) : null;
   const details = one(searchParams.details) === "1" && !!def.list.detailColumns;
 
   let query = supabase.from(def.table).select(details && def.list.detailSelect ? def.list.detailSelect : def.list.select).is("deleted_at", null);
@@ -126,7 +131,7 @@ export async function VehicleRecordsPage({
       ? `${MONTHS[Number(month.slice(5)) - 1]} ${month.slice(0, 4)}`
       : t("hub.all_time");
   const title = current ? `${current.registration} · ${t(def.title)}` : t(def.title);
-  const description = [current ? `${current.make} ${current.model}` : t("hub.all_vehicles"), monthly ? whenLabel : null].filter(Boolean).join(" · ");
+  const description = [current ? `${current.make} ${current.model}` : t("hub.all_vehicles"), monthly ? whenLabel : yearly ? (year ? String(year) : t("hub.all_time")) : null].filter(Boolean).join(" · ");
   const tiles = details ? null : summaryFor(def.key, rows);
 
   return (
@@ -159,6 +164,8 @@ export async function VehicleRecordsPage({
         month={month}
         period={period}
         monthly={monthly}
+        yearly={yearly}
+        year={year}
         details={details}
         hasDetails={!!def.list.detailColumns}
         currentYear={cy}

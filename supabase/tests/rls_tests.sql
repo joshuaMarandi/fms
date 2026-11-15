@@ -952,4 +952,33 @@ begin
   delete from auth.users where id = v_new;
 end $$;
 
+-- 19: three inspection kinds; first aid removed; inspection summary views.
+do $$
+declare
+  admin_id uuid := '33333333-3333-3333-3333-000000000002';
+  v_vehicle uuid;
+  v_company uuid;
+  n integer;
+  s record;
+begin
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m19: first aid resource is gone', not exists (select 1 from public.resources where key = 'inspections.first_aid'));
+  perform pg_temp.check('m19: third-party sorts after mobilization', (select sort_order from public.resources where key = 'inspections.third_party') = 303);
+  perform pg_temp.check('m19: no role keeps a first aid permission', not exists (select 1 from public.role_grants where resource_key = 'inspections.first_aid'));
+  select id, company_id into v_vehicle, v_company from public.vehicles where deleted_at is null order by registration limit 1;
+
+  perform pg_temp.as_user(admin_id);
+  select count(*) into n from public.v_vehicle_inspection_summary;
+  perform pg_temp.check('m19: admin sees the inspection summary of every vehicle', n = (select count(*) from public.vehicles where deleted_at is null));
+
+  insert into public.vehicle_inspections (company_id, vehicle_id, kind, inspection_date, renewal_date) values (v_company, v_vehicle, 'internal', date '2030-01-05', date '2031-01-05');
+  select * into s from public.v_vehicle_inspection_summary where vehicle_id = v_vehicle;
+  perform pg_temp.check('m19: newest mobilization inspection is shown', s.mobilization_last = date '2030-01-05' and s.mobilization_next = date '2031-01-05');
+  perform pg_temp.check('m19: years view counts mobilization records', exists (select 1 from public.v_inspection_years where vehicle_id = v_vehicle and kind = 'mobilization' and year = 2030 and records = 1));
+  perform pg_temp.check('m19: open and closed daily actions are counted', s.daily_open = (select count(*) from public.inspection_anomalies a where a.vehicle_id = v_vehicle and a.deleted_at is null and a.daily_inspection_id is not null and a.status = 'open'));
+
+  perform pg_temp.as_admin();
+  delete from public.vehicle_inspections where vehicle_id = v_vehicle and inspection_date = date '2030-01-05';
+end $$;
+
 select 'ALL TESTS PASSED' as result;

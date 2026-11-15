@@ -1,5 +1,5 @@
 import type { ModuleDef } from "./types";
-import { dailyInspections, firstAidInspections, thirdPartyInspections } from "./inspections";
+import { dailyInspections, mobilizationInspections, thirdPartyInspections } from "./inspections";
 import { fuelLog, kmLogs, tripRequests } from "./daily-use";
 import {
   fuelExpenses,
@@ -20,8 +20,8 @@ import {
 
 export const MODULES: ModuleDef[] = [
   dailyInspections,
+  mobilizationInspections,
   thirdPartyInspections,
-  firstAidInspections,
   kmLogs,
   fuelLog,
   tripRequests,

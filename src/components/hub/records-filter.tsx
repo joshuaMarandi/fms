@@ -20,6 +20,8 @@ export function RecordsFilter({
   month,
   period,
   monthly,
+  yearly = false,
+  year = null,
   details,
   hasDetails,
   currentYear,
@@ -31,6 +33,8 @@ export function RecordsFilter({
   month: string | null;
   period: PeriodKey | null;
   monthly: boolean;
+  yearly?: boolean;
+  year?: number | null;
   details: boolean;
   hasDetails: boolean;
   currentYear: number;
@@ -54,11 +58,12 @@ export function RecordsFilter({
 
   const go = (next: { vehicle?: string | null; when?: string | null; details?: boolean }) => {
     const v = next.vehicle !== undefined ? next.vehicle : vehicle;
-    const when = next.when !== undefined ? next.when : period ? `p:${period}` : month;
+    const when = next.when !== undefined ? next.when : period ? `p:${period}` : year ? `y:${year}` : month;
     const d = next.details !== undefined ? next.details : details;
     const q = new URLSearchParams();
     q.set("vehicle", v || "all");
     if (when?.startsWith("p:")) q.set("period", when.slice(2));
+    else if (when?.startsWith("y:")) q.set("year", when.slice(2));
     else if (when) q.set("month", when);
     if (d) q.set("details", "1");
     startNavigationProgress();
@@ -100,6 +105,25 @@ export function RecordsFilter({
                   </SelectItem>
                 ))}
               </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
+      {yearly ? (
+        <div className="min-w-[160px] space-y-1.5">
+          <Label htmlFor="records-year">{t("hub.year")}</Label>
+          <Select value={year ? `y:${year}` : "all"} onValueChange={(v) => go({ when: v === "all" ? null : v })}>
+            <SelectTrigger id="records-year" className="h-10 w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("hub.all_years")}</SelectItem>
+              <SelectSeparator />
+              {Array.from({ length: Math.max(10, year ? currentYear - year + 1 : 0) }, (_, i) => currentYear - i).map((y) => (
+                <SelectItem key={y} value={`y:${y}`}>
+                  {y}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

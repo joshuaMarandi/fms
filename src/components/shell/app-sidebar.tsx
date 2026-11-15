@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { usePermissions } from "@/components/permissions/provider";
-import { buildResourceTree, filterTree, packageAllows, type ResourceNode } from "@/lib/permissions";
+import { buildResourceTree, can, filterTree, packageAllows, type ResourceNode } from "@/lib/permissions";
 import { DynamicIcon } from "./icon";
 import { LinkPending } from "./link-pending";
 import { ProfileBlock } from "./profile-menu";
@@ -55,13 +55,21 @@ export function AppSidebar({ counts }: { counts: SidebarCounts; companies?: { id
       const setting = settings ? [{ ...settings, children: settings.children.filter((c) => c.key === "settings.owners" || c.key === "settings.roles" || c.key === "settings.audit" || c.key === "settings.templates") }] : [];
       return [...items, ...setting];
     }
-    // Fleet database, Driver details and Inspections open one page each (tabs or a vehicle hub).
-    const SINGLE_PAGE = new Set(["fleet", "drivers", "inspections"]);
+    // Fleet database and Driver details open one page each (tabs).
+    const SINGLE_PAGE = new Set(["fleet", "drivers"]);
+    // Inspections drops down to its three kinds: daily pre-trip, mobilization, third-party.
+    // Mobilization records are the vehicles' inspection status, so they follow that permission.
+    const MOBILIZATION: ResourceNode = { key: "inspections.mobilization", parent_key: "inspections", name: "Mobilization inspection", label_prefix: null, path: "/inspections/mobilization", icon: "clipboard-check", sort_order: 302, has_reminders: false, is_request: false, children: [] };
+    const withMobilization = (n: ResourceNode): ResourceNode => {
+      if (n.key !== "inspections" || !can(permissions, "fleet.inspection_status", "view")) return n;
+      const children = [...n.children, MOBILIZATION].sort((a, b) => a.sort_order - b.sort_order);
+      return { ...n, children };
+    };
     // System owners is managed from the owner's own settings only.
     const noOwners = (nodes: ResourceNode[]): ResourceNode[] => nodes.filter((n) => n.key !== "settings.owners").map((n) => ({ ...n, children: noOwners(n.children) }));
     const visible = noOwners(filterTree(permissions, all))
       .filter((n) => n.key !== "platform")
-      .map((n) => (SINGLE_PAGE.has(n.key) ? { ...n, children: [] } : n));
+      .map((n) => (SINGLE_PAGE.has(n.key) ? { ...n, children: [] } : withMobilization(n)));
     if (!session.isOwner) return visible;
     // Owner inside a company: show exactly the modules in that company's package.
     const keep = (nodes: ResourceNode[]): ResourceNode[] =>

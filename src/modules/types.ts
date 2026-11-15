@@ -57,6 +57,8 @@ export type ModuleDef = {
   /** Name of a custom block rendered above the list (see modules/extras.tsx) */
   listExtra?: string;
   exportName: string;
+  /** Values every record of this module carries (for example kind: internal), saved with the form. */
+  fixed?: Record<string, unknown>;
   /** Request rows stay editable only in these statuses */
   editableStatuses?: string[];
 };

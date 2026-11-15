@@ -40,8 +40,10 @@ export type HubVehicle = {
   badge?: { count: number; label: string; tone: ChipTone } | null;
   /** One short line, for example 1,240 km this month. */
   detail?: string | null;
-  /** Values for the list view columns. */
+  /** Values for the list view columns. A "status" cell replaces the vehicle status. */
   cells?: Record<string, HubCell>;
+  /** Records per year (yearly kinds), for the year picker. */
+  years?: Record<number, number>;
 };
 
 export type HubKind = {
@@ -54,6 +56,8 @@ export type HubKind = {
   path: string;
   /** Daily records: ask for the month first. */
   monthly: boolean;
+  /** Yearly records (for example mobilization inspections): ask for the year first. */
+  yearly?: boolean;
   /** Table for the month counts (monthly kinds only). */
   table?: string;
 };
@@ -113,7 +117,7 @@ export function VehicleHub({ vehicles, kinds, currentYear, currentMonth, columns
     setPicked(v);
     if (kinds.length === 1) {
       const only = kinds[0]!;
-      if (!only.monthly) return go(`${only.path}?vehicle=${v.id}`);
+      if (!only.monthly && !only.yearly) return go(`${only.path}?vehicle=${v.id}`);
       setKind(only);
     } else {
       setKind(null);
@@ -122,7 +126,7 @@ export function VehicleHub({ vehicles, kinds, currentYear, currentMonth, columns
 
   function chooseKind(k: HubKind) {
     if (!picked) return;
-    if (!k.monthly) return go(`${k.path}?vehicle=${picked.id}`);
+    if (!k.monthly && !k.yearly) return go(`${k.path}?vehicle=${picked.id}`);
     setKind(k);
   }
 
@@ -208,7 +212,7 @@ export function VehicleHub({ vehicles, kinds, currentYear, currentMonth, columns
                         <span className="font-semibold">{v.registration}</span>
                       ) : c.key === "makeModel" ? (
                         <span className="text-muted-foreground">{v.makeModel}</span>
-                      ) : c.key === "status" ? (
+                      ) : c.key === "status" && v.cells?.status === undefined ? (
                         <VehicleStatus status={v.status} reason={v.statusReason} notSafe={v.notSafe} />
                       ) : (
                         <Cell value={v.cells?.[c.key] ?? null} />
@@ -226,7 +230,7 @@ export function VehicleHub({ vehicles, kinds, currentYear, currentMonth, columns
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-xl">{picked?.registration}</DialogTitle>
-            <DialogDescription>{kind ? t("hub.pick_month", { kind: kind.label }) : t("hub.pick_kind")}</DialogDescription>
+            <DialogDescription>{kind ? t(kind.yearly ? "hub.pick_year" : "hub.pick_month", { kind: kind.label }) : t("hub.pick_kind")}</DialogDescription>
           </DialogHeader>
           {picked && !kind ? (
             <div className="grid gap-2">
@@ -244,7 +248,16 @@ export function VehicleHub({ vehicles, kinds, currentYear, currentMonth, columns
               ))}
             </div>
           ) : null}
-          {picked && kind ? (
+          {picked && kind?.yearly ? (
+            <YearPicker
+              key={`${picked.id}-${kind.key}`}
+              years={picked.years ?? {}}
+              currentYear={currentYear}
+              onBack={kinds.length > 1 ? () => setKind(null) : undefined}
+              onPick={(year) => go(`${kind.path}?vehicle=${picked.id}${year ? `&year=${year}` : ""}`)}
+            />
+          ) : null}
+          {picked && kind && !kind.yearly ? (
             <MonthPicker
               key={`${picked.id}-${kind.key}`}
               vehicleId={picked.id}
@@ -252,7 +265,7 @@ export function VehicleHub({ vehicles, kinds, currentYear, currentMonth, columns
               currentYear={currentYear}
               currentMonth={currentMonth}
               onBack={kinds.length > 1 ? () => setKind(null) : undefined}
-              onPick={(month) => go(`${kind.path}?vehicle=${picked.id}${month ? `&month=${month}` : ""}`)}
+              onPick={(when) => go(`${kind.path}?vehicle=${picked.id}${when ? `&${when}` : ""}`)}
             />
           ) : null}
         </DialogContent>
@@ -261,7 +274,55 @@ export function VehicleHub({ vehicles, kinds, currentYear, currentMonth, columns
   );
 }
 
-function MonthPicker({ vehicleId, kind, currentYear, currentMonth, onBack, onPick }: { vehicleId: string; kind: HubKind; currentYear: number; currentMonth: number; onBack?: () => void; onPick: (month: string | null) => void }) {
+/** Back button for the pickers (or an empty spot so the rest stays right-aligned). */
+function BackButton({ onBack }: { onBack?: () => void }) {
+  return onBack ? (
+    <Button type="button" variant="ghost" size="sm" onClick={onBack}>
+      <ChevronLeft /> {t("hub.back")}
+    </Button>
+  ) : (
+    <span />
+  );
+}
+
+/** Years for yearly records (mobilization and third-party inspections), newest first, with counts. */
+function YearPicker({ years, currentYear, onBack, onPick }: { years: Record<number, number>; currentYear: number; onBack?: () => void; onPick: (year: number | null) => void }) {
+  const known = Object.keys(years).map(Number);
+  const first = Math.min(currentYear - 5, ...known);
+  const list: number[] = [];
+  for (let y = currentYear; y >= first; y--) list.push(y);
+  return (
+    <div className="space-y-3">
+      <BackButton onBack={onBack} />
+      <div className="grid grid-cols-3 gap-2">
+        {list.map((y) => {
+          const n = years[y] ?? 0;
+          return (
+            <button
+              key={y}
+              type="button"
+              onClick={() => onPick(y)}
+              className={cn(
+                "flex min-h-[68px] flex-col items-start justify-between rounded-lg border p-2.5 text-left transition-colors hover:border-primary hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                y === currentYear && "border-primary",
+                n > 0 && "bg-primary/5",
+              )}
+            >
+              <span className="text-sm font-semibold tabular-nums">{y}</span>
+              <span className="text-xs text-muted-foreground">{n === 1 ? t("hub.record_one") : n > 1 ? t("hub.records", { count: n }) : t("hub.no_records")}</span>
+            </button>
+          );
+        })}
+      </div>
+      <Button type="button" variant="outline" className="w-full" onClick={() => onPick(null)}>
+        <CalendarDays /> {t("hub.all_years")}
+      </Button>
+    </div>
+  );
+}
+
+/** Months of a year with counts; below them, quick ranges. `onPick` gets the query part (month=… or period=…). */
+function MonthPicker({ vehicleId, kind, currentYear, currentMonth, onBack, onPick }: { vehicleId: string; kind: HubKind; currentYear: number; currentMonth: number; onBack?: () => void; onPick: (when: string | null) => void }) {
   const [year, setYear] = React.useState(currentYear);
   // Month counts per year, loaded when a year is first shown.
   const [byYear, setByYear] = React.useState<Record<number, Record<number, number>>>({});
@@ -284,13 +345,7 @@ function MonthPicker({ vehicleId, kind, currentYear, currentMonth, onBack, onPic
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        {onBack ? (
-          <Button type="button" variant="ghost" size="sm" onClick={onBack}>
-            <ChevronLeft /> {t("hub.back")}
-          </Button>
-        ) : (
-          <span />
-        )}
+        <BackButton onBack={onBack} />
         <div className="flex items-center gap-1">
           <Button type="button" variant="outline" size="icon" className="size-9" onClick={() => setYear((y) => y - 1)} aria-label={t("hub.prev_year")}>
             <ChevronLeft />
@@ -314,7 +369,7 @@ function MonthPicker({ vehicleId, kind, currentYear, currentMonth, onBack, onPic
               key={name}
               type="button"
               disabled={future}
-              onClick={() => onPick(`${year}-${String(m).padStart(2, "0")}`)}
+              onClick={() => onPick(`month=${year}-${String(m).padStart(2, "0")}`)}
               className={cn(
                 "flex min-h-[68px] flex-col items-start justify-between rounded-lg border p-2.5 text-left transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                 future ? "cursor-not-allowed opacity-40" : "hover:border-primary hover:bg-primary/5",
@@ -327,6 +382,13 @@ function MonthPicker({ vehicleId, kind, currentYear, currentMonth, onBack, onPic
             </button>
           );
         })}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {(["past_6_months", "past_year"] as const).map((p) => (
+          <Button key={p} type="button" variant="outline" onClick={() => onPick(`period=${p}`)}>
+            {t(`hub.period.${p}`)}
+          </Button>
+        ))}
       </div>
       <Button type="button" variant="outline" className="w-full" onClick={() => onPick(null)}>
         <CalendarDays /> {t("hub.all_months")}

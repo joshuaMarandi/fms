@@ -191,91 +191,45 @@ export const thirdPartyInspections: ModuleDef = {
   },
 };
 
-const FIRST_AID_ITEMS = ["Sterile gauze pads", "Adhesive bandages", "Crepe bandage", "Antiseptic solution", "Burn dressing", "Disposable gloves", "Scissors", "Tweezers", "CPR face shield", "Eye wash", "Triangular bandage", "First aid manual"];
-
-export const firstAidInspections: ModuleDef = {
-  key: "inspections.first_aid",
-  path: "/inspections/first-aid",
-  resource: "inspections.first_aid",
-  table: "first_aid_inspections",
-  title: "inspections.first_aid.title",
-  description: "inspections.first_aid.description",
+/** Mobilization inspection: done before a vehicle goes to site, renewed every year or so. */
+export const mobilizationInspections: ModuleDef = {
+  key: "inspections.mobilization",
+  path: "/inspections/mobilization",
+  resource: "fleet.inspection_status",
+  table: "vehicle_inspections",
+  title: "inspections.mobilization.title",
+  description: "inspections.mobilization.description",
   newLabel: "inspections.new",
-  exportName: "first-aid-inspections",
+  exportName: "mobilization-inspections",
   optionSources: ["vehicles"],
-  titleOf: (r) => `${(r.vehicle as { registration?: string } | undefined)?.registration ?? ""} ${r.inspected_on ?? ""}`.trim(),
+  fixed: { kind: "internal" },
+  titleOf: (r) => `${(r.vehicle as { registration?: string } | undefined)?.registration ?? ""} ${r.inspection_date ?? ""}`.trim(),
   schema: {
-    table: "first_aid_inspections",
-    resource: "inspections.first_aid",
+    table: "vehicle_inspections",
+    resource: "fleet.inspection_status",
     sections: [
       {
         fields: [
           { name: "vehicle_id", label: "inspections.vehicle", control: "select", source: "vehicles", required: true },
-          { name: "inspected_on", label: "inspections.first_aid.inspected_on", control: "date", required: true },
-          { name: "inspector_name", label: "inspections.first_aid.inspector_name", control: "text", required: true },
-          { name: "inspector_qualification", label: "inspections.first_aid.qualification", control: "text" },
-          { name: "next_inspection_date", label: "inspections.first_aid.next", control: "date" },
+          { name: "inspection_date", label: "inspections.mobilization.date", control: "date", required: true },
+          { name: "renewal_date", label: "inspections.mobilization.renewal", control: "date", description: "Reminder" },
           { name: "notes", label: "common.notes", control: "textarea" },
-        ],
-      },
-      {
-        title: "inspections.first_aid.items",
-        fields: [
-          {
-            name: "items",
-            label: "inspections.first_aid.items",
-            control: "rows",
-            childTable: "first_aid_items",
-            fk: "inspection_id",
-            addLabel: "inspections.first_aid.add_item",
-            fields: [
-              { name: "item_name", label: "inspections.first_aid.item", control: "text", required: true },
-              { name: "present", label: "inspections.first_aid.present", control: "checkbox" },
-              { name: "quantity", label: "inspections.first_aid.quantity", control: "number", min: 0, integer: true },
-              { name: "expiry_date", label: "inspections.first_aid.expiry", control: "date" },
-              { name: "remark", label: "common.remarks", control: "text" },
-            ],
-            defaultRow: (_values, rows) => ({ item_name: FIRST_AID_ITEMS[rows.length] ?? "", present: true, quantity: 1, expiry_date: "", remark: "" }),
-          },
-          { name: "signature", label: "signature.title", control: "signature", required: true },
-          { name: "form", label: "inspections.first_aid.report", control: "file", bucket: "inspection-scans", labels: ["inspections.first_aid.report"] },
         ],
       },
     ],
   },
   list: {
-    select: "*, vehicle:vehicles(registration), items:first_aid_items(item_name, present, quantity, expiry_date, remark, deleted_at)",
-    orderBy: { column: "inspected_on", ascending: false },
-    searchKeys: ["vehicle.registration", "inspector_name"],
-    derive: (row) => {
-      const items = ((row.items as { item_name: string; present: boolean | null; expiry_date: string | null; remark: string | null; deleted_at: string | null }[] | null) ?? []).filter((i) => !i.deleted_at);
-      const day = String(row.inspected_on ?? "");
-      return {
-        items_present: items.length ? t("inspections.first_aid.present_of", { present: items.filter((i) => i.present).length, total: items.length }) : "",
-        items_missing: items.filter((i) => !i.present).map((i) => i.item_name).join("\n"),
-        items_expired: items.filter((i) => i.expiry_date && i.expiry_date < day).map((i) => `${i.item_name} (${formatDate(i.expiry_date)})`).join("\n"),
-        items_remarks: items.filter((i) => i.remark).map((i) => `${i.item_name}: ${i.remark}`).join("\n"),
-      };
-    },
-    detailColumns: [
-      { key: "inspected_on", header: "inspections.first_aid.inspected_on", type: "date" },
-      { key: "vehicle.registration", header: "inspections.vehicle" },
-      { key: "inspector_name", header: "inspections.first_aid.inspector_name" },
-      { key: "inspector_qualification", header: "inspections.first_aid.qualification" },
-      { key: "items_present", header: "inspections.first_aid.col.present" },
-      { key: "items_missing", header: "inspections.first_aid.col.missing", type: "multiline", sortable: false },
-      { key: "items_expired", header: "inspections.first_aid.col.expired", type: "multiline", sortable: false },
-      { key: "items_remarks", header: "common.remarks", type: "multiline", sortable: false },
-      { key: "notes", header: "common.notes", type: "multiline", sortable: false },
-      { key: "next_inspection_date", header: "inspections.first_aid.next", type: "reminder_date" },
-    ],
+    select: "*, vehicle:vehicles(registration)",
+    eq: { kind: "internal" },
+    orderBy: { column: "inspection_date", ascending: false },
+    searchKeys: ["vehicle.registration"],
+    previous: { group: "vehicle_id", date: "inspection_date", as: "previous_date" },
     columns: [
-      { key: "inspected_on", header: "inspections.first_aid.inspected_on", type: "date" },
+      { key: "inspection_date", header: "inspections.mobilization.date", type: "date" },
       { key: "vehicle.registration", header: "inspections.vehicle" },
-      { key: "inspector_name", header: "inspections.first_aid.inspector_name" },
-      { key: "next_inspection_date", header: "inspections.first_aid.next", type: "reminder_date" },
+      { key: "previous_date", header: "inspections.previous_date", type: "date" },
+      { key: "renewal_date", header: "inspections.mobilization.renewal", type: "reminder_date" },
+      { key: "notes", header: "common.notes", type: "multiline", sortable: false },
     ],
   },
 };
-
-export const FIRST_AID_DEFAULT_ITEMS = FIRST_AID_ITEMS;

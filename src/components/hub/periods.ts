@@ -1,5 +1,5 @@
 /** Quick periods for the records pages. Dates are YYYY-MM-DD; `to` is inclusive; weeks start on Monday. */
-export const PERIODS = ["last_3_days", "this_week", "last_week", "this_month", "last_month", "this_quarter", "this_year"] as const;
+export const PERIODS = ["last_3_days", "this_week", "last_week", "this_month", "last_month", "this_quarter", "past_6_months", "this_year", "past_year"] as const;
 export type PeriodKey = (typeof PERIODS)[number];
 
 export function isPeriod(v: unknown): v is PeriodKey {
@@ -27,8 +27,12 @@ export function periodRange(p: PeriodKey, today: string): { from: string; to: st
       return { from: iso(new Date(Date.UTC(y, m - 2, 1))), to: iso(new Date(Date.UTC(y, m - 1, 0))) };
     case "this_quarter":
       return { from: iso(new Date(Date.UTC(y, Math.floor((m - 1) / 3) * 3, 1))), to: today };
+    case "past_6_months":
+      return { from: iso(new Date(Date.UTC(y, m - 7, d + 1))), to: today };
     case "this_year":
       return { from: `${y}-01-01`, to: today };
+    case "past_year":
+      return { from: iso(new Date(Date.UTC(y - 1, m - 1, d + 1))), to: today };
   }
 }
 
@@ -36,4 +40,9 @@ export function periodRange(p: PeriodKey, today: string): { from: string; to: st
 export function monthRange(month: string): { from: string; to: string } {
   const [y, m] = month.split("-").map(Number) as [number, number];
   return { from: `${month}-01`, to: iso(new Date(Date.UTC(y, m, 0))) };
+}
+
+/** From and to for a calendar year. */
+export function yearRange(year: number): { from: string; to: string } {
+  return { from: `${year}-01-01`, to: `${year}-12-31` };
 }

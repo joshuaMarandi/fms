@@ -13,7 +13,7 @@ export const QUICK_ACTIONS: { prefix: string; resource: string; href: string; la
   { prefix: "/drivers", resource: "drivers.personal", href: "/drivers/new", label: "drivers.add_driver" },
   { prefix: "/inspections/daily", resource: "inspections.daily", href: "/inspections/daily/new", label: "inspections.new" },
   { prefix: "/inspections/third-party", resource: "inspections.third_party", href: "/inspections/third-party/new", label: "inspections.new" },
-  { prefix: "/inspections/first-aid", resource: "inspections.first_aid", href: "/inspections/first-aid/new", label: "inspections.new" },
+  { prefix: "/inspections/mobilization", resource: "fleet.inspection_status", href: "/inspections/mobilization/new", label: "inspections.new" },
   { prefix: "/daily-use/km-log", resource: "daily_use.km_log", href: "/daily-use/km-log/new", label: "daily_use.km_log.new" },
   { prefix: "/daily-use/fuel-log", resource: "daily_use.fuel_log", href: "/daily-use/fuel-log/new", label: "daily_use.fuel.new" },
   { prefix: "/daily-use/trip-requests", resource: "daily_use.trip_requests", href: "/daily-use/trip-requests/new", label: "daily_use.trips.new" },
