@@ -6,7 +6,6 @@ import { brandLines, SYSTEM_NAME } from "@/lib/branding";
 import { formatDate, formatNumber } from "@/lib/utils";
 import { hasKey, t } from "@/i18n";
 import { DocumentToolbar } from "./document-toolbar";
-import { StatusSeal, sealFor } from "./status-seal";
 
 export const metadata: Metadata = { title: "Request document", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -14,7 +13,7 @@ export const dynamic = "force-dynamic";
 type Table = "vehicle_requests" | "fuel_requests" | "leave_requests" | "maintenance_requests";
 type Sig = { name?: string; signed_at?: string; image?: string; method?: string } | null;
 type Field = { label: string; value: React.ReactNode; wide?: boolean };
-type Section = { title: string; fields?: Field[]; body?: React.ReactNode; seal?: boolean };
+type Section = { title: string; fields?: Field[]; body?: React.ReactNode };
 type HistoryRow = { at: string; action: string; who: string; detail: string | null };
 
 const DOC: Record<Table, { title: string; ref: string; noun: string }> = {
@@ -136,7 +135,6 @@ export default async function RequestDocumentPage({ params }: PageProps<"/docume
   const sig = r.approver_signature as Sig;
   sections.push({
     title: "Final review and decision",
-    seal: true,
     fields: [
       { label: "Decision", value: <StatusPill status={status} /> },
       { label: "Decided by", value: decided ? dash((r.approver_name as string) || nameOf(r.approved_by)) : "Waiting for a decision" },
@@ -224,10 +222,6 @@ export default async function RequestDocumentPage({ params }: PageProps<"/docume
   const events = ((history ?? []) as HistoryRow[]).map((h) => ({ ...h, text: historyText(doc.noun, h) }));
 
   const brand = session.brand;
-  // Seal: approved, submitted or rejected, dated with the decision (or when it was sent).
-  const seal = sealFor(status);
-  const sentAt = [...((history ?? []) as HistoryRow[])].reverse().find((h) => h.action === "submitted" || h.action === "resubmitted")?.at ?? (r.created_at as string | undefined) ?? null;
-  const sealDate = decided && r.approved_at ? formatDate(r.approved_at as string) : sentAt ? formatDate(sentAt) : null;
   const ref = `${doc.ref}-${id.slice(0, 8).toUpperCase()}`;
   const printedAt = formatDate(new Date().toISOString(), true);
 
@@ -253,15 +247,11 @@ export default async function RequestDocumentPage({ params }: PageProps<"/docume
               ))}
             </div>
           </div>
-          <div className="relative shrink-0">
-            {/* Status seal stamped over the reference and printed date, like ink: the words still show through. */}
-            {seal ? <StatusSeal status={seal} date={sealDate} className="pointer-events-none absolute top-1/2 right-6 z-10 w-[118px] -translate-y-1/2 -rotate-[12deg] opacity-85 mix-blend-multiply" /> : null}
-            <div className="relative text-right text-[11.5px] leading-relaxed text-[#55625e]">
-              <p>
-                Reference <strong className="font-black text-[#17211e]">{ref}</strong>
-              </p>
-              <p>Printed {printedAt}</p>
-            </div>
+          <div className="text-right text-[11.5px] leading-relaxed text-[#55625e]">
+            <p>
+              Reference <strong className="font-black text-[#17211e]">{ref}</strong>
+            </p>
+            <p>Printed {printedAt}</p>
           </div>
         </header>
         {/* Double rule between the header and the content */}
