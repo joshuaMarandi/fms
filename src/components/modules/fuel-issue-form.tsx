@@ -49,7 +49,7 @@ export function FuelIssueForm({ request, issue, vehicle, readOnly, defaultPrice 
         fuel_issued_l: Number(v.fuel_issued_l),
         price_per_litre: v.price_per_litre === "" ? 0 : Number(v.price_per_litre),
       },
-      revalidate: ["/daily-use/fuel-log", "/expenses/fuel"],
+      revalidate: ["/daily-use/fuel-requests", "/daily-use/fuel-log", "/expenses/fuel"],
     });
     setBusy(false);
     if (!res.ok) toast.error(res.error);

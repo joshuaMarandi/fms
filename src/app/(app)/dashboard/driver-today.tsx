@@ -34,7 +34,7 @@ export async function DriverToday() {
   const tasks = [
     { done: !!insp, label: t("inspections.daily.title"), href: insp ? `/inspections/daily/${insp.id}` : "/inspections/daily/new", icon: ClipboardCheck },
     { done: !!log, label: t("daily_use.km_log.title"), href: log ? `/daily-use/km-log/${log.id}` : "/daily-use/km-log/new", icon: Route, sub: log ? `${log.trip_count} ${t("nav.trips").toLowerCase()} · ${formatNumber(log.total_km)} km` : undefined },
-    { done: false, label: t("daily_use.fuel.new"), href: "/daily-use/fuel-log/new", icon: Fuel },
+    { done: false, label: t("daily_use.fuel.new"), href: "/daily-use/fuel-requests/new", icon: Fuel },
     { done: false, label: t("expenses.maintenance.new"), href: "/expenses/maintenance/requests/new", icon: Wrench },
   ];
 
@@ -109,7 +109,7 @@ export async function DriverToday() {
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             {((requests ?? []) as { id: string; request_date: string; status: string; approved_l: number | null }[]).map((r) => (
-              <Link key={r.id} href={`/daily-use/fuel-log/${r.id}`} className="flex items-center justify-between gap-2 rounded-lg border p-2 hover:bg-muted/40">
+              <Link key={r.id} href={`/daily-use/fuel-requests/${r.id}`} className="flex items-center justify-between gap-2 rounded-lg border p-2 hover:bg-muted/40">
                 <span>
                   {formatDate(r.request_date)}
                   {r.approved_l ? <span className="ml-2 text-muted-foreground">{formatNumber(r.approved_l, 1)} L</span> : null}

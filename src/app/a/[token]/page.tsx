@@ -29,6 +29,8 @@ const cap = (s?: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : "");
 
 const STEP_LABEL: Record<string, string> = {
   approval: "Approval",
+  prepare: "Prepare the journey management plan",
+  requester: "Requester signs the journey management plan",
   hse_manager: "HSE manager sign-off",
   control_room: "Control room sign-off",
   emergency_commander: "Emergency response commander sign-off",
@@ -56,6 +58,9 @@ export default async function ApprovalLinkPage({ params }: PageProps<"/a/[token]
       </Shell>
     );
   }
+
+  // Opening the link counts as viewing the request (shown in its printed history).
+  if (link.table && link.record_id && link.user_id) await admin.rpc("log_record_view", { p_table: link.table, p_id: link.record_id, p_user: link.user_id });
 
   const [{ data: company }, { data: person }, { data: events }] = await Promise.all([
     admin.from("companies").select("name").eq("id", link.company_id!).maybeSingle(),

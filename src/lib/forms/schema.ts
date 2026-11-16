@@ -8,7 +8,7 @@ import { t } from "@/i18n";
 export type Option = { value: string; label: string };
 
 /** Dynamic option sources loaded server-side and passed to the form as `options`. */
-export type OptionSource = "vehicles" | "drivers" | "sites" | "profiles" | "leave_categories" | "roles" | "companies" | "work_orders" | "maintenance_requests" | "fuel_requests";
+export type OptionSource = "vehicles" | "drivers" | "sites" | "profiles" | "leave_categories" | "roles" | "companies" | "maintenance_requests" | "fuel_requests";
 
 export type Condition = { field: string; equals?: string | boolean | number; in?: (string | number)[]; truthy?: boolean; includes?: string };
 

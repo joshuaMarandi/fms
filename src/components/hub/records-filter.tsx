@@ -2,17 +2,19 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
 import { SearchSelect } from "@/components/patterns/search-select";
+import { DateRangeFilter, type DateValue } from "@/components/patterns/date-range-filter";
 import { startNavigationProgress } from "@/components/shell/navigation-progress";
 import { cn } from "@/lib/utils";
-import { PERIODS, type PeriodKey } from "./periods";
+import type { PeriodKey } from "./periods";
 import { t } from "@/i18n";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-/** Change the vehicle, the period and the view of the records shown; the choice lives in the address. */
+/**
+ * Vehicle, date and view of the records shown, in one bar that looks like every table's own filters.
+ * The choice lives in the address, so it can be shared and survives a reload.
+ */
 export function RecordsFilter({
   basePath,
   vehicles,
@@ -22,6 +24,8 @@ export function RecordsFilter({
   monthly,
   yearly = false,
   year = null,
+  from = null,
+  to = null,
   details,
   hasDetails,
   currentYear,
@@ -35,115 +39,84 @@ export function RecordsFilter({
   monthly: boolean;
   yearly?: boolean;
   year?: number | null;
+  from?: string | null;
+  to?: string | null;
   details: boolean;
   hasDetails: boolean;
   currentYear: number;
   currentMonth: number;
 }) {
   const router = useRouter();
-  const months = React.useMemo(() => {
-    const out: { value: string; label: string }[] = [];
-    for (let i = 0; i < 36; i++) {
-      const idx = currentYear * 12 + (currentMonth - 1) - i;
-      const y = Math.floor(idx / 12);
-      const m = (idx % 12) + 1;
-      out.push({ value: `${y}-${String(m).padStart(2, "0")}`, label: `${MONTHS[m - 1]} ${y}` });
-    }
-    if (month && !out.some((o) => o.value === month)) {
-      const [y, m] = month.split("-").map(Number);
-      out.push({ value: month, label: `${MONTHS[(m ?? 1) - 1]} ${y}` });
-    }
-    return out;
-  }, [currentYear, currentMonth, month]);
 
-  const go = (next: { vehicle?: string | null; when?: string | null; details?: boolean }) => {
+  const picks = React.useMemo(() => {
+    if (monthly) {
+      const options: { value: string; label: string }[] = [];
+      for (let i = 0; i < 36; i++) {
+        const idx = currentYear * 12 + (currentMonth - 1) - i;
+        const y = Math.floor(idx / 12);
+        const m = (idx % 12) + 1;
+        options.push({ value: `m:${y}-${String(m).padStart(2, "0")}`, label: `${MONTHS[m - 1]} ${y}` });
+      }
+      if (month && !options.some((o) => o.value === `m:${month}`)) {
+        const [y, m] = month.split("-").map(Number);
+        options.push({ value: `m:${month}`, label: `${MONTHS[(m ?? 1) - 1]} ${y}` });
+      }
+      return { heading: t("hub.months"), options };
+    }
+    if (yearly) {
+      const options = Array.from({ length: Math.max(10, year ? currentYear - year + 1 : 0) }, (_, i) => currentYear - i).map((y) => ({ value: `y:${y}`, label: String(y) }));
+      return { heading: t("hub.year"), options };
+    }
+    return undefined;
+  }, [monthly, yearly, currentYear, currentMonth, month, year]);
+
+  const value: DateValue = period
+    ? { kind: "period", period }
+    : month
+      ? { kind: "pick", value: `m:${month}`, label: picks?.options.find((o) => o.value === `m:${month}`)?.label ?? month }
+      : year
+        ? { kind: "pick", value: `y:${year}`, label: String(year) }
+        : from || to
+          ? { kind: "range", from: from ?? "", to: to ?? "" }
+          : { kind: "all" };
+
+  const go = (next: { vehicle?: string | null; date?: DateValue; details?: boolean }) => {
     const v = next.vehicle !== undefined ? next.vehicle : vehicle;
-    const when = next.when !== undefined ? next.when : period ? `p:${period}` : year ? `y:${year}` : month;
+    const date = next.date ?? value;
     const d = next.details !== undefined ? next.details : details;
     const q = new URLSearchParams();
     q.set("vehicle", v || "all");
-    if (when?.startsWith("p:")) q.set("period", when.slice(2));
-    else if (when?.startsWith("y:")) q.set("year", when.slice(2));
-    else if (when) q.set("month", when);
+    if (date.kind === "period") q.set("period", date.period);
+    else if (date.kind === "pick" && date.value.startsWith("m:")) q.set("month", date.value.slice(2));
+    else if (date.kind === "pick" && date.value.startsWith("y:")) q.set("year", date.value.slice(2));
+    else if (date.kind === "range") {
+      if (date.from) q.set("from", date.from);
+      if (date.to) q.set("to", date.to);
+    }
     if (d) q.set("details", "1");
     startNavigationProgress();
     router.push(`${basePath}?${q.toString()}`);
   };
 
-  const whenValue = period ? `p:${period}` : (month ?? "all");
-
   return (
-    <div className="page-card flex flex-wrap items-end gap-3 p-3">
-      <div className="min-w-[220px] flex-1 space-y-1.5">
-        <Label htmlFor="records-vehicle">{t("inspections.vehicle")}</Label>
+    <div className="page-card flex flex-wrap items-center gap-2 p-3">
+      <div className="min-w-[240px] flex-1 md:max-w-sm">
         <SearchSelect id="records-vehicle" value={vehicle && vehicle !== "all" ? vehicle : ""} options={vehicles} placeholder={t("hub.all_vehicles")} onChange={(v) => go({ vehicle: v || null })} />
       </div>
-      {monthly ? (
-        <div className="min-w-[200px] space-y-1.5">
-          <Label htmlFor="records-month">{t("hub.period")}</Label>
-          <Select value={whenValue} onValueChange={(v) => go({ when: v === "all" ? null : v })}>
-            <SelectTrigger id="records-month" className="h-10 w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("hub.all_time")}</SelectItem>
-              <SelectSeparator />
-              <SelectGroup>
-                <SelectLabel>{t("hub.quick_periods")}</SelectLabel>
-                {PERIODS.map((p) => (
-                  <SelectItem key={p} value={`p:${p}`}>
-                    {t(`hub.period.${p}`)}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-              <SelectSeparator />
-              <SelectGroup>
-                <SelectLabel>{t("hub.months")}</SelectLabel>
-                {months.map((m) => (
-                  <SelectItem key={m.value} value={m.value}>
-                    {m.label}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </div>
-      ) : null}
-      {yearly ? (
-        <div className="min-w-[160px] space-y-1.5">
-          <Label htmlFor="records-year">{t("hub.year")}</Label>
-          <Select value={year ? `y:${year}` : "all"} onValueChange={(v) => go({ when: v === "all" ? null : v })}>
-            <SelectTrigger id="records-year" className="h-10 w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("hub.all_years")}</SelectItem>
-              <SelectSeparator />
-              {Array.from({ length: Math.max(10, year ? currentYear - year + 1 : 0) }, (_, i) => currentYear - i).map((y) => (
-                <SelectItem key={y} value={`y:${y}`}>
-                  {y}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      ) : null}
+      <DateRangeFilter value={value} onChange={(date) => go({ date })} picks={picks} />
       {hasDetails ? (
-        <div className="space-y-1.5">
-          <span className="block text-sm font-medium">{t("hub.view")}</span>
-          <div className="flex items-center rounded-lg border bg-card p-0.5" role="group" aria-label={t("hub.view")}>
-            {[false, true].map((d) => (
-              <button
-                key={String(d)}
-                type="button"
-                onClick={() => go({ details: d })}
-                aria-pressed={details === d}
-                className={cn("h-9 rounded-md px-3 text-sm", details === d ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
-              >
-                {d ? t("hub.view.details") : t("hub.view.summary")}
-              </button>
-            ))}
-          </div>
+        <div className="ml-auto flex items-center rounded-lg border bg-card p-0.5" role="group" aria-label={t("hub.view")}>
+          {[false, true].map((d) => (
+            <button
+              key={String(d)}
+              type="button"
+              onClick={() => go({ details: d })}
+              aria-pressed={details === d}
+              className={cn("h-9 rounded-md px-3 text-sm", details === d ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
+            >
+              {d ? t("hub.view.details") : t("hub.view.summary")}
+            </button>
+          ))}
         </div>
       ) : null}
     </div>

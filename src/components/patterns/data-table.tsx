@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusChip } from "./status-chip";
+import { ANY_DATE, DateRangeFilter, dateValueRange, type DateValue } from "./date-range-filter";
 import { useSession } from "@/components/permissions/provider";
 import { exportCsv, exportExcel, exportPdf, type ExportColumn } from "@/lib/export";
 import { startNavigationProgress } from "@/components/shell/navigation-progress";
@@ -54,6 +55,8 @@ export type DataTableProps<T> = {
   statusOptions?: string[];
   /** Chip label for a status value (defaults to the status.* wording). */
   statusLabel?: (status: string) => string | undefined;
+  /** The date filter (on by default when a column holds dates); off where the page filters dates itself. */
+  dateFilter?: boolean;
   rowHref?: (row: T) => string | undefined;
   /** Called on row click when there is no rowHref (for actions such as opening a workspace). */
   onRowClick?: (row: T) => void;
@@ -88,6 +91,7 @@ export function DataTable<T extends Record<string, unknown>>({
   toolbar,
   getRowId,
   dense,
+  dateFilter = true,
 }: DataTableProps<T>) {
   const router = useRouter();
   const session = useSession();
@@ -95,6 +99,39 @@ export function DataTable<T extends Record<string, unknown>>({
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [globalFilter, setGlobalFilter] = React.useState("");
+  const [dateValue, setDateValue] = React.useState<DateValue>(ANY_DATE);
+
+  // Date filter: the first column that says how to read its date (meta.dateOf), else the first
+  // plain column whose values are dates. Every table with a date gets a From and To filter.
+  const dateOf = React.useMemo<((row: T) => string | null) | null>(() => {
+    for (const c of columns) {
+      const fn = (c.meta as { dateOf?: (row: T) => unknown } | undefined)?.dateOf;
+      if (fn) return (row: T) => {
+        const v = fn(row);
+        return typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null;
+      };
+    }
+    for (const c of columns) {
+      const key = (c as { accessorKey?: string }).accessorKey;
+      if (!key) continue;
+      const sample = data.find((r) => r[key] !== null && r[key] !== undefined && r[key] !== "")?.[key];
+      if (typeof sample === "string" && /^\d{4}-\d{2}-\d{2}/.test(sample)) {
+        return (row: T) => {
+          const v = row[key];
+          return typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null;
+        };
+      }
+    }
+    return null;
+  }, [columns, data]);
+  const rowsInRange = React.useMemo(() => {
+    const range = dateFilter && dateOf ? dateValueRange(dateValue) : null;
+    if (!range || !dateOf) return data;
+    return data.filter((r) => {
+      const d = dateOf(r);
+      return !!d && d >= range.from && d <= range.to;
+    });
+  }, [data, dateOf, dateValue, dateFilter]);
 
   const allColumns = React.useMemo<ColumnDef<T, unknown>[]>(() => {
     if (!rowActions || rowActions.length === 0) return columns;
@@ -136,7 +173,7 @@ export function DataTable<T extends Record<string, unknown>>({
   }, [columns, rowActions]);
 
   const table = useReactTable({
-    data,
+    data: rowsInRange,
     columns: allColumns,
     state: { sorting, columnFilters, columnVisibility, globalFilter },
     onSortingChange: setSorting,
@@ -208,6 +245,7 @@ export function DataTable<T extends Record<string, unknown>>({
             ) : null}
           </div>
         ) : null}
+        {dateFilter && dateOf ? <DateRangeFilter value={dateValue} onChange={setDateValue} /> : null}
         <div className="ml-auto flex items-center gap-2">
           {toolbar}
           <DropdownMenu>

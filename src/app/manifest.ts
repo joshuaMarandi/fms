@@ -21,7 +21,7 @@ export default function manifest(): MetadataRoute.Manifest {
     shortcuts: [
       { name: "Daily inspection", url: "/inspections/daily/new", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
       { name: "Km log", url: "/daily-use/km-log/new", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
-      { name: "Fuel request", url: "/daily-use/fuel-log/new", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
+      { name: "Fuel request", url: "/daily-use/fuel-requests/new", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
     ],
   };
 }

@@ -44,7 +44,7 @@ export function ViewAllMenu({ items }: { items: Item[] }) {
   return <LinkMenu items={items} label={t("hub.view_all_records")} icon={<Table2 />} />;
 }
 
-/** Add a record of one of several kinds, for example a daily, third-party or first aid inspection. */
+/** Add a record of one of several kinds, for example a daily, mobilization or third-party inspection. */
 export function AddMenu({ items, label }: { items: Item[]; label: string }) {
   return <LinkMenu items={items} label={label} icon={<Plus />} primary />;
 }

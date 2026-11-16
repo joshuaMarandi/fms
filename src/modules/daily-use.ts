@@ -1,5 +1,6 @@
 import type { ModuleDef } from "./types";
 import type { Field } from "@/lib/forms/schema";
+import { t } from "@/i18n";
 
 const num = (v: unknown) => (v === "" || v === null || v === undefined ? NaN : Number(v));
 
@@ -155,7 +156,7 @@ const fuelDriverFields: Field[] = [
 
 export const fuelLog: ModuleDef = {
   key: "daily_use.fuel_log",
-  path: "/daily-use/fuel-log",
+  path: "/daily-use/fuel-requests",
   resource: "daily_use.fuel_log",
   table: "fuel_requests",
   title: "daily_use.fuel.title",
@@ -264,14 +265,64 @@ export const tripRequests: ModuleDef = {
     orderBy: { column: "requested_at", ascending: false },
     searchKeys: ["requester_name", "destination", "status", "trip_type"],
     statusColumn: "status",
+    // Trip: the kind of trip and where to, in one column.
+    derive: (r) => ({ trip: [r.trip_type ? t(`daily_use.trips.type.${r.trip_type}`) : "", r.destination ?? ""].filter(Boolean).join(": ") }),
     columns: [
-      { key: "requested_at", header: "daily_use.trips.requested_at", type: "datetime" },
+      { key: "requested_at", header: "daily_use.trips.col.time_date", type: "datetime" },
       { key: "requester_name", header: "daily_use.trips.requester" },
-      { key: "trip_type", header: "daily_use.trips.type", type: "label", options: [{ value: "short", label: "daily_use.trips.type.short" }, { value: "long", label: "daily_use.trips.type.long" }] },
+      { key: "trip", header: "daily_use.trips.col.trip" },
       { key: "date_needed", header: "daily_use.trips.date_needed", type: "date" },
-      { key: "destination", header: "daily_use.trips.destination" },
       { key: "occupants", header: "daily_use.trips.occupants", type: "number", digits: 0 },
       { key: "status", header: "common.status", type: "status" },
+    ],
+  },
+};
+
+/** Fuel log: the fuel actually issued to each vehicle (from approved fuel requests). */
+export const fuelIssues: ModuleDef = {
+  key: "daily_use.fuel_issues",
+  path: "/daily-use/fuel-log",
+  resource: "daily_use.fuel_log",
+  table: "fuel_issues",
+  title: "daily_use.fuel_issues.title",
+  description: "daily_use.fuel_issues.description",
+  newLabel: "daily_use.fuel.new",
+  exportName: "fuel-log",
+  optionSources: ["vehicles", "drivers"],
+  titleOf: (r) => `${(r.vehicle as { registration?: string } | undefined)?.registration ?? ""} ${r.issue_date ?? ""}`.trim(),
+  schema: {
+    table: "fuel_issues",
+    resource: "daily_use.fuel_log",
+    sections: [
+      {
+        fields: [
+          { name: "vehicle_id", label: "inspections.vehicle", control: "select", source: "vehicles", required: true },
+          { name: "driver_id", label: "inspections.driver", control: "select", source: "drivers" },
+          { name: "issue_date", label: "daily_use.fuel_issues.date", control: "date", required: true },
+          { name: "previous_odometer", label: "daily_use.fuel.col.previous", control: "number", min: 0, unit: "km" },
+          { name: "current_odometer", label: "daily_use.fuel.col.current", control: "number", min: 0, unit: "km" },
+          { name: "fuel_issued_l", label: "daily_use.fuel_issues.issued", control: "number", min: 0, step: 0.1, unit: "L", required: true },
+          { name: "price_per_litre", label: "daily_use.fuel_issues.price", control: "number", min: 0, unit: "TZS" },
+        ],
+      },
+    ],
+  },
+  list: {
+    select: "*, vehicle:vehicles(registration), driver:drivers(full_name)",
+    orderBy: { column: "issue_date", ascending: false },
+    searchKeys: ["vehicle.registration", "driver.full_name"],
+    keepVehicleColumn: true,
+    columns: [
+      { key: "issue_date", header: "daily_use.fuel_issues.date", type: "date" },
+      { key: "driver.full_name", header: "inspections.driver" },
+      { key: "vehicle.registration", header: "fleet.reg" },
+      { key: "previous_odometer", header: "daily_use.fuel.col.previous", type: "km" },
+      { key: "current_odometer", header: "daily_use.fuel.col.current", type: "km" },
+      { key: "km_run", header: "daily_use.fuel.col.km_run", type: "km" },
+      { key: "fuel_issued_l", header: "daily_use.fuel_issues.issued", type: "litres" },
+      { key: "balance_l", header: "hub.col.fuel_balance", type: "litres" },
+      { key: "consumption_km_per_l", header: "daily_use.fuel_issues.consumption", type: "number", digits: 2 },
+      { key: "total_cost_tzs", header: "daily_use.fuel_issues.cost", type: "tzs" },
     ],
   },
 };

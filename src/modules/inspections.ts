@@ -128,6 +128,7 @@ export const dailyInspections: ModuleDef = {
       { key: "remark", header: "inspections.remark", type: "label", options: REMARK_OPTIONS },
       { key: "anomaly_description", header: "inspections.col.description", type: "multiline", sortable: false },
       { key: "actions", header: "inspections.col.action", type: "actions", sortable: false },
+      { key: "docs", header: "docs.column", type: "docs", sortable: false },
     ],
     detailColumns: [
       { key: "inspection_date", header: "inspections.date", type: "date" },
@@ -135,6 +136,7 @@ export const dailyInspections: ModuleDef = {
       { key: "driver.full_name", header: "inspections.driver" },
       { key: "mileage_km", header: "inspections.mileage", type: "km" },
       ...anomalyDetailColumns,
+      { key: "docs", header: "docs.column", type: "docs", sortable: false },
     ],
   },
 };
@@ -180,6 +182,7 @@ export const thirdPartyInspections: ModuleDef = {
       ...anomalyDetailColumns,
       { key: "previous_date", header: "inspections.previous_date", type: "date" },
       { key: "renewal_date", header: "inspections.next_date", type: "reminder_date" },
+      { key: "docs", header: "docs.column", type: "docs", sortable: false },
     ],
     columns: [
       { key: "inspection_date", header: "inspections.date", type: "date" },
@@ -187,6 +190,7 @@ export const thirdPartyInspections: ModuleDef = {
       { key: "inspector", header: "inspections.inspector" },
       { key: "previous_date", header: "inspections.previous_date", type: "date" },
       { key: "renewal_date", header: "inspections.next_date", type: "reminder_date" },
+      { key: "docs", header: "docs.column", type: "docs", sortable: false },
     ],
   },
 };
@@ -214,6 +218,7 @@ export const mobilizationInspections: ModuleDef = {
           { name: "inspection_date", label: "inspections.mobilization.date", control: "date", required: true },
           { name: "renewal_date", label: "inspections.mobilization.renewal", control: "date", description: "Reminder" },
           { name: "notes", label: "common.notes", control: "textarea" },
+          { name: "report", label: "fleet.doc.internal_report", control: "file", bucket: "inspection-scans", labels: ["fleet.doc.internal_report"] },
         ],
       },
     ],
@@ -230,6 +235,7 @@ export const mobilizationInspections: ModuleDef = {
       { key: "previous_date", header: "inspections.previous_date", type: "date" },
       { key: "renewal_date", header: "inspections.mobilization.renewal", type: "reminder_date" },
       { key: "notes", header: "common.notes", type: "multiline", sortable: false },
+      { key: "docs", header: "docs.column", type: "docs", sortable: false },
     ],
   },
 };

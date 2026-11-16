@@ -21,38 +21,40 @@ insert into public.resources (key, parent_key, name, label_prefix, path, icon, s
   ('drivers.osha', 'drivers', 'OSHA fit-for-work', 'd', '/drivers?tab=osha', 'heart-pulse', 204, true, false),
   ('drivers.documents', 'drivers', 'Documents', 'e', '/drivers?tab=documents', 'folder', 205, false, false),
   ('inspections', null, 'Inspections', '3', '/inspections', 'search-check', 300, true, false),
-  ('inspections.daily', 'inspections', 'Daily (pre-trip) inspection', 'a', '/inspections/daily', 'sun', 301, false, false),
+  ('inspections.daily', 'inspections', 'Daily pre-start inspection', 'a', '/inspections/daily', 'sun', 301, false, false),
   ('inspections.third_party', 'inspections', 'Third-party inspection', 'c', '/inspections/third-party', 'badge-check', 303, true, false),
-  ('daily_use', null, 'Vehicle daily use', '4', '/daily-use', 'route', 400, false, true),
-  ('daily_use.km_log', 'daily_use', 'Daily kilometre log', 'a', '/daily-use/km-log', 'gauge', 401, false, false),
-  ('daily_use.fuel_log', 'daily_use', 'Fuel log', 'b', '/daily-use/fuel-log', 'fuel', 402, false, true),
-  ('daily_use.trip_requests', 'daily_use', 'Daily vehicle use requests', 'c', '/daily-use/trip-requests', 'map-pin', 403, false, true),
+  ('daily_use', null, 'Vehicle operations', '4', '/daily-use', 'route', 400, false, true),
+  ('daily_use.km_log', 'daily_use', 'Daily kilometre log', 'b', '/daily-use/km-log', 'gauge', 402, false, false),
+  ('daily_use.fuel_log', 'daily_use', 'Fuel request', 'c', '/daily-use/fuel-requests', 'fuel', 403, false, true),
+  ('daily_use.trip_requests', 'daily_use', 'Vehicle requests', 'a', '/daily-use/trip-requests', 'map-pin', 401, false, true),
   ('daily_use.trip_requests.short', 'daily_use.trip_requests', 'Short or town trip', null, '/daily-use/trip-requests?type=short', null, 404, false, true),
   ('daily_use.trip_requests.long', 'daily_use.trip_requests', 'Long trip', null, '/daily-use/trip-requests?type=long', null, 405, false, true),
   ('daily_use.trip_requests.jmp_hse', 'daily_use.trip_requests', 'JMP: HSE manager sign-off', null, null, null, 406, false, false),
   ('daily_use.trip_requests.jmp_control_room', 'daily_use.trip_requests', 'JMP: control room review', null, null, null, 407, false, false),
   ('daily_use.trip_requests.jmp_erc', 'daily_use.trip_requests', 'JMP: emergency response review', null, null, null, 408, false, false),
-  ('expenses', null, 'Fleet expenses and administration', '5', '/expenses', 'receipt', 500, true, true),
+  ('expenses', null, 'Fleet expenses', '5', '/expenses', 'receipt', 500, true, true),
   ('expenses.fuel', 'expenses', 'Fuel', 'a', '/expenses/fuel', 'fuel', 501, false, false),
-  ('expenses.maintenance', 'expenses', 'Maintenance', 'b', '/expenses/maintenance', 'wrench', 502, false, true),
+  ('expenses.maintenance', 'expenses', 'Maintenance and repair', 'b', '/expenses/maintenance', 'wrench', 502, false, true),
   ('expenses.maintenance.requests', 'expenses.maintenance', 'Maintenance requests', null, '/expenses/maintenance/requests', null, 503, false, true),
-  ('expenses.maintenance.work_orders', 'expenses.maintenance', 'Works orders and out-of-service', null, '/expenses/maintenance/work-orders', null, 504, false, false),
-  ('expenses.maintenance.costs', 'expenses.maintenance', 'Maintenance cost', null, '/expenses/maintenance/costs', null, 505, false, false),
+  ('expenses.maintenance.costs', 'expenses.maintenance', 'Maintenance cost', null, '/expenses/maintenance/costs', null, 504, false, false),
   ('expenses.tyres', 'expenses', 'Tyres', 'c', '/expenses/tyres', 'circle-dot', 506, false, true),
   ('expenses.washing', 'expenses', 'Car washing', 'd', '/expenses/washing', 'droplets', 507, false, true),
-  ('expenses.equipment', 'expenses', 'Equipment and accessories', 'e', '/expenses/equipment', 'package', 508, false, false),
-  ('expenses.trainings', 'expenses', 'Trainings', 'f', '/expenses/trainings', 'graduation-cap', 509, true, false),
-  ('expenses.trainings.mandatory', 'expenses.trainings', 'Mandatory training records', null, '/expenses/trainings/mandatory', null, 510, true, false),
-  ('expenses.trainings.toolbox', 'expenses.trainings', 'Toolbox talks', null, '/expenses/trainings/toolbox', null, 511, false, false),
-  ('expenses.trainings.matrix', 'expenses.trainings', 'Training matrix', null, '/expenses/trainings/matrix', null, 512, false, false),
-  ('expenses.timesheet', 'expenses', 'Timesheet', 'g', '/expenses/timesheet', 'clock', 513, false, true),
-  ('expenses.leave', 'expenses', 'Annual leave', 'h', '/expenses/leave', 'calendar-days', 514, false, true),
-  ('expenses.leave.plan', 'expenses.leave', 'Leave plan', null, '/expenses/leave/plan', null, 515, false, false),
-  ('expenses.leave.requests', 'expenses.leave', 'Leave requests and records', null, '/expenses/leave/requests', null, 516, false, true),
-  ('expenses.leave.balances', 'expenses.leave', 'Leave balances', null, '/expenses/leave/balances', null, 517, false, false),
-  ('expenses.safety', 'expenses', 'Safety', 'i', '/expenses/safety', 'siren', 518, false, false),
-  ('expenses.safety.incidents', 'expenses.safety', 'Incident and accident records', null, '/expenses/safety/incidents', null, 519, false, false),
-  ('expenses.safety.reports', 'expenses.safety', 'Safety reports', null, '/expenses/safety/reports', null, 520, false, false),
+  ('expenses.trainings', 'expenses', 'Trainings', 'f', null, 'graduation-cap', 509, true, false),
+  ('expenses.trainings.mandatory', 'expenses.trainings', 'Mandatory training records', null, null, null, 510, true, false),
+  ('expenses.admin', null, 'Fleet administration', '6', '/administration', 'building', 550, false, true),
+  ('expenses.admin.roster', 'expenses.admin', 'Fleet roster', null, '/administration/roster', null, 551, false, false),
+  ('expenses.timesheet', 'expenses.admin', 'Timesheet', null, '/expenses/timesheet', 'clock', 552, false, true),
+  ('expenses.leave', 'expenses.admin', 'Annual leave', 'h', null, 'calendar-days', 559, false, true),
+  ('expenses.leave.plan', 'expenses.admin', 'Leave plan', null, '/expenses/leave/plan', null, 553, false, false),
+  ('expenses.leave.requests', 'expenses.admin', 'Leave requests and records', null, '/expenses/leave/requests', null, 554, false, true),
+  ('expenses.leave.balances', 'expenses.admin', 'Leave balances', null, '/expenses/leave/balances', null, 555, false, false),
+  ('expenses.admin.outstation', 'expenses.admin', 'Outstation allowance', null, '/administration/outstation', null, 556, false, false),
+  ('expenses.admin.petty_cash', 'expenses.admin', 'Petty cash reconciliation', null, '/administration/petty-cash', null, 557, false, false),
+  ('expenses.trainings.toolbox', null, 'Toolbox talks', '7', '/expenses/trainings/toolbox', 'message-square', 560, false, false),
+  ('expenses.trainings.matrix', null, 'Toolbox matrix', '8', '/expenses/trainings/matrix', 'layout-grid', 570, false, false),
+  ('expenses.safety', null, 'Safety', '9', '/expenses/safety', 'siren', 580, false, false),
+  ('expenses.safety.incidents', 'expenses.safety', 'Incident and accident records', null, '/expenses/safety/incidents', null, 581, false, false),
+  ('expenses.safety.reports', 'expenses.safety', 'Safety reports', null, '/expenses/safety/reports', null, 582, false, false),
   ('expenses.reports', 'expenses', 'Fleet data reports', 'j', '/expenses/reports', 'bar-chart-3', 521, false, false),
   ('platform', null, 'Platform', null, '/platform', 'building', 50, false, false),
   ('platform.overview', 'platform', 'Overview', null, '/platform', 'layout-grid', 51, false, false),
@@ -93,7 +95,6 @@ insert into public.package_resources (package_id, resource_key) values
   ('cccccccc-cccc-cccc-cccc-000000000002', 'expenses.maintenance'),
   ('cccccccc-cccc-cccc-cccc-000000000002', 'expenses.tyres'),
   ('cccccccc-cccc-cccc-cccc-000000000002', 'expenses.washing'),
-  ('cccccccc-cccc-cccc-cccc-000000000002', 'expenses.equipment'),
   ('cccccccc-cccc-cccc-cccc-000000000003', 'fleet'),
   ('cccccccc-cccc-cccc-cccc-000000000003', 'drivers'),
   ('cccccccc-cccc-cccc-cccc-000000000003', 'inspections'),
@@ -211,7 +212,6 @@ begin
   perform pg_temp.grant_role(drv, 'expenses.maintenance.requests', cru, 'own');
   perform pg_temp.grant_role(drv, 'expenses.tyres', cru, 'own');
   perform pg_temp.grant_role(drv, 'expenses.washing', cru, 'own');
-  perform pg_temp.grant_role(drv, 'expenses.equipment', cru, 'own');
   perform pg_temp.grant_role(drv, 'expenses.trainings.mandatory', v, 'own');
   perform pg_temp.grant_role(drv, 'expenses.timesheet', cru, 'own');
   perform pg_temp.grant_role(drv, 'expenses.leave', v, 'own');
@@ -410,7 +410,7 @@ insert into public.mandatory_trainings (company_id, driver_id, courses, date_com
   ('11111111-1111-1111-1111-111111111111', '66666666-6666-6666-6666-000000000004', '{defensive_driving}', current_date - 60, 'SafeDrive Tanzania', 150000, current_date + 305);
 
 insert into public.toolbox_plans (company_id, week_number, month, date_from, date_to, topics) values
-  ('11111111-1111-1111-1111-111111111111', extract(week from current_date)::int, extract(month from current_date)::int, date_trunc('week', current_date)::date, date_trunc('week', current_date)::date + 4, 'Fatigue management on long trips; pre-trip inspection refresher; reporting near misses'),
+  ('11111111-1111-1111-1111-111111111111', extract(week from current_date)::int, extract(month from current_date)::int, date_trunc('week', current_date)::date, date_trunc('week', current_date)::date + 4, 'Fatigue management on long trips; pre-start inspection refresher; reporting near misses'),
   ('11111111-1111-1111-1111-111111111111', extract(week from current_date - 7)::int, extract(month from current_date - 7)::int, date_trunc('week', current_date - 7)::date, date_trunc('week', current_date - 7)::date + 4, 'Tyre pressure checks; load securing; speed limits in villages');
 
 -- ---------------------------------------------------------------------------
@@ -454,7 +454,7 @@ begin
         v_km := v_km + v_day_km;
       end if;
 
-      -- Daily pre-trip inspection, mostly safe.
+      -- Daily pre-start inspection, mostly safe.
       insert into public.daily_inspections (company_id, driver_id, vehicle_id, inspection_date, mileage_km, remark, created_by)
       values (v.company_id, v_driver, v.id, d, v_km, 'safe', (select profile_id from public.drivers where id = v_driver))
       returning id into v_insp;
@@ -499,17 +499,6 @@ insert into public.third_party_inspections (company_id, driver_id, vehicle_id, i
 select '11111111-1111-1111-1111-111111111111', null, x.id, current_date - 200 - (x.n * 10), x.odometer_km - 9000, 'safe', 'TBS Vehicle Inspection Centre', current_date + 165 - (x.n * 10)
 from (select v.id, v.odometer_km, row_number() over (order by v.registration)::int as n from public.vehicles v where v.company_id = '11111111-1111-1111-1111-111111111111') x;
 
--- First aid kit inspections
-insert into public.first_aid_inspections (id, company_id, vehicle_id, inspected_on, inspector_name, inspector_qualification, signature, next_inspection_date)
-select gen_random_uuid(), '11111111-1111-1111-1111-111111111111', v.id, current_date - 45, 'Dr. Amina Juma', 'Medical officer, company clinic',
-  jsonb_build_object('name', 'Dr. Amina Juma', 'method', 'tick', 'signed_at', (current_date - 45)::text), current_date + 135
-from public.vehicles v where v.company_id = '11111111-1111-1111-1111-111111111111';
-
-insert into public.first_aid_items (company_id, inspection_id, item_name, present, quantity, expiry_date)
-select i.company_id, i.id, item, true, 1, case when item in ('Antiseptic solution', 'Burn dressing') then current_date + 200 else null end
-from public.first_aid_inspections i
-cross join unnest(array['Sterile gauze pads', 'Adhesive bandages', 'Crepe bandage', 'Antiseptic solution', 'Burn dressing', 'Disposable gloves', 'Scissors', 'Tweezers', 'CPR face shield', 'Eye wash', 'Triangular bandage', 'First aid manual']) item;
-
 -- ---------------------------------------------------------------------------
 -- Requests and expenses
 -- ---------------------------------------------------------------------------
@@ -532,7 +521,7 @@ begin
   perform set_config('request.jwt.claim.sub', '', true);
 end $$;
 
--- Maintenance: a submitted request for the Patrol, an open work order (in garage) and historical costs.
+-- Maintenance: a submitted request for the Patrol and historical costs.
 insert into public.maintenance_requests (id, company_id, requester_id, driver_id, vehicle_id, request_date, odometer_km, reason, faults, fault_details, status, created_by) values
   ('88888888-8888-8888-8888-000000000001', '11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-000000000005', '66666666-6666-6666-6666-000000000001', '55555555-5555-5555-5555-000000000003', current_date - 6, 132880, 'corrective', '{gearbox,brakes}', 'Grinding noise in third gear; brake pads worn.', 'draft', '33333333-3333-3333-3333-000000000005'),
   ('88888888-8888-8888-8888-000000000002', '11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-000000000006', '66666666-6666-6666-6666-000000000002', '55555555-5555-5555-5555-000000000005', current_date - 1, 18230, 'ppm', '{engine_oil,filters}', 'Due for 20,000 km service.', 'draft', '33333333-3333-3333-3333-000000000006');
@@ -544,17 +533,10 @@ begin
   perform set_config('request.jwt.claim.sub', '', true);
 end $$;
 
-insert into public.work_orders (id, company_id, maintenance_request_id, vehicle_id, order_number, garage_name, description, date_out, odometer_out, status) values
-  ('99999999-9999-9999-9999-000000000001', '11111111-1111-1111-1111-111111111111', '88888888-8888-8888-8888-000000000001', '55555555-5555-5555-5555-000000000003', 'WO-2026-031', 'Toyota Tanzania Service Centre', 'Gearbox inspection and brake pad replacement', current_date - 4, 132880, 'in_progress');
-
-insert into public.work_orders (company_id, vehicle_id, order_number, garage_name, description, date_out, date_in, odometer_out, odometer_in, status)
-select '11111111-1111-1111-1111-111111111111', v.id, 'WO-2026-0' || n, 'Toyota Tanzania Service Centre', 'Scheduled service', current_date - (40 * n), current_date - (40 * n) + (1 + (n % 3)), v.odometer_km - 5000 * n, v.odometer_km - 5000 * n + 10, 'closed'
+insert into public.maintenance_costs (company_id, vehicle_id, cost_date, odometer_km, work_type, service_provider, activities, cost_tzs)
+select '11111111-1111-1111-1111-111111111111', v.id, current_date - (40 * n) + 2, v.odometer_km - 5000 * n + 10, 'maintenance',
+  'Toyota Tanzania Service Centre', 'Scheduled service', 180000 + ((n * 3 % 7) * 65000)
 from public.vehicles v cross join generate_series(1, 3) n where v.company_id = '11111111-1111-1111-1111-111111111111';
-
-insert into public.maintenance_costs (company_id, work_order_id, vehicle_id, cost_date, odometer_km, work_type, service_provider, activities, cost_tzs)
-select w.company_id, w.id, w.vehicle_id, w.date_in, w.odometer_in, case when w.description like 'Scheduled%' then 'maintenance' else 'repairs' end,
-  w.garage_name, w.description, 180000 + ((extract(day from w.date_in)::int % 7) * 65000)
-from public.work_orders w where w.date_in is not null;
 
 -- Tyres
 insert into public.tyre_requests (company_id, driver_id, vehicle_id, request_date, odometer_km, tyre_size, tyre_make, tyre_brand, quantity, unit_cost_tzs, status, created_by) values
@@ -589,14 +571,6 @@ begin
   perform set_config('request.jwt.claim.sub', '', true);
 end $$;
 
--- Equipment checks
-insert into public.vehicle_equipment (company_id, vehicle_id, check_date, items, remarks)
-select '11111111-1111-1111-1111-111111111111', v.id, current_date - 14,
-  case when v.registration = 'T321JKL'
-    then '{wheel_spanner,wheel_chocks,lifting_jack,reflective_triangles,spare_tyre,first_aid_box,towing_rope}'::text[]
-    else '{wheel_spanner,wheel_chocks,lifting_jack,reflective_triangles,spare_tyre,fire_extinguisher,first_aid_box,jumping_cable,towing_rope,spade}'::text[] end,
-  case when v.registration = 'T321JKL' then 'Fire extinguisher expired, replacement ordered.' else null end
-from public.vehicles v where v.company_id = '11111111-1111-1111-1111-111111111111';
 
 -- Timesheets for the last two months for the two driver users
 insert into public.timesheets (id, company_id, driver_id, employee_id, employee_name, employer, employment_number, job_title, department, period_month, status, created_by)

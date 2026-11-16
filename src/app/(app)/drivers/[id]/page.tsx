@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import { PageHeader } from "@/components/shell/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SchemaForm } from "@/components/patterns/schema-form";
@@ -7,13 +6,13 @@ import { AttachmentsBox } from "@/components/patterns/attachments-box";
 import { ReminderChip, StatusChip } from "@/components/patterns/status-chip";
 import { RecordTitle } from "@/components/modules/record-title";
 import { PrintButton } from "@/components/shell/print-frame";
-import { Button } from "@/components/ui/button";
 import { CoursesEditor } from "./courses-editor";
+import { MandatoryTrainings, type MandatoryRow } from "./mandatory-trainings";
+import { loadDocs } from "@/lib/data/docs";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { loadOptions } from "@/lib/data/records";
 import { DRIVER_DOCUMENTS } from "@/modules/drivers";
-import { formatDate } from "@/lib/utils";
 import { t } from "@/i18n";
 
 export default async function DriverPage({ params, searchParams }: PageProps<"/drivers/[id]">) {
@@ -36,6 +35,8 @@ export default async function DriverPage({ params, searchParams }: PageProps<"/d
   const extra = { driver_id: id };
   const paths = [`/drivers/${id}`, "/drivers"];
   const courseRows = (courses ?? []) as Record<string, unknown>[];
+  const mandatoryRows = (trainings ?? []) as MandatoryRow[];
+  const [courseDocs, mandatoryDocs] = await Promise.all([loadDocs("driver_courses", courseRows.map((c) => c.id as string)), loadDocs("mandatory_trainings", mandatoryRows.map((r) => r.id))]);
 
   return (
     <>
@@ -64,25 +65,22 @@ export default async function DriverPage({ params, searchParams }: PageProps<"/d
         </TabsContent>
 
         <TabsContent value="training" className="space-y-6">
-          <CoursesEditor key={courseRows.map((c) => `${c.id}:${c.updated_at}`).join(",")} driverId={id} rows={courseRows as { id: string; course: string }[]} readOnly={!session.can("drivers.training", "edit") && !session.can("drivers.training", "create")} />
-          {trainings && trainings.length > 0 ? (
-            <div className="page-card p-4">
-              <div className="mb-2 flex items-center justify-between">
-                <h3 className="text-sm font-semibold">{t("expenses.trainings.mandatory.title")}</h3>
-                <Button asChild variant="link" size="sm">
-                  <Link href="/expenses/trainings/mandatory">{t("nav.view_all")}</Link>
-                </Button>
-              </div>
-              <ul className="divide-y text-sm">
-                {(trainings as Record<string, unknown>[]).map((tr) => (
-                  <li key={tr.id as string} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                    <span>{((tr.courses as string[]) ?? []).map((c) => t(`expenses.trainings.course.${c}`)).join(", ")}</span>
-                    <span className="text-muted-foreground">{formatDate(tr.date_completed as string)}</span>
-                    <ReminderChip date={tr.refresher_date as string} />
-                  </li>
-                ))}
-              </ul>
-            </div>
+          <CoursesEditor
+            key={courseRows.map((c) => `${c.id}:${c.updated_at}`).join(",")}
+            driverId={id}
+            rows={courseRows as { id: string; course: string }[]}
+            readOnly={!session.can("drivers.training", "edit") && !session.can("drivers.training", "create")}
+            docs={Object.fromEntries(courseDocs)}
+            canAttach={session.can("drivers.training", "edit") || session.can("drivers.training", "create")}
+          />
+          {session.can("expenses.trainings.mandatory", "view") ? (
+            <MandatoryTrainings
+              driverId={id}
+              rows={mandatoryRows}
+              docs={mandatoryDocs}
+              canAdd={session.can("expenses.trainings.mandatory", "create")}
+              canAttach={session.can("expenses.trainings.mandatory", "edit") || session.can("expenses.trainings.mandatory", "create")}
+            />
           ) : null}
         </TabsContent>
 

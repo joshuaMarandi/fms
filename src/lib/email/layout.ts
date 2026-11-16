@@ -2,7 +2,9 @@
  * One email layout for every message: brand bar, white card, heading, short paragraphs,
  * an optional button, an optional details table and an optional item list, then a quiet footer.
  * Table-based with inline styles so it renders the same in Gmail, Outlook and phone mail apps.
- * Flat colours only, no images, no emoji. A plain-text version is produced alongside.
+ * Flat colours only, no emoji; the only image is the app logo in the brand bar (loaded from the
+ * app's address, with the app name as its alt text). Every email ends with "Fleet Management Team".
+ * A plain-text version is produced alongside.
  * Pure function (no server APIs), so the template editor can render the same email as a live preview.
  */
 
@@ -56,6 +58,10 @@ export type EmailBrand = { appName?: string; appUrl?: string };
 export function renderEmail(c: EmailContent, brand: EmailBrand = {}): { html: string; text: string } {
   const appName = brand.appName ?? (typeof process !== "undefined" ? process.env.MAIL_FROM_NAME : undefined) ?? "Fleet Management System";
   const appUrl = brand.appUrl ?? (typeof process !== "undefined" ? process.env.NEXT_PUBLIC_APP_URL : undefined) ?? "";
+
+  // The logo comes from the app itself, so it needs a public http(s) address.
+  const logo = /^https?:\/\//.test(appUrl) ? `${appUrl.replace(/\/+$/, "")}/brand/fms-logo-white.png` : null;
+  const SIGN_OFF = "Fleet Management Team";
 
   const paragraphs = c.paragraphs.map((p) => `<p style="margin:0 0 16px;${font}font-size:15px;line-height:24px;color:${C.text};">${esc(p)}</p>`).join("");
 
@@ -119,7 +125,11 @@ export function renderEmail(c: EmailContent, brand: EmailBrand = {}): { html: st
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;">
       <tr><td bgcolor="${C.brand}" style="padding:20px 28px;border-radius:12px 12px 0 0;">
         <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-          <td bgcolor="${C.primary}" width="32" height="32" align="center" style="border-radius:8px;${font}font-size:14px;font-weight:bold;color:#ffffff;">F</td>
+          ${
+            logo
+              ? `<td valign="middle"><img src="${esc(logo)}" width="88" height="42" alt="${esc(appName)}" style="display:block;border:0;outline:none;text-decoration:none;height:42px;width:88px;"></td>`
+              : `<td bgcolor="${C.primary}" width="32" height="32" align="center" style="border-radius:8px;${font}font-size:14px;font-weight:bold;color:#ffffff;">F</td>`
+          }
           <td style="padding-left:12px;${font}font-size:16px;font-weight:bold;color:#ffffff;">${esc(appName)}</td>
         </tr></table>
       </td></tr>
@@ -131,6 +141,7 @@ export function renderEmail(c: EmailContent, brand: EmailBrand = {}): { html: st
         ${items}
         ${button}
         ${note}
+        <p style="margin:28px 0 0;${font}font-size:15px;line-height:22px;color:${C.text};">Regards,<br><strong>${SIGN_OFF}</strong></p>
       </td></tr>
       <tr><td style="padding:20px 28px;${font}font-size:12px;line-height:18px;color:${C.muted};" align="center">
         ${c.company ? `${esc(c.company)} &middot; ` : ""}${esc(appName)}<br>
@@ -155,6 +166,7 @@ export function renderEmail(c: EmailContent, brand: EmailBrand = {}): { html: st
   }
   if (c.button) lines.push(`${c.button.label}: ${c.button.url}`, "");
   if (c.note) lines.push(c.note, "");
+  lines.push("Regards,", SIGN_OFF, "");
   lines.push("--", `${c.company ? `${c.company} - ` : ""}${appName}`);
   if (appUrl) lines.push(appUrl);
 

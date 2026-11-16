@@ -11,25 +11,19 @@ export default async function DriversPage() {
   const session = await requirePermission("drivers.personal", "view");
   const supabase = await createClient();
 
-  const [{ data: drivers }, { data: licences }, { data: osha }, { data: trainings }, { data: courses }] = await Promise.all([
+  const [{ data: drivers }, { data: licences }, { data: osha }, { data: trainings }] = await Promise.all([
     supabase.from("drivers").select("*").is("deleted_at", null).order("full_name"),
-    session.can("drivers.licence", "view") ? supabase.from("driver_licences").select("driver_id, expiry_date").is("deleted_at", null).order("expiry_date", { ascending: false }) : Promise.resolve({ data: [] }),
+    session.can("drivers.licence", "view") ? supabase.from("driver_licences").select("driver_id, expiry_date, date_issued").is("deleted_at", null).order("expiry_date", { ascending: false }) : Promise.resolve({ data: [] }),
     session.can("drivers.osha", "view") ? supabase.from("driver_osha").select("driver_id, redo_date").is("deleted_at", null).order("redo_date", { ascending: false }) : Promise.resolve({ data: [] }),
     session.can("expenses.trainings.mandatory", "view") ? supabase.from("mandatory_trainings").select("driver_id, refresher_date").contains("courses", ["defensive_driving"]).is("deleted_at", null).order("refresher_date", { ascending: false }) : Promise.resolve({ data: [] }),
-    session.can("drivers.training", "view") ? supabase.from("driver_courses").select("driver_id, course, course_other").not("course", "is", null).is("deleted_at", null).order("date_completed", { ascending: false }) : Promise.resolve({ data: [] }),
   ]);
-  const courseMap = new Map<string, string[]>();
-  for (const c of (courses ?? []) as { driver_id: string; course: string; course_other: string | null }[]) {
-    const name = c.course === "other" ? c.course_other || t("drivers.course.other") : t(`drivers.course.${c.course}`);
-    courseMap.set(c.driver_id, [...(courseMap.get(c.driver_id) ?? []), name]);
-  }
 
   const latest = <T extends { driver_id: string }>(rows: T[] | null) => {
     const m = new Map<string, T>();
     for (const r of rows ?? []) if (!m.has(r.driver_id)) m.set(r.driver_id, r);
     return m;
   };
-  const lic = latest((licences ?? []) as { driver_id: string; expiry_date: string }[]);
+  const lic = latest((licences ?? []) as { driver_id: string; expiry_date: string; date_issued: string | null }[]);
   const osh = latest((osha ?? []) as { driver_id: string; redo_date: string }[]);
   const trn = latest((trainings ?? []) as { driver_id: string; refresher_date: string }[]);
 
@@ -43,9 +37,9 @@ export default async function DriversPage() {
     is_active: d.is_active as boolean,
     years_driving: d.years_driving === null || d.years_driving === undefined ? null : Number(d.years_driving),
     licence_expiry: lic.get(d.id as string)?.expiry_date ?? null,
+    licence_start: lic.get(d.id as string)?.date_issued ?? null,
     osha_redo: osh.get(d.id as string)?.redo_date ?? null,
     ddt_refresher: trn.get(d.id as string)?.refresher_date ?? null,
-    courses: courseMap.get(d.id as string) ?? [],
   }));
 
   return (

@@ -57,10 +57,15 @@ export function AppSidebar({ counts }: { counts: SidebarCounts; companies?: { id
     }
     // Fleet database and Driver details open one page each (tabs).
     const SINGLE_PAGE = new Set(["fleet", "drivers"]);
-    // Inspections drops down to its three kinds: daily pre-trip, mobilization, third-party.
+    // Inspections drops down to its three kinds: daily pre-start, mobilization, third-party.
     // Mobilization records are the vehicles' inspection status, so they follow that permission.
     const MOBILIZATION: ResourceNode = { key: "inspections.mobilization", parent_key: "inspections", name: "Mobilization inspection", label_prefix: null, path: "/inspections/mobilization", icon: "clipboard-check", sort_order: 302, has_reminders: false, is_request: false, children: [] };
+    // Vehicle operations: the fuel log (fuel issued) sits after Fuel request, under the same permission.
+    const FUEL_LOG: ResourceNode = { key: "daily_use.fuel_issues", parent_key: "daily_use", name: "Fuel log", label_prefix: null, path: "/daily-use/fuel-log", icon: "fuel", sort_order: 404, has_reminders: false, is_request: false, children: [] };
     const withMobilization = (n: ResourceNode): ResourceNode => {
+      if (n.key === "daily_use" && n.children.some((c) => c.key === "daily_use.fuel_log")) {
+        return { ...n, children: [...n.children, FUEL_LOG].sort((a, b) => a.sort_order - b.sort_order) };
+      }
       if (n.key !== "inspections" || !can(permissions, "fleet.inspection_status", "view")) return n;
       const children = [...n.children, MOBILIZATION].sort((a, b) => a.sort_order - b.sort_order);
       return { ...n, children };
@@ -70,11 +75,13 @@ export function AppSidebar({ counts }: { counts: SidebarCounts; companies?: { id
     const visible = noOwners(filterTree(permissions, all))
       .filter((n) => n.key !== "platform")
       .map((n) => (SINGLE_PAGE.has(n.key) ? { ...n, children: [] } : withMobilization(n)));
-    if (!session.isOwner) return visible;
+    // Old groups kept only for their permissions (no page, nothing under them) stay out of the menu.
+    const prune = (nodes: ResourceNode[]): ResourceNode[] => nodes.map((n) => ({ ...n, children: prune(n.children) })).filter((n) => n.path || n.children.length > 0);
+    if (!session.isOwner) return prune(visible);
     // Owner inside a company: show exactly the modules in that company's package.
     const keep = (nodes: ResourceNode[]): ResourceNode[] =>
       nodes.filter((n) => packageAllows(permissions.packageKeys, n.key)).map((n) => ({ ...n, children: keep(n.children) }));
-    return keep(visible);
+    return prune(keep(visible));
   }, [permissions, session.platformMode, session.isOwner]);
 
   const isActive = (path: string | null) => {

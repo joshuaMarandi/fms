@@ -20,7 +20,7 @@ export async function ModuleListPage({ moduleKey, searchParams }: { moduleKey: s
   query = query.limit(1000);
   const { data, error } = await query;
 
-  const rows = (data ?? []) as unknown as Array<Record<string, unknown> & { id: string }>;
+  const rows = ((data ?? []) as unknown as Array<Record<string, unknown> & { id: string }>).map((r) => (def.list.derive ? { ...r, ...def.list.derive(r) } : r));
 
   return (
     <>

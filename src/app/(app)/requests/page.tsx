@@ -9,7 +9,7 @@ import { formatDate } from "@/lib/utils";
 import { t } from "@/i18n";
 
 const KINDS = [
-  { table: "fuel_requests", resource: "daily_use.fuel_log", path: "/daily-use/fuel-log", label: "daily_use.fuel.title", dateCol: "request_date" },
+  { table: "fuel_requests", resource: "daily_use.fuel_log", path: "/daily-use/fuel-requests", label: "daily_use.fuel.title", dateCol: "request_date" },
   { table: "maintenance_requests", resource: "expenses.maintenance.requests", path: "/expenses/maintenance/requests", label: "expenses.maintenance.requests.title", dateCol: "request_date" },
   { table: "tyre_requests", resource: "expenses.tyres", path: "/expenses/tyres", label: "expenses.tyres.title", dateCol: "request_date" },
   { table: "wash_requests", resource: "expenses.washing", path: "/expenses/washing", label: "expenses.washing.title", dateCol: "request_date" },

@@ -1,23 +1,25 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CheckCircle2, CircleDashed, Printer, XCircle } from "lucide-react";
+import { CheckCircle2, CircleDashed, Download, Mail, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { SignatureField, SignatureSummary, type SignatureValue } from "@/components/patterns/signature-field";
 import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
-import { usePermissions } from "@/components/permissions/provider";
+import { AttachmentsBox } from "@/components/patterns/attachments-box";
+import { DocButton, type DocRef } from "@/components/patterns/doc-button";
 import { callRpc } from "@/lib/data/records";
-import { formatDate } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import { t } from "@/i18n";
 
 export type JmpReview = {
   id: string;
-  step: "hse_manager" | "control_room" | "emergency_commander";
+  step: "prepare" | "requester" | "hse_manager" | "control_room" | "emergency_commander";
   step_order: number;
   required_resource: string;
   reviewer_id: string | null;
@@ -25,18 +27,44 @@ export type JmpReview = {
   signed_at: string | null;
   decision: "approved" | "rejected" | null;
   rejection_reason: string | null;
+  docs?: DocRef[];
 };
 
-/** Three signature steps for a long trip JMP, each needing its own role. */
-export function JmpReviewPanel({ requestId, reviews }: { requestId: string; reviews: JmpReview[] }) {
+const SIGNING = new Set(["prepare", "requester", "hse_manager"]);
+
+/**
+ * The journey management plan of a long trip.
+ * Automatic: the HSE manager signs after the approval and the system builds the signed JMP.
+ * Manual: the JMP is prepared and uploaded, signed by the requester, then signed and attached by HSE,
+ * all before the fleet manager approves. In both, the control room and the emergency response
+ * commander are emailed once it is complete; they do not sign.
+ */
+export function JmpReviewPanel({
+  requestId,
+  reviews,
+  method,
+  actionableId,
+  monitorsNotifiedAt,
+  approved,
+}: {
+  requestId: string;
+  reviews: JmpReview[];
+  method: "automatic" | "manual";
+  /** The step the signed-in person may do now. */
+  actionableId: string | null;
+  monitorsNotifiedAt: string | null;
+  approved: boolean;
+}) {
   const router = useRouter();
-  const { can } = usePermissions();
   const [signature, setSignature] = React.useState<SignatureValue | null>(null);
   const [reason, setReason] = React.useState("");
   const [busy, setBusy] = React.useState(false);
 
-  const next = reviews.find((r) => r.decision === null);
-  const blocked = reviews.some((r) => r.decision === "rejected");
+  const steps = reviews.filter((r) => SIGNING.has(r.step));
+  const blocked = steps.some((r) => r.decision === "rejected");
+  const complete = steps.length > 0 && steps.every((r) => r.decision === "approved") && approved;
+  const hseFiles = steps.find((r) => r.step === "hse_manager")?.docs ?? [];
+  const previousFiles = (r: JmpReview) => [...steps].reverse().find((x) => x.step_order < r.step_order && (x.docs?.length ?? 0) > 0)?.docs ?? [];
 
   async function sign(step: string, decision: "approved" | "rejected") {
     if (decision === "rejected" && !reason.trim()) {
@@ -58,29 +86,45 @@ export function JmpReviewPanel({ requestId, reviews }: { requestId: string; revi
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center justify-between text-base">
+        <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
           {t("daily_use.trips.jmp_review")}
-          <Button type="button" variant="outline" size="sm" onClick={() => window.print()}>
-            <Printer /> {t("daily_use.trips.jmp_print")}
-          </Button>
+          <span className="status-chip status-chip-neutral">{t(`jmp.method.${method}`)}</span>
         </CardTitle>
-        <CardDescription>{t("daily_use.trips.jmp")}</CardDescription>
+        <CardDescription>{t(`jmp.method.${method}.hint`)}</CardDescription>
       </CardHeader>
-      <CardContent>
-        <ol className="space-y-4">
-          {reviews.map((r) => {
-            const mine = next?.id === r.id && !blocked && can(r.required_resource, "approve");
+      <CardContent className="space-y-4">
+        {complete ? (
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-success/40 bg-success-bg p-3 text-sm">
+            <CheckCircle2 className="size-5 text-success" aria-hidden="true" />
+            <span className="flex-1 font-medium text-success">{t("jmp.complete")}</span>
+            {method === "manual" ? (
+              <DocButton docs={hseFiles} label={t("jmp.download_signed")} />
+            ) : (
+              <Button asChild size="sm" variant="outline" className="h-8">
+                <Link href={`/documents/vehicle_requests/${requestId}`} target="_blank">
+                  <Download /> {t("jmp.download_signed")}
+                </Link>
+              </Button>
+            )}
+          </div>
+        ) : null}
+
+        <ol className="space-y-3">
+          {steps.map((r) => {
+            const mine = r.id === actionableId && !blocked && r.decision === null;
+            const needsFile = method === "manual";
+            const prev = previousFiles(r);
             return (
-              <li key={r.id} className="rounded-lg border p-3">
+              <li key={r.id} className={cn("rounded-lg border p-3", mine && "border-primary bg-primary/5")}>
                 <div className="flex items-start gap-3">
                   <span className="mt-0.5">
                     {r.decision === "approved" ? <CheckCircle2 className="size-5 text-success" aria-hidden="true" /> : r.decision === "rejected" ? <XCircle className="size-5 text-danger" aria-hidden="true" /> : <CircleDashed className="size-5 text-muted-foreground" aria-hidden="true" />}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium">
-                      {r.step_order}. {t(`daily_use.trips.jmp.${r.step}`)}
+                    <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                      {r.step_order}. {t(`jmp.step.${r.step}`)}
+                      {r.docs && r.docs.length ? <DocButton docs={r.docs} compact /> : null}
                     </p>
-                    <p className="text-xs text-muted-foreground">{t(`resource.${r.required_resource}`)}</p>
                     {r.decision ? (
                       <div className="mt-2 text-sm">
                         <SignatureSummary value={r.signature} />
@@ -92,6 +136,16 @@ export function JmpReviewPanel({ requestId, reviews }: { requestId: string; revi
                     )}
                     {mine ? (
                       <div className="mt-3 space-y-3">
+                        <p className="text-sm">{t(`jmp.todo.${r.step}${needsFile ? "" : ".auto"}`)}</p>
+                        {needsFile && prev.length ? (
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="text-muted-foreground">{t("jmp.previous_file")}</span>
+                            <DocButton docs={prev} compact />
+                          </div>
+                        ) : null}
+                        {needsFile ? (
+                          <AttachmentsBox table="jmp_reviews" rowId={r.id} resource="daily_use.trip_requests" bucket="jmp" labels={[t(`jmp.file.${r.step}`)]} multiple={false} />
+                        ) : null}
                         <SignatureField value={signature} onChange={setSignature} />
                         <Field>
                           <FieldLabel htmlFor={`jmp-reason-${r.id}`}>{t("approval.reason")}</FieldLabel>
@@ -101,7 +155,7 @@ export function JmpReviewPanel({ requestId, reviews }: { requestId: string; revi
                           <ConfirmDialog
                             trigger={
                               <Button type="button" disabled={busy || !signature}>
-                                {t("daily_use.trips.jmp_sign")}
+                                {t(r.step === "prepare" ? "jmp.confirm_prepared" : "daily_use.trips.jmp_sign")}
                               </Button>
                             }
                             title={t("approval.confirm_approve")}
@@ -128,6 +182,15 @@ export function JmpReviewPanel({ requestId, reviews }: { requestId: string; revi
               </li>
             );
           })}
+          <li className="rounded-lg border border-dashed p-3">
+            <div className="flex items-start gap-3">
+              <Mail className={cn("mt-0.5 size-5", monitorsNotifiedAt ? "text-success" : "text-muted-foreground")} aria-hidden="true" />
+              <div className="text-sm">
+                <p className="font-medium">{t("jmp.monitors")}</p>
+                <p className="text-xs text-muted-foreground">{monitorsNotifiedAt ? t("jmp.monitors_sent", { date: formatDate(monitorsNotifiedAt, true) }) : t("jmp.monitors_wait")}</p>
+              </div>
+            </div>
+          </li>
         </ol>
       </CardContent>
     </Card>

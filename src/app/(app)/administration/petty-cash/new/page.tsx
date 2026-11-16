@@ -1,5 +1,5 @@
 import { ModuleRecordPage } from "@/components/modules/module-record-page";
 
 export default function Page() {
-  return <ModuleRecordPage moduleKey="expenses.equipment" />;
+  return <ModuleRecordPage moduleKey="expenses.admin.petty_cash" />;
 }

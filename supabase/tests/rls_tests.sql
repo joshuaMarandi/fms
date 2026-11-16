@@ -243,8 +243,6 @@ begin
   perform pg_temp.check('fuel issues produced fuel expenses', n > 0);
   select not_safe_for_use::int into v from public.v_vehicle_safety where vehicle_id = '55555555-5555-5555-5555-000000000004';
   perform pg_temp.check('vehicle with immediate open anomaly is not safe', v = 1);
-  select count(*) into n from public.vehicles where status = 'out_of_service' and status_reason like 'In garage%' and status_work_order_id is not null;
-  perform pg_temp.check('open work order takes the vehicle out of service with the garage as reason', n >= 1);
 end $$;
 
 
@@ -503,8 +501,6 @@ begin
     perform pg_temp.check('garage is no longer a status', true);
   end;
 
-  update public.work_orders set date_in = current_date, odometer_in = 132900 where id = '99999999-9999-9999-9999-000000000001';
-  perform pg_temp.check('returned works order puts the vehicle back in service', (select status from public.vehicles where id = '55555555-5555-5555-5555-000000000003') = 'in_service');
 
   insert into public.fuel_requests (company_id, vehicle_id, request_date, current_odometer, fuel_required_l)
   values ('11111111-1111-1111-1111-111111111111', v_id, current_date - 2, 1500, 40);
@@ -640,12 +636,10 @@ begin
 
   j := public.approval_link_decide(pg_temp.link_for(hse_id), 'approved');
   perform pg_temp.as_admin();
-  j := public.approval_link_decide(pg_temp.link_for(ctrl_id), 'approved');
-  perform pg_temp.as_admin();
-  perform pg_temp.check('emergency commander is last', pg_temp.link_for(erc_id) is not null);
-  j := public.approval_link_decide(pg_temp.link_for(erc_id), 'approved');
-  perform pg_temp.as_admin();
-  perform pg_temp.check('all JMP steps signed', not exists (select 1 from public.jmp_reviews where vehicle_request_id = v_trip and decision is distinct from 'approved'));
+  perform pg_temp.check('m24: control room and ERC do not sign', pg_temp.link_for(ctrl_id) is null and pg_temp.link_for(erc_id) is null);
+  perform pg_temp.check('m24: control room is emailed to monitor', exists (select 1 from public.message_outbox where user_id = ctrl_id and template = 'jmp_monitor'));
+  perform pg_temp.check('m24: emergency commander is emailed to monitor', exists (select 1 from public.message_outbox where user_id = erc_id and template = 'jmp_monitor'));
+  perform pg_temp.check('all JMP steps signed', not exists (select 1 from public.jmp_reviews where vehicle_request_id = v_trip and decision is distinct from 'approved' and step not in ('control_room', 'emergency_commander')));
   perform pg_temp.check('requester told the trip is fully approved', exists (select 1 from public.message_outbox where user_id = requester_id and template = 'request_approved'));
   perform pg_temp.check('no open links left', not exists (select 1 from public.approval_links where record_id = v_trip and used_at is null));
 
@@ -980,5 +974,145 @@ begin
   perform pg_temp.as_admin();
   delete from public.vehicle_inspections where vehicle_id = v_vehicle and inspection_date = date '2030-01-05';
 end $$;
+
+-- 21: Vehicle operations.
+do $m21$
+declare v_vehicle uuid;
+begin
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m21: section is called Vehicle operations', (select name from public.resources where key = 'daily_use') = 'Vehicle operations');
+  perform pg_temp.check('m21: fuel request page moved', (select path from public.resources where key = 'daily_use.fuel_log') = '/daily-use/fuel-requests');
+  perform pg_temp.check('m21: vehicle requests come first', (select sort_order from public.resources where key = 'daily_use.trip_requests') < (select sort_order from public.resources where key = 'daily_use.km_log'));
+  select vehicle_id into v_vehicle from public.fuel_issues where deleted_at is null limit 1;
+  if v_vehicle is not null then
+    perform pg_temp.check('m21: month counts work for the fuel log', (select coalesce(sum(records), 0) from public.vehicle_month_counts('fuel_issues', v_vehicle, extract(year from current_date)::int)) >= 0);
+  end if;
+end $m21$;
+
+-- 22: one approver acts by email, the rest are copied. 23: new administration tables.
+do $m22$
+declare
+  v_req uuid;
+  n integer;
+  v_approvers integer;
+begin
+  perform pg_temp.as_admin();
+  insert into public.vehicle_requests (company_id, requester_id, requester_name, requested_at, trip_type, date_needed, time_from, time_to, purpose_type, purpose, departure_time, duration_hours, occupants, destination, status, created_by)
+  values ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-000000000008', 'Peter Mollel', now(), 'short', current_date + 3, '08:00', '10:00', 'official', 'Test trip', '08:00', 2, 1, 'Posta', 'draft', '33333333-3333-3333-3333-000000000008')
+  returning id into v_req;
+  update public.vehicle_requests set status = 'submitted' where id = v_req;
+  select count(*) into n from public.approval_links where record_id = v_req and used_at is null;
+  perform pg_temp.check('m22: only one person gets the action link', n = 1);
+  select count(*) into v_approvers from public.workflow_approvers('11111111-1111-1111-1111-111111111111', 'daily_use.trip_requests', '33333333-3333-3333-3333-000000000008');
+  select count(*) into n from public.message_outbox where template = 'approval_request' and channel = 'email' and data ->> 'path' like '/a/%' and created_at >= now() - interval '1 minute' and data ->> 'summary' like '%Posta%';
+  perform pg_temp.check('m22: one action email', n <= 1);
+  if v_approvers > 1 then
+    perform pg_temp.check('m22: the others get one copy without a link', exists (select 1 from public.message_outbox where template = 'approval_copy' and data ->> 'summary' like '%Posta%' and not (data ? 'path')));
+  end if;
+  delete from public.vehicle_requests where id = v_req;
+
+  perform pg_temp.check('m23: work orders are gone', to_regclass('public.work_orders') is null and to_regclass('public.vehicle_equipment') is null and to_regclass('public.first_aid_inspections') is null);
+  perform pg_temp.check('m23: fleet administration is on the first level', (select parent_key from public.resources where key = 'expenses.admin') is null and (select parent_key from public.resources where key = 'expenses.timesheet') = 'expenses.admin');
+  perform pg_temp.check('m23: toolbox talks and safety are on the first level', (select count(*) from public.resources where key in ('expenses.trainings.toolbox', 'expenses.trainings.matrix', 'expenses.safety') and parent_key is null) = 3);
+
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  insert into public.petty_cash_entries (company_id, kind, description, amount_tzs) values ('11111111-1111-1111-1111-111111111111', 'received', 'Float', 100000);
+  insert into public.outstation_allowances (company_id, destination, date_from, date_to, rate_per_night_tzs) values ('11111111-1111-1111-1111-111111111111', 'Arusha', current_date, current_date + 3, 50000);
+  perform pg_temp.check('m23: outstation amount is nights times rate', (select amount_tzs from public.outstation_allowances where destination = 'Arusha' order by created_at desc limit 1) = 150000);
+  perform pg_temp.check('m23: admin can record petty cash', exists (select 1 from public.petty_cash_entries where description = 'Float'));
+  perform pg_temp.as_admin();
+  delete from public.petty_cash_entries where description = 'Float';
+  delete from public.outstation_allowances where destination = 'Arusha';
+end $m22$;
+
+-- 24: manual JMP, request history, waiting requests, missed km logs.
+do $m24$
+declare
+  company uuid := '11111111-1111-1111-1111-111111111111';
+  admin_id uuid := '33333333-3333-3333-3333-000000000002';
+  requester_id uuid := '33333333-3333-3333-3333-000000000008';
+  hse_id uuid := '33333333-3333-3333-3333-000000000009';
+  ctrl_id uuid := '33333333-3333-3333-3333-000000000010';
+  v_trip uuid;
+  v_review uuid;
+  v_ok boolean;
+  n integer;
+begin
+  perform pg_temp.as_admin();
+  update public.companies set settings = coalesce(settings, '{}'::jsonb) || '{"jmp_method": "manual"}'::jsonb where id = company;
+  delete from public.message_outbox;
+  insert into public.vehicle_requests (company_id, requester_id, requester_name, trip_type, date_needed, date_to, time_from, time_to, purpose_type, purpose, departure_time, duration_hours, occupants, destination, status, created_by)
+  values (company, requester_id, 'Peter Mollel', 'long', current_date + 25, current_date + 27, '06:00', '18:00', 'official', 'Dodoma visit', '06:00', 10, 2, 'Dodoma', 'draft', requester_id)
+  returning id into v_trip;
+  update public.vehicle_requests set status = 'submitted' where id = v_trip;
+  perform pg_temp.check('m24: manual method is kept on the request', (select jmp_method from public.vehicle_requests where id = v_trip) = 'manual');
+  perform pg_temp.check('m24: manual JMP has three steps', (select count(*) from public.jmp_reviews where vehicle_request_id = v_trip) = 3);
+  perform pg_temp.check('m24: first step is preparing the JMP', (select o_step from public.workflow_current_step('vehicle_requests', v_trip)) = 'prepare');
+  perform pg_temp.check('m24: the preparer is sent to the app (no link)', exists (select 1 from public.message_outbox where template = 'jmp_task' and data ->> 'path' like '/daily-use/trip-requests/%'));
+
+  -- Approval waits for the JMP.
+  perform pg_temp.as_user(admin_id);
+  begin
+    perform public.approve_request('vehicle_requests', v_trip, null, '{"driver_id": "66666666-6666-6666-6666-000000000001", "vehicle_id": "55555555-5555-5555-5555-000000000002"}'::jsonb);
+    v_ok := false;
+  exception when check_violation then
+    v_ok := true;
+  end;
+  perform pg_temp.check('m24: approval waits for the manual JMP', v_ok);
+
+  -- A step needs its file.
+  begin
+    perform public.sign_jmp(v_trip, 'prepare', 'approved');
+    v_ok := false;
+  exception when check_violation then
+    v_ok := true;
+  end;
+  perform pg_temp.check('m24: preparing needs the uploaded JMP', v_ok);
+
+  select id into v_review from public.jmp_reviews where vehicle_request_id = v_trip and step = 'prepare';
+  perform pg_temp.check('m24: the fleet manager may upload the JMP', public.can_upload_jmp_file(v_review));
+  insert into public.attachments (company_id, table_name, row_id, resource_key, bucket, path, label, file_name)
+  values (company, 'jmp_reviews', v_review, 'daily_use.trip_requests', 'jmp', company || '/jmp_reviews/' || v_review || '/jmp.pdf', 'JMP', 'jmp.pdf');
+  perform public.sign_jmp(v_trip, 'prepare', 'approved');
+
+  perform pg_temp.as_user(requester_id);
+  select id into v_review from public.jmp_reviews where vehicle_request_id = v_trip and step = 'requester';
+  perform pg_temp.check('m24: the requester may upload their signed JMP', public.can_upload_jmp_file(v_review));
+  insert into public.attachments (company_id, table_name, row_id, resource_key, bucket, path, label, file_name)
+  values (company, 'jmp_reviews', v_review, 'daily_use.trip_requests', 'jmp', company || '/jmp_reviews/' || v_review || '/signed.pdf', 'JMP signed', 'signed.pdf');
+  perform public.sign_jmp(v_trip, 'requester', 'approved');
+
+  perform pg_temp.as_user(hse_id);
+  select id into v_review from public.jmp_reviews where vehicle_request_id = v_trip and step = 'hse_manager';
+  insert into public.attachments (company_id, table_name, row_id, resource_key, bucket, path, label, file_name)
+  values (company, 'jmp_reviews', v_review, 'daily_use.trip_requests', 'jmp', company || '/jmp_reviews/' || v_review || '/hse.pdf', 'JMP HSE', 'hse.pdf');
+  perform public.sign_jmp(v_trip, 'hse_manager', 'approved');
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m24: after HSE the fleet manager approves', (select o_step from public.workflow_current_step('vehicle_requests', v_trip)) = 'approval');
+  perform pg_temp.check('m24: monitors are not told before approval', not exists (select 1 from public.message_outbox where user_id = ctrl_id and template = 'jmp_monitor' and data ->> 'record_id' = v_trip::text));
+
+  perform pg_temp.as_user(admin_id);
+  perform public.approve_request('vehicle_requests', v_trip, null, '{"driver_id": "66666666-6666-6666-6666-000000000001", "vehicle_id": "55555555-5555-5555-5555-000000000002"}'::jsonb);
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m24: approved after the manual JMP', (select status from public.vehicle_requests where id = v_trip) = 'approved');
+  perform pg_temp.check('m24: control room told once approved', exists (select 1 from public.message_outbox where user_id = ctrl_id and template = 'jmp_monitor' and data ->> 'record_id' = v_trip::text));
+  perform pg_temp.check('m24: no extra JMP steps after approval', (select count(*) from public.jmp_reviews where vehicle_request_id = v_trip) = 3);
+
+  -- History and views
+  perform pg_temp.as_user(admin_id);
+  perform public.log_record_view('vehicle_requests', v_trip);
+  perform public.log_record_view('vehicle_requests', v_trip);
+  select count(*) into n from public.request_history('vehicle_requests', v_trip);
+  perform pg_temp.check('m24: history lists the steps', n >= 5);
+  perform pg_temp.check('m24: history shows who viewed it', exists (select 1 from public.request_history('vehicle_requests', v_trip) where action = 'viewed'));
+  perform pg_temp.check('m24: nothing waits on the admin for this trip', not exists (select 1 from public.my_waiting_requests() where record_id = v_trip));
+
+  -- Missed km logs
+  perform pg_temp.as_admin();
+  n := public.notify_missed_km_logs(current_date - 1);
+  perform pg_temp.check('m24: missed km logs raise alerts once', public.notify_missed_km_logs(current_date - 1) = 0);
+
+  update public.companies set settings = settings - 'jmp_method' where id = company;
+end $m24$;
 
 select 'ALL TESTS PASSED' as result;

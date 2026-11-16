@@ -1,5 +1,5 @@
 /** Quick periods for the records pages. Dates are YYYY-MM-DD; `to` is inclusive; weeks start on Monday. */
-export const PERIODS = ["last_3_days", "this_week", "last_week", "this_month", "last_month", "this_quarter", "past_6_months", "this_year", "past_year"] as const;
+export const PERIODS = ["today", "yesterday", "last_3_days", "this_week", "last_week", "this_month", "last_month", "this_quarter", "past_6_months", "this_year", "past_year"] as const;
 export type PeriodKey = (typeof PERIODS)[number];
 
 export function isPeriod(v: unknown): v is PeriodKey {
@@ -15,6 +15,10 @@ export function periodRange(p: PeriodKey, today: string): { from: string; to: st
   const now = new Date(Date.UTC(y, m - 1, d));
   const monday = addDays(now, -((now.getUTCDay() + 6) % 7));
   switch (p) {
+    case "today":
+      return { from: today, to: today };
+    case "yesterday":
+      return { from: iso(addDays(now, -1)), to: iso(addDays(now, -1)) };
     case "last_3_days":
       return { from: iso(addDays(now, -2)), to: today };
     case "this_week":

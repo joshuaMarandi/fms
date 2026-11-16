@@ -87,7 +87,7 @@ const DAILY_COLUMNS: HubColumn[] = [
   { key: "status", label: "common.status" },
 ];
 
-/** Daily pre-trip inspections: every vehicle with its last inspection, actions and skipped days. */
+/** Daily pre-start inspections: every vehicle with its last inspection, actions and skipped days. */
 export async function DailyInspectionHub() {
   const session = await requirePermission("inspections.daily", "view");
   if (session.platformMode) redirect("/platform");

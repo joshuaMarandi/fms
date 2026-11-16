@@ -1,4 +1,4 @@
--- 19: Inspections are three kinds: daily pre-trip, mobilization (vehicle_inspections, kind internal)
+-- 19: Inspections are three kinds: daily pre-start, mobilization (vehicle_inspections, kind internal)
 -- and third-party. First aid kit inspection is removed from the app. Its rows stay in the
 -- database, but the resource is gone, so nobody can open them and it leaves every package and role.
 

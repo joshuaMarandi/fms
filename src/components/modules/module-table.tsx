@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { DataTable } from "@/components/patterns/data-table";
 import { ReminderChip, StatusChip } from "@/components/patterns/status-chip";
 import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
+import { DocButton, type DocRef } from "@/components/patterns/doc-button";
 import { usePermissions } from "@/components/permissions/provider";
 import { deleteRecord } from "@/lib/data/records";
 import { getModule } from "@/modules/registry";
@@ -58,6 +59,19 @@ export function renderCell(spec: ColumnSpec, value: unknown): React.ReactNode {
         </span>
       );
     }
+    case "discrepancy": {
+      // Attained minus target km/L. Good when at or above target, or at most 2 km/L below it.
+      const d = Number(value);
+      const good = d >= -CONSUMPTION_TOLERANCE;
+      return (
+        <span className="flex items-center gap-2 tabular-nums">
+          {(d > 0 ? "+" : "") + formatNumber(d, 2)}
+          <StatusChip status={good ? "good" : "poor"} tone={good ? "success" : "danger"} label={good ? t("expenses.fuel.good") : t("expenses.fuel.poor")} />
+        </span>
+      );
+    }
+    case "docs":
+      return <DocButton docs={Array.isArray(value) ? (value as DocRef[]) : []} compact />;
     case "multiline":
       return <span className="block min-w-[200px] max-w-[420px] whitespace-pre-line text-sm">{String(value)}</span>;
     case "bool":
@@ -86,8 +100,15 @@ export function renderCell(spec: ColumnSpec, value: unknown): React.ReactNode {
   }
 }
 
+/** How far below the target km/L a vehicle may be and still count as Good. */
+export const CONSUMPTION_TOLERANCE = 2;
+
 export function exportValue(spec: ColumnSpec, value: unknown): unknown {
   if (value === null || value === undefined) return "";
+  if (spec.type === "discrepancy") {
+    const d = Number(value);
+    return `${d > 0 ? "+" : ""}${formatNumber(d, 2)} (${d >= -CONSUMPTION_TOLERANCE ? t("expenses.fuel.good") : t("expenses.fuel.poor")})`;
+  }
   if (spec.type === "label") return spec.options?.find((o) => o.value === String(value))?.label ? tl(spec.options.find((o) => o.value === String(value))!.label) : value;
   if (spec.type === "tags" && Array.isArray(value)) return value.map((v) => (spec.options?.find((o) => o.value === v) ? tl(spec.options.find((o) => o.value === v)!.label) : v)).join(", ");
   if (spec.type === "status") return hasKey(`status.${value}`) ? t(`status.${value}`) : value;
@@ -98,10 +119,11 @@ export function exportValue(spec: ColumnSpec, value: unknown): unknown {
       .map((a) => `${a.action_required ?? ""} (${hasKey(`status.${a.status}`) ? t(`status.${a.status}`) : a.status})`)
       .join("; ");
   if (spec.type === "datetime") return formatDate(value as string, true);
+  if (spec.type === "docs") return Array.isArray(value) ? (value as DocRef[]).map((d) => d.file_name).join(", ") : "";
   return value;
 }
 
-export function ModuleTable({ moduleKey, rows, pathPrefix, hiddenColumns, variant = "list" }: { moduleKey: string; rows: Row[]; pathPrefix?: string; hiddenColumns?: string[]; variant?: "list" | "details" }) {
+export function ModuleTable({ moduleKey, rows, pathPrefix, hiddenColumns, variant = "list", dateFilter = true }: { moduleKey: string; rows: Row[]; pathPrefix?: string; hiddenColumns?: string[]; variant?: "list" | "details"; dateFilter?: boolean }) {
   const def = getModule(moduleKey);
   const router = useRouter();
   const { can } = usePermissions();
@@ -120,7 +142,8 @@ export function ModuleTable({ moduleKey, rows, pathPrefix, hiddenColumns, varian
         // The status filter chips hold the stored value (for example "anomalies"), not the label.
         ...(spec.key === def.list.statusColumn ? { filterFn: (row: { original: Row }, _id: string, value: unknown) => value === undefined || String(getPath(row.original, spec.key) ?? "") === value } : {}),
         enableHiding: true,
-        meta: { hidden: spec.hidden },
+        // Date columns feed the table's From and To filter.
+        meta: { hidden: spec.hidden, ...(spec.type === "date" || spec.type === "datetime" || spec.type === "reminder_date" ? { dateOf: (row: Row) => getPath(row, spec.key) } : {}) },
       })),
     [def, hiddenKey, variant],
   );
@@ -142,6 +165,7 @@ export function ModuleTable({ moduleKey, rows, pathPrefix, hiddenColumns, varian
           return opt ? tl(opt.label) : undefined;
         }}
         rowHref={(r) => `${base}/${r.id}`}
+        dateFilter={dateFilter}
         canExport={can(def.resource, "export")}
         exportName={def.exportName}
         exportTitle={tl(def.title)}

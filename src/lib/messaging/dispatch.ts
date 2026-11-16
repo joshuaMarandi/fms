@@ -59,7 +59,9 @@ async function run(base: string, limit: number): Promise<DispatchResult> {
         if (!emailConfigured()) outcome = { ok: false, error: "Email is not configured (SMTP_USER, SMTP_PASSWORD).", permanent: true };
         else {
           const mail = await templateEmail(`email.${row.template}`, vars, row.company_id);
-          outcome = await sendMail({ to: row.recipient, ...mail });
+          // Everyone else responsible is copied in (their copy never carries a personal action link).
+          const cc = Array.isArray(row.data.cc) ? (row.data.cc as unknown[]).filter((e): e is string => typeof e === "string" && e.includes("@") && e !== row.recipient) : [];
+          outcome = await sendMail({ to: row.recipient, cc, ...mail });
         }
       } else {
         if (!smsConfigured()) outcome = { ok: false, error: "SMS is not configured (KILAKONA_API_KEY, KILAKONA_API_SECRET, KILAKONA_SENDER_ID).", permanent: true };

@@ -18,9 +18,10 @@ export type DriverRow = {
   is_active: boolean;
   years_driving: number | null;
   licence_expiry: string | null;
+  /** Date the current licence was issued. */
+  licence_start: string | null;
   osha_redo: string | null;
   ddt_refresher: string | null;
-  courses: string[];
 };
 
 export function DriversTable({ rows }: { rows: DriverRow[] }) {
@@ -31,36 +32,17 @@ export function DriversTable({ rows }: { rows: DriverRow[] }) {
       { id: "phone", header: t("drivers.phone_no"), accessorKey: "phone", cell: ({ row }) => (row.original.phone ? <span className="tabular-nums">{row.original.phone}</span> : <span className="text-muted-foreground">—</span>) },
       { id: "employer", header: t("drivers.company"), accessorKey: "employer" },
       { id: "joining_date", header: t("drivers.employment_date"), accessorKey: "joining_date", cell: ({ row }) => formatDate(row.original.joining_date) },
-      ...(can("drivers.training", "view")
-        ? [
-            {
-              id: "courses",
-              header: t("drivers.professional_training"),
-              accessorFn: (r: DriverRow) => r.courses.join(", "),
-              cell: ({ row }) =>
-                row.original.courses.length ? (
-                  <span className="flex max-w-[260px] flex-wrap gap-1">
-                    {row.original.courses.map((c) => (
-                      <span key={c} className="status-chip status-chip-neutral">
-                        {c}
-                      </span>
-                    ))}
-                  </span>
-                ) : (
-                  <span className="text-muted-foreground">{t("drivers.no_training")}</span>
-                ),
-            } as ColumnDef<DriverRow, unknown>,
-          ]
-        : []),
-      ...(can("drivers.licence", "view") ? [{ id: "licence_expiry", header: t("drivers.licence_expiry"), accessorKey: "licence_expiry", cell: ({ row }) => <ReminderChip date={row.original.licence_expiry} showDate /> } as ColumnDef<DriverRow, unknown>] : []),
-      ...(can("expenses.trainings.mandatory", "view") ? [{ id: "ddt_refresher", header: t("drivers.ddt_refresher"), accessorKey: "ddt_refresher", cell: ({ row }) => <ReminderChip date={row.original.ddt_refresher} showDate /> } as ColumnDef<DriverRow, unknown>] : []),
-      ...(can("drivers.osha", "view") ? [{ id: "osha_redo", header: t("drivers.osha_refresher"), accessorKey: "osha_redo", cell: ({ row }) => <ReminderChip date={row.original.osha_redo} showDate /> } as ColumnDef<DriverRow, unknown>] : []),
+      // Experience sits between the employment date and the licence start date.
       {
         id: "years_driving",
         header: t("drivers.experience_years"),
         accessorKey: "years_driving",
         cell: ({ row }) => (row.original.years_driving !== null ? <span className="tabular-nums">{row.original.years_driving}</span> : <span className="text-muted-foreground">—</span>),
       },
+      ...(can("drivers.licence", "view") ? [{ id: "licence_start", header: t("drivers.licence_start"), accessorKey: "licence_start", cell: ({ row }) => formatDate(row.original.licence_start) } as ColumnDef<DriverRow, unknown>] : []),
+      ...(can("drivers.licence", "view") ? [{ id: "licence_expiry", header: t("drivers.licence_expiry"), accessorKey: "licence_expiry", cell: ({ row }) => <ReminderChip date={row.original.licence_expiry} showDate /> } as ColumnDef<DriverRow, unknown>] : []),
+      ...(can("expenses.trainings.mandatory", "view") ? [{ id: "ddt_refresher", header: t("drivers.ddt_refresher"), accessorKey: "ddt_refresher", cell: ({ row }) => <ReminderChip date={row.original.ddt_refresher} showDate /> } as ColumnDef<DriverRow, unknown>] : []),
+      ...(can("drivers.osha", "view") ? [{ id: "osha_redo", header: t("drivers.osha_refresher"), accessorKey: "osha_redo", cell: ({ row }) => <ReminderChip date={row.original.osha_redo} showDate /> } as ColumnDef<DriverRow, unknown>] : []),
     ],
     [can],
   );

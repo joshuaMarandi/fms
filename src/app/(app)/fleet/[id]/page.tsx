@@ -10,12 +10,15 @@ import { VehicleStatus } from "@/components/patterns/vehicle-status";
 import { RecordTitle } from "@/components/modules/record-title";
 import { PrintButton } from "@/components/shell/print-frame";
 import { RemarksThread } from "./remarks-thread";
+import { InspectionHistory, type HistoryRow } from "./inspection-history";
+import { DocButton } from "@/components/patterns/doc-button";
+import { loadDocs, loadDocsByLabel } from "@/lib/data/docs";
 import { Reveal } from "@/components/patterns/reveal";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { loadOptions } from "@/lib/data/records";
 import { VEHICLE_DOCUMENTS } from "@/modules/fleet";
-import { formatDate, formatNumber, todayISO } from "@/lib/utils";
+import { formatDate, formatNumber, formatTzs, todayISO } from "@/lib/utils";
 import { t } from "@/i18n";
 
 export default async function VehiclePage({ params, searchParams }: PageProps<"/fleet/[id]">) {
@@ -37,8 +40,6 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
   if (!vehicle) notFound();
 
   const v = vehicle as Record<string, unknown>;
-  const internal = ((inspections ?? []) as Record<string, unknown>[]).find((i) => i.kind === "internal") ?? null;
-  const third = ((inspections ?? []) as Record<string, unknown>[]).find((i) => i.kind === "third_party") ?? null;
   const safe = safety as { not_safe_for_use: boolean; open_anomalies: number } | null;
   const history = (schedules ?? []) as Record<string, unknown>[];
   const schedule = history[0] ?? null;
@@ -48,10 +49,36 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
   const extra = { vehicle_id: id };
   const paths = [`/fleet/${id}`, "/fleet"];
 
+  // Inspection status: every mobilization and third-party inspection, newest first, with documents.
+  const byDate = (a: { date: string | null }, b: { date: string | null }) => String(b.date ?? "").localeCompare(String(a.date ?? ""));
+  const statusRows = (inspections ?? []) as Record<string, unknown>[];
+  const mobRows = statusRows.filter((i) => i.kind === "internal");
+  const legacyThird = statusRows.filter((i) => i.kind === "third_party");
+  const [{ data: thirdRows }, mobDocs, legacyDocs, vehicleDocs] = await Promise.all([
+    session.can("inspections.third_party", "view")
+      ? supabase.from("third_party_inspections").select("id, inspection_date, renewal_date, inspector").eq("vehicle_id", id).is("deleted_at", null).order("inspection_date", { ascending: false })
+      : Promise.resolve({ data: [] }),
+    loadDocs("vehicle_inspections", mobRows.map((r) => r.id as string)),
+    loadDocs("vehicle_inspections", legacyThird.map((r) => r.id as string)),
+    loadDocsByLabel("vehicles", id, [t("fleet.doc.internal_report"), t("fleet.doc.third_party_report"), t("fleet.doc.insurance_policy")]),
+  ]);
+  const tpList = (thirdRows ?? []) as Record<string, unknown>[];
+  const tpDocs = await loadDocs("third_party_inspections", tpList.map((r) => r.id as string));
+  const mobilizationHistory: HistoryRow[] = mobRows
+    .map((r) => ({ id: r.id as string, date: (r.inspection_date as string) ?? null, next: (r.renewal_date as string) ?? null, note: (r.notes as string) ?? null, href: `/inspections/mobilization/${r.id}`, docs: mobDocs.get(r.id as string) ?? [] }))
+    .sort(byDate);
+  const thirdHistory: HistoryRow[] = [
+    ...tpList.map((r) => ({ id: r.id as string, date: (r.inspection_date as string) ?? null, next: (r.renewal_date as string) ?? null, note: (r.inspector as string) ?? null, href: `/inspections/third-party/${r.id}`, docs: tpDocs.get(r.id as string) ?? [] })),
+    ...legacyThird.map((r) => ({ id: r.id as string, date: (r.inspection_date as string) ?? null, next: (r.renewal_date as string) ?? null, note: (r.notes as string) ?? null, href: null, docs: legacyDocs.get(r.id as string) ?? [] })),
+  ].sort(byDate);
+  const docWith = (key: string) => vehicleDocs.filter((d) => d.label.toLowerCase() === t(key).toLowerCase());
+  const insuranceId = (insurance as Record<string, unknown> | null)?.id as string | undefined;
+  const insuranceDocs = [...docWith("fleet.doc.insurance_policy"), ...(insuranceId ? ((await loadDocs("vehicle_insurance", [insuranceId])).get(insuranceId) ?? []) : [])];
+
   const [{ data: recentTrips }, { data: recentFuel }, { data: recentWork }] = await Promise.all([
     supabase.from("km_logs").select("id, log_date, total_km, trip_count").eq("vehicle_id", id).is("deleted_at", null).order("log_date", { ascending: false }).limit(8),
     supabase.from("fuel_issues").select("id, issue_date, fuel_issued_l, total_cost_tzs, consumption_km_per_l").eq("vehicle_id", id).is("deleted_at", null).order("issue_date", { ascending: false }).limit(8),
-    supabase.from("work_orders").select("id, date_out, date_in, garage_name, total_days, status").eq("vehicle_id", id).is("deleted_at", null).order("date_out", { ascending: false }).limit(8),
+    supabase.from("maintenance_costs").select("id, cost_date, service_provider, cost_tzs").eq("vehicle_id", id).is("deleted_at", null).order("cost_date", { ascending: false }).limit(8),
   ]);
 
   return (
@@ -96,28 +123,31 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
         </TabsContent>
 
         <TabsContent value="inspection" className="space-y-6">
-          <div className="grid gap-6 lg:grid-cols-2">
-            <div>
-              <div className="mb-2 flex items-center gap-2 text-sm">
-                <span className="font-medium">{t("fleet.internal_renewal_date")}</span>
-                <ReminderChip date={(internal?.renewal_date as string) ?? null} />
-              </div>
-              <SchemaForm schemaKey="fleet.inspection.internal" record={internal ? { ...internal } : { kind: "internal" }} extra={{ ...extra, kind: "internal" }} revalidate={paths} readOnly={!session.can("fleet.inspection_status", "edit")} />
-            </div>
-            <div>
-              <div className="mb-2 flex items-center gap-2 text-sm">
-                <span className="font-medium">{t("fleet.third_party_next_date")}</span>
-                <ReminderChip date={(third?.renewal_date as string) ?? null} />
-              </div>
-              <SchemaForm schemaKey="fleet.inspection.third_party" record={third ? { ...third } : { kind: "third_party" }} extra={{ ...extra, kind: "third_party" }} revalidate={paths} readOnly={!session.can("fleet.inspection_status", "edit")} />
-            </div>
-          </div>
+          <InspectionHistory
+            title={t("inspections.mobilization.title")}
+            nextLabel={t("inspections.mobilization.renewal")}
+            noteLabel={t("common.notes")}
+            rows={mobilizationHistory}
+            report={docWith("fleet.doc.internal_report")}
+            addHref={session.can("fleet.inspection_status", "create") ? `/inspections/mobilization/new?vehicle=${id}` : null}
+          />
+          <InspectionHistory
+            title={t("inspections.third_party.title")}
+            nextLabel={t("inspections.next_date")}
+            noteLabel={t("inspections.inspector")}
+            rows={thirdHistory}
+            report={docWith("fleet.doc.third_party_report")}
+            addHref={session.can("inspections.third_party", "create") ? `/inspections/third-party/new?vehicle=${id}` : null}
+          />
         </TabsContent>
 
         <TabsContent value="insurance">
           <div className="mb-2 flex items-center gap-2 text-sm">
             <span className="font-medium">{t("fleet.insurance_end")}</span>
             <ReminderChip date={((insurance as Record<string, unknown> | null)?.end_date as string) ?? null} />
+            <span className="ml-auto">
+              <DocButton docs={insuranceDocs} label={insuranceDocs.length === 1 ? insuranceDocs[0]!.label : undefined} />
+            </span>
           </div>
           <SchemaForm schemaKey="fleet.insurance" record={insurance as Record<string, unknown> | null} extra={extra} revalidate={paths} readOnly={!session.can("fleet.insurance", "edit")} />
         </TabsContent>
@@ -192,7 +222,7 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
         <TabsContent value="history" className="grid gap-6 lg:grid-cols-3">
           <HistoryCard title={t("daily_use.km_log.title")} href="/daily-use/km-log" rows={((recentTrips ?? []) as Record<string, unknown>[]).map((r) => ({ id: r.id as string, a: formatDate(r.log_date as string), b: `${r.trip_count} ${t("nav.trips").toLowerCase()}`, c: `${formatNumber(r.total_km as number)} km` }))} base="/daily-use/km-log" />
           <HistoryCard title={t("daily_use.fuel.title")} href="/daily-use/fuel-log" rows={((recentFuel ?? []) as Record<string, unknown>[]).map((r) => ({ id: r.id as string, a: formatDate(r.issue_date as string), b: `${formatNumber(r.fuel_issued_l as number, 1)} L`, c: r.consumption_km_per_l ? `${formatNumber(r.consumption_km_per_l as number, 2)} km/L` : "" }))} base="/expenses/fuel" linkable={false} />
-          <HistoryCard title={t("expenses.maintenance.work_orders.title")} href="/expenses/maintenance/work-orders" rows={((recentWork ?? []) as Record<string, unknown>[]).map((r) => ({ id: r.id as string, a: formatDate(r.date_out as string), b: r.garage_name as string, c: r.total_days !== null && r.total_days !== undefined ? `${r.total_days} ${t("common.days")}` : t(`status.${r.status}`) }))} base="/expenses/maintenance/work-orders" />
+          <HistoryCard title={t("expenses.maintenance.costs.title")} href="/expenses/maintenance/costs" rows={((recentWork ?? []) as Record<string, unknown>[]).map((r) => ({ id: r.id as string, a: formatDate(r.cost_date as string), b: (r.service_provider as string) ?? "", c: formatTzs(r.cost_tzs as number) }))} base="/expenses/maintenance/costs" />
         </TabsContent>
       </Tabs>
     </>

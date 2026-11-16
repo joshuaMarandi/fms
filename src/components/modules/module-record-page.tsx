@@ -1,4 +1,7 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { FileText } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shell/page-header";
 import { SchemaForm } from "@/components/patterns/schema-form";
 import { ApprovalPanel, type RequestLike } from "@/components/patterns/approval-panel";
@@ -11,6 +14,8 @@ import { getModule } from "@/modules/registry";
 import { allFields } from "@/lib/forms/schema";
 import { DetailExtra } from "@/modules/extras";
 import { t } from "@/i18n";
+
+const DOCUMENT_TABLES = new Set(["vehicle_requests", "fuel_requests", "leave_requests", "maintenance_requests"]);
 
 export async function loadRecordWithChildren(moduleKey: string, id: string) {
   const def = getModule(moduleKey);
@@ -36,7 +41,13 @@ export async function ModuleRecordPage({ moduleKey, id, preset }: { moduleKey: s
   const session = await requirePermission(def.resource, id ? "view" : "create");
   const supabase = await createClient();
 
-  const [record, options] = await Promise.all([id ? loadRecordWithChildren(moduleKey, id) : Promise.resolve(null), loadOptions(def.optionSources)]);
+  // Requests have a printable document and keep a record of who viewed them.
+  const isRequestDoc = DOCUMENT_TABLES.has(def.table);
+  const [record, options] = await Promise.all([
+    id ? loadRecordWithChildren(moduleKey, id) : Promise.resolve(null),
+    loadOptions(def.optionSources),
+    id && isRequestDoc ? supabase.rpc("log_record_view", { p_table: def.table, p_id: id }) : Promise.resolve(null),
+  ]);
   if (id && !record) notFound();
 
   const status = (record?.status as string | undefined) ?? undefined;
@@ -55,7 +66,23 @@ export async function ModuleRecordPage({ moduleKey, id, preset }: { moduleKey: s
   return (
     <>
       <RecordTitle title={record ? title : null} />
-      <PageHeader title={title} description={record ? undefined : t(def.description)} actions={record ? <PrintButton /> : undefined} />
+      <PageHeader
+        title={title}
+        description={record ? undefined : t(def.description)}
+        actions={
+          record ? (
+            isRequestDoc ? (
+              <Button asChild variant="outline" className="h-10">
+                <Link href={`/documents/${def.table}/${record.id}`} target="_blank">
+                  <FileText /> {t("doc.open_document")}
+                </Link>
+              </Button>
+            ) : (
+              <PrintButton />
+            )
+          ) : undefined
+        }
+      />
       <div className={showApproval ? "grid gap-6 lg:grid-cols-3" : undefined}>
         <div className={showApproval ? "lg:col-span-2" : undefined}>
           <SchemaForm

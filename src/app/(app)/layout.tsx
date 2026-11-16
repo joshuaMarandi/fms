@@ -8,6 +8,7 @@ import { OfflineBanner } from "@/components/pwa/offline-banner";
 import { SubscriptionBlocked } from "@/components/shell/subscription-blocked";
 import { OwnerWorkspaceBar } from "@/components/shell/owner-workspace-bar";
 import { PrintFrame } from "@/components/shell/print-frame";
+import { WaitingRequestsGate } from "@/components/shell/waiting-requests-gate";
 import { requireSession } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import type { Locale } from "@/i18n";
@@ -56,6 +57,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             {session.permissions.isOwner && session.company ? <OwnerWorkspaceBar companyName={session.company.name} /> : null}
             <main className={`flex-1 p-4 md:p-6 ${session.isDriverOnly ? "pb-24 md:pb-6" : ""}`}>
               <PrintFrame />
+              {!session.platformMode && !blocked ? <WaitingRequestsGate /> : null}
               <div className="mx-auto w-full max-w-[1400px] space-y-6">{blocked ? <SubscriptionBlocked subscription={session.subscription} companyName={session.company?.name ?? null} /> : children}</div>
             </main>
             {session.isDriverOnly ? <DriverBottomNav /> : null}

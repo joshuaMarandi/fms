@@ -10,6 +10,7 @@ import { isPeriod, monthRange, periodRange, yearRange } from "./periods";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { getModule } from "@/modules/registry";
+import { loadDocs } from "@/lib/data/docs";
 import { formatDate, formatNumber, todayISO } from "@/lib/utils";
 import { t } from "@/i18n";
 
@@ -90,13 +91,19 @@ export async function VehicleRecordsPage({
 
   const vehicleParam = one(searchParams.vehicle) ?? "all";
   const vehicle = /^[0-9a-f-]{36}$/i.test(vehicleParam) ? vehicleParam : null;
+  // Date filter: a quick period, a month (monthly records), a year (yearly records) or From and To.
+  const isDay = (v: string | undefined) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
   const periodParam = one(searchParams.period);
-  const period = monthly && isPeriod(periodParam) ? periodParam : null;
+  const period = isPeriod(periodParam) ? periodParam : null;
   const monthParam = one(searchParams.month);
   const month = monthly && !period && monthParam && /^\d{4}-\d{2}$/.test(monthParam) ? monthParam : null;
   const yearParam = one(searchParams.year);
-  const year = yearly && yearParam && /^d{4}$/.test(yearParam) ? Number(yearParam) : null;
-  const range = period ? periodRange(period, today) : month ? monthRange(month) : year ? yearRange(year) : null;
+  const year = yearly && !period && yearParam && /^\d{4}$/.test(yearParam) ? Number(yearParam) : null;
+  const fromParam = one(searchParams.from);
+  const toParam = one(searchParams.to);
+  const from = !period && !month && !year && isDay(fromParam) ? fromParam! : null;
+  const to = !period && !month && !year && isDay(toParam) ? toParam! : null;
+  const range = period ? periodRange(period, today) : month ? monthRange(month) : year ? yearRange(year) : from || to ? { from: from ?? "0000-01-01", to: to ?? "9999-12-31" } : null;
   const details = one(searchParams.details) === "1" && !!def.list.detailColumns;
 
   let query = supabase.from(def.table).select(details && def.list.detailSelect ? def.list.detailSelect : def.list.select).is("deleted_at", null);
@@ -111,6 +118,14 @@ export async function VehicleRecordsPage({
     supabase.from("vehicles").select("id, registration, make, model").is("deleted_at", null).order("registration"),
   ]);
   const rows = ((data ?? []) as unknown as Row[]).map((r) => (def.list.derive ? { ...r, ...def.list.derive(r) } : r));
+
+  // Attached documents, for a "docs" column (viewed in a dialog from the table).
+  const shownColumns = details && def.list.detailColumns ? def.list.detailColumns : def.list.columns;
+  const docsCol = shownColumns.find((c) => c.type === "docs");
+  if (docsCol) {
+    const docs = await loadDocs(def.table, rows.map((r) => r.id));
+    for (const r of rows) r[docsCol.key] = docs.get(r.id) ?? [];
+  }
 
   // Previous record date per group (for example the vehicle's previous third-party inspection).
   const prev = def.list.previous;
@@ -129,9 +144,13 @@ export async function VehicleRecordsPage({
     ? `${t(`hub.period.${period}`)} (${formatDate(range!.from)} – ${formatDate(range!.to)})`
     : month
       ? `${MONTHS[Number(month.slice(5)) - 1]} ${month.slice(0, 4)}`
-      : t("hub.all_time");
+      : year
+        ? String(year)
+        : from || to
+          ? [from ? formatDate(from) : "…", to ? formatDate(to) : "…"].join(" – ")
+          : t("hub.all_time");
   const title = current ? `${current.registration} · ${t(def.title)}` : t(def.title);
-  const description = [current ? `${current.make} ${current.model}` : t("hub.all_vehicles"), monthly ? whenLabel : yearly ? (year ? String(year) : t("hub.all_time")) : null].filter(Boolean).join(" · ");
+  const description = [current ? `${current.make} ${current.model}` : t("hub.all_vehicles"), whenLabel].filter(Boolean).join(" · ");
   const tiles = details ? null : summaryFor(def.key, rows);
 
   return (
@@ -166,6 +185,8 @@ export async function VehicleRecordsPage({
         monthly={monthly}
         yearly={yearly}
         year={year}
+        from={from}
+        to={to}
         details={details}
         hasDetails={!!def.list.detailColumns}
         currentYear={cy}
@@ -173,7 +194,7 @@ export async function VehicleRecordsPage({
       />
       {tiles ? <HubSummary tiles={tiles} /> : null}
       {error ? <p className="rounded-lg bg-danger-bg p-3 text-sm text-danger">{error.message}</p> : null}
-      <ModuleTable moduleKey={def.key} rows={rows} variant={details ? "details" : "list"} hiddenColumns={vehicle && !def.list.keepVehicleColumn ? ["vehicle.registration"] : []} />
+      <ModuleTable moduleKey={def.key} rows={rows} variant={details ? "details" : "list"} hiddenColumns={vehicle && !def.list.keepVehicleColumn ? ["vehicle.registration"] : []} dateFilter={false} />
     </>
   );
 }

@@ -1,11 +1,10 @@
-import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { StatusChip } from "@/components/patterns/status-chip";
 import { SignatureSummary, type SignatureValue } from "@/components/patterns/signature-field";
 import { FuelIssueForm } from "@/components/modules/fuel-issue-form";
 import { JmpReviewPanel, type JmpReview } from "@/components/modules/jmp-review-panel";
 import { AttachmentsBox } from "@/components/patterns/attachments-box";
+import { HubSummary } from "@/components/hub/vehicle-hub";
+import { loadDocs } from "@/lib/data/docs";
 import { getSession } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import type { LoadedOptions } from "@/lib/data/records";
@@ -48,6 +47,20 @@ export async function DetailExtra({ name, record, options }: { name: string; rec
         supabase.from("jmp_reviews").select("*").eq("vehicle_request_id", record.id as string).order("step_order"),
       ]);
       if (!assignment && (!reviews || reviews.length === 0)) return null;
+      // JMP: each step's files, and the step the signed-in person may do now.
+      const jmpRows = (reviews ?? []) as JmpReview[];
+      const jmpMethod = record.jmp_method === "manual" ? "manual" : "automatic";
+      const jmpDocs = await loadDocs("jmp_reviews", jmpRows.map((r) => r.id));
+      const nextStep = jmpRows.filter((r) => ["prepare", "requester", "hse_manager"].includes(r.step)).find((r) => r.decision === null) ?? null;
+      let actionableId: string | null = null;
+      if (nextStep) {
+        if (jmpMethod === "manual") {
+          const { data: ok } = await supabase.rpc("can_upload_jmp_file", { p_review: nextStep.id });
+          if (ok) actionableId = nextStep.id;
+        } else if (session.can(nextStep.required_resource, "approve")) {
+          actionableId = nextStep.id;
+        }
+      }
       const a = assignment as Record<string, unknown> | null;
       const driver = a?.driver as { full_name: string; phone: string | null } | null;
       const vehicle = a?.vehicle as { registration: string; make: string; model: string } | null;
@@ -86,43 +99,30 @@ export async function DetailExtra({ name, record, options }: { name: string; rec
               </CardContent>
             </Card>
           ) : null}
-          {reviews && reviews.length > 0 ? <JmpReviewPanel requestId={record.id as string} reviews={reviews as JmpReview[]} /> : null}
+          {jmpRows.length > 0 ? (
+            <JmpReviewPanel
+              requestId={record.id as string}
+              reviews={jmpRows.map((r) => ({ ...r, docs: jmpDocs.get(r.id) ?? [] }))}
+              method={jmpMethod}
+              actionableId={actionableId}
+              monitorsNotifiedAt={(record.jmp_monitors_notified_at as string | null) ?? null}
+              approved={record.status === "approved" || record.status === "completed"}
+            />
+          ) : null}
         </div>
       );
     }
     case "works_order": {
-      const { data: orders } = await supabase.from("work_orders").select("id, order_number, garage_name, date_out, date_in, total_days, status").eq("maintenance_request_id", record.id as string).is("deleted_at", null);
-      const list = (orders ?? []) as Record<string, unknown>[];
+      // Maintenance request: the approver attaches the paperwork (works order, job card, invoice).
+      if (!session.can("expenses.maintenance.requests", "approve")) return null;
       return (
         <Card className="mt-6">
           <CardHeader>
-            <CardTitle className="text-base">{t("expenses.maintenance.works_order")}</CardTitle>
-            <CardDescription>{t("expenses.maintenance.work_orders.description")}</CardDescription>
+            <CardTitle className="text-base">{t("common.documents")}</CardTitle>
+            <CardDescription>{t("common.documents_hint")}</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            {list.length === 0 ? <p className="text-muted-foreground">{t("common.empty_title")}</p> : null}
-            {list.map((o) => (
-              <Link key={o.id as string} href={`/expenses/maintenance/work-orders/${o.id}`} className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/40">
-                <span>
-                  <span className="font-medium">{(o.order_number as string) ?? t("expenses.maintenance.works_order")}</span> · {o.garage_name as string}
-                  <span className="block text-xs text-muted-foreground">
-                    {formatDate(o.date_out as string)} {o.date_in ? `to ${formatDate(o.date_in as string)}` : ""} {o.total_days !== null && o.total_days !== undefined ? `· ${o.total_days} ${t("common.days")}` : ""}
-                  </span>
-                </span>
-                <StatusChip status={o.status as string} />
-              </Link>
-            ))}
-            {session.can("expenses.maintenance.work_orders", "create") && record.status === "approved" ? (
-              <Button asChild variant="outline">
-                <Link href={`/expenses/maintenance/work-orders/new?request=${record.id}&vehicle=${record.vehicle_id}`}>{t("expenses.maintenance.work_orders.new")}</Link>
-              </Button>
-            ) : null}
-            {session.can("expenses.maintenance.requests", "approve") ? (
-              <div>
-                <p className="mb-2 text-xs text-muted-foreground">{t("expenses.maintenance.works_order")}</p>
-                <AttachmentsBox table="maintenance_requests" rowId={record.id as string} resource="expenses.maintenance.requests" bucket="forms" labels={[t("expenses.maintenance.doc.works_order")]} />
-              </div>
-            ) : null}
+          <CardContent>
+            <AttachmentsBox table="maintenance_requests" rowId={record.id as string} resource="expenses.maintenance.requests" bucket="forms" labels={[t("expenses.maintenance.doc.works_order"), t("expenses.maintenance.doc.job_card"), t("expenses.maintenance.doc.invoice")]} />
           </CardContent>
         </Card>
       );
@@ -181,6 +181,23 @@ export async function ListExtra({ name }: { name: string; searchParams?: Record<
   const supabase = await createClient();
 
   switch (name) {
+    case "petty_cash_summary": {
+      // Reconciliation: money received, money spent and what should be left in the box.
+      const { data } = await supabase.from("petty_cash_entries").select("kind, amount_tzs, entry_date").is("deleted_at", null).limit(5000);
+      const rows = (data ?? []) as { kind: string; amount_tzs: number; entry_date: string }[];
+      const received = rows.filter((r) => r.kind === "received").reduce((s, r) => s + Number(r.amount_tzs ?? 0), 0);
+      const spent = rows.filter((r) => r.kind === "spent").reduce((s, r) => s + Number(r.amount_tzs ?? 0), 0);
+      const balance = received - spent;
+      return (
+        <HubSummary
+          tiles={[
+            { label: t("admin.petty_cash.total_received"), value: formatTzs(received) },
+            { label: t("admin.petty_cash.total_spent"), value: formatTzs(spent) },
+            { label: t("admin.petty_cash.balance"), value: formatTzs(balance), sub: t("admin.petty_cash.balance_hint"), tone: balance < 0 ? "danger" : undefined },
+          ]}
+        />
+      );
+    }
     case "wash_report": {
       if (!session.can("expenses.washing", "view") || session.scope("expenses.washing", "view") === "own") return null;
       const { data } = await supabase.from("v_wash_cost_report").select("*").in("status", ["approved", "completed"]).order("request_date", { ascending: false }).limit(500);

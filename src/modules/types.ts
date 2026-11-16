@@ -2,7 +2,7 @@ import type { FormSchema, Option, OptionSource } from "@/lib/forms/schema";
 import type { LoadedOptions } from "@/lib/data/records";
 import type { ApprovalExtraField } from "@/components/patterns/approval-panel";
 
-export type ColumnType = "text" | "number" | "tzs" | "date" | "datetime" | "time" | "status" | "reminder" | "reminder_date" | "bool" | "tags" | "km" | "litres" | "hours" | "label" | "actions" | "multiline";
+export type ColumnType = "text" | "number" | "tzs" | "date" | "datetime" | "time" | "status" | "reminder" | "reminder_date" | "bool" | "tags" | "km" | "litres" | "hours" | "label" | "actions" | "multiline" | "docs" | "discrepancy";
 
 export type ColumnSpec = {
   /** Dot path into the row (joins come back nested, for example vehicle.registration) */

@@ -51,16 +51,23 @@ export const fuelExpenses: ModuleDef = {
     ],
   },
   list: {
-    select: "*, vehicle:vehicles(registration)",
+    select: "*, vehicle:vehicles(registration, target_km_per_l)",
     orderBy: { column: "expense_date", ascending: false },
     searchKeys: ["vehicle.registration"],
+    // Discrepancy: attained km/L against the target (the record's, else the vehicle's default).
+    derive: (r) => {
+      const target = r.target_km_per_l ?? (r.vehicle as { target_km_per_l?: number | null } | undefined)?.target_km_per_l ?? null;
+      const attained = r.attained_km_per_l;
+      return { discrepancy: target === null || target === undefined || attained === null || attained === undefined ? null : Math.round((Number(attained) - Number(target)) * 100) / 100 };
+    },
     columns: [
       { key: "expense_date", header: "common.date", type: "date" },
-      { key: "vehicle.registration", header: "inspections.vehicle" },
+      { key: "vehicle.registration", header: "fleet.reg" },
+      { key: "km_start", header: "expenses.fuel.km_start", type: "km" },
+      { key: "km_end", header: "expenses.fuel.km_end", type: "km" },
       { key: "km_run", header: "expenses.fuel.km_run", type: "km" },
-      { key: "fuel_consumed_l", header: "expenses.fuel.consumed", type: "litres" },
-      { key: "target_km_per_l", header: "expenses.fuel.target", type: "number", digits: 1 },
       { key: "attained_km_per_l", header: "expenses.fuel.attained", type: "number", digits: 2 },
+      { key: "discrepancy", header: "expenses.fuel.discrepancy", type: "discrepancy" },
       { key: "price_per_litre", header: "expenses.fuel.price", type: "tzs" },
       { key: "amount_tzs", header: "expenses.fuel.amount", type: "tzs" },
     ],
@@ -136,67 +143,6 @@ export const maintenanceRequests: ModuleDef = {
   },
 };
 
-export const workOrders: ModuleDef = {
-  key: "expenses.maintenance.work_orders",
-  path: "/expenses/maintenance/work-orders",
-  resource: "expenses.maintenance.work_orders",
-  table: "work_orders",
-  title: "expenses.maintenance.work_orders.title",
-  description: "expenses.maintenance.work_orders.description",
-  newLabel: "expenses.maintenance.work_orders.new",
-  exportName: "work-orders",
-  optionSources: ["vehicles", "maintenance_requests"],
-  titleOf: (r) => `${r.order_number ?? ""} ${(r.vehicle as { registration?: string } | undefined)?.registration ?? ""}`.trim(),
-  schema: {
-    table: "work_orders",
-    resource: "expenses.maintenance.work_orders",
-    sections: [
-      {
-        title: "expenses.maintenance.works_order",
-        fields: [
-          vehicleField,
-          { name: "maintenance_request_id", label: "expenses.maintenance.requests.title", control: "select", source: "maintenance_requests", sourceFilter: (o, v) => !v.vehicle_id || o.vehicle_id === v.vehicle_id },
-          { name: "order_number", label: "expenses.maintenance.order_number", control: "text" },
-          { name: "garage_name", label: "expenses.maintenance.garage", control: "text", required: true },
-          { name: "description", label: "expenses.maintenance.work_description", control: "textarea", required: true },
-        ],
-      },
-      {
-        title: "expenses.maintenance.work_orders.title",
-        fields: [
-          { name: "date_out", label: "expenses.maintenance.date_out", control: "date", required: true },
-          { name: "date_in", label: "expenses.maintenance.date_in", control: "date" },
-          { name: "odometer_out", label: "expenses.maintenance.odometer_out", control: "number", min: 0, unit: "km" },
-          { name: "odometer_in", label: "expenses.maintenance.odometer_in", control: "number", min: 0, unit: "km" },
-          { name: "total_days", label: "expenses.maintenance.total_days", control: "auto", format: "number", digits: 0, compute: (v) => (v.date_in && v.date_out ? Math.round((new Date(v.date_in as string).getTime() - new Date(v.date_out as string).getTime()) / 86400000) : null) },
-          { name: "mileage_during_repairs", label: "expenses.maintenance.mileage_during", control: "auto", format: "km", compute: (v) => safe(num(v.odometer_in) - num(v.odometer_out)) },
-        ],
-      },
-      {
-        title: "common.documents",
-        description: "common.documents_hint",
-        fields: [{ name: "documents", label: "common.attachments", control: "file", bucket: "forms", labels: ["expenses.maintenance.doc.works_order", "expenses.maintenance.doc.job_card", "expenses.maintenance.doc.invoice", "expenses.maintenance.doc.photos"] }],
-      }
-    ],
-  },
-  list: {
-    select: "*, vehicle:vehicles(registration)",
-    orderBy: { column: "date_out", ascending: false },
-    searchKeys: ["vehicle.registration", "garage_name", "order_number"],
-    statusColumn: "status",
-    columns: [
-      { key: "order_number", header: "expenses.maintenance.order_number" },
-      { key: "vehicle.registration", header: "inspections.vehicle" },
-      { key: "garage_name", header: "expenses.maintenance.garage" },
-      { key: "date_out", header: "expenses.maintenance.date_out", type: "date" },
-      { key: "date_in", header: "expenses.maintenance.date_in", type: "date" },
-      { key: "total_days", header: "expenses.maintenance.total_days", type: "number", digits: 0 },
-      { key: "mileage_during_repairs", header: "expenses.maintenance.mileage_during", type: "km" },
-      { key: "status", header: "common.status", type: "status" },
-    ],
-  },
-};
-
 export const maintenanceCosts: ModuleDef = {
   key: "expenses.maintenance.costs",
   path: "/expenses/maintenance/costs",
@@ -206,7 +152,7 @@ export const maintenanceCosts: ModuleDef = {
   description: "expenses.maintenance.costs.description",
   newLabel: "expenses.maintenance.costs.new",
   exportName: "maintenance-costs",
-  optionSources: ["vehicles", "work_orders"],
+  optionSources: ["vehicles"],
   titleOf: (r) => `${(r.vehicle as { registration?: string } | undefined)?.registration ?? ""} ${r.cost_date ?? ""}`.trim(),
   schema: {
     table: "maintenance_costs",
@@ -215,7 +161,6 @@ export const maintenanceCosts: ModuleDef = {
       {
         fields: [
           vehicleField,
-          { name: "work_order_id", label: "expenses.maintenance.order_number", control: "select", source: "work_orders", sourceFilter: (o, v) => !v.vehicle_id || o.vehicle_id === v.vehicle_id },
           { name: "cost_date", label: "common.date", control: "date", required: true },
           { name: "odometer_km", label: "expenses.maintenance.odometer", control: "number", min: 0, unit: "km" },
           {
@@ -357,46 +302,6 @@ export const washRequests: ModuleDef = {
       { key: "service_provider", header: "expenses.washing.provider" },
       { key: "cost_tzs", header: "expenses.washing.cost", type: "tzs" },
       { key: "status", header: "common.status", type: "status" },
-    ],
-  },
-};
-
-const EQUIPMENT: Option[] = ["wheel_spanner", "wheel_chocks", "lifting_jack", "reflective_triangles", "spare_tyre", "fire_extinguisher", "first_aid_box", "jumping_cable", "towing_rope", "spade"].map((k) => ({ value: k, label: `expenses.equipment.item.${k}` }));
-
-export const vehicleEquipment: ModuleDef = {
-  key: "expenses.equipment",
-  path: "/expenses/equipment",
-  resource: "expenses.equipment",
-  table: "vehicle_equipment",
-  title: "expenses.equipment.title",
-  description: "expenses.equipment.description",
-  newLabel: "expenses.equipment.new",
-  exportName: "vehicle-equipment",
-  optionSources: ["vehicles"],
-  titleOf: (r) => `${(r.vehicle as { registration?: string } | undefined)?.registration ?? ""} ${r.check_date ?? ""}`.trim(),
-  schema: {
-    table: "vehicle_equipment",
-    resource: "expenses.equipment",
-    sections: [
-      {
-        fields: [
-          vehicleField,
-          { name: "check_date", label: "common.date", control: "date", required: true },
-          { name: "items", label: "expenses.equipment.items", control: "checkbox_group", options: EQUIPMENT, columns: 2 },
-          { name: "remarks", label: "common.remarks", control: "textarea" },
-        ],
-      },
-    ],
-  },
-  list: {
-    select: "*, vehicle:vehicles(registration)",
-    orderBy: { column: "check_date", ascending: false },
-    searchKeys: ["vehicle.registration"],
-    columns: [
-      { key: "check_date", header: "common.date", type: "date" },
-      { key: "vehicle.registration", header: "inspections.vehicle" },
-      { key: "items", header: "expenses.equipment.items", type: "tags", options: EQUIPMENT },
-      { key: "remarks", header: "common.remarks" },
     ],
   },
 };

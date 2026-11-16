@@ -1,6 +1,7 @@
 import type { ModuleDef } from "./types";
 import { dailyInspections, mobilizationInspections, thirdPartyInspections } from "./inspections";
-import { fuelLog, kmLogs, tripRequests } from "./daily-use";
+import { fuelIssues, fuelLog, kmLogs, tripRequests } from "./daily-use";
+import { fleetRoster, outstationAllowances, pettyCash } from "./administration";
 import {
   fuelExpenses,
   incidents,
@@ -13,9 +14,7 @@ import {
   timesheets,
   toolboxPlans,
   tyreRequests,
-  vehicleEquipment,
   washRequests,
-  workOrders,
 } from "./expenses";
 
 export const MODULES: ModuleDef[] = [
@@ -24,14 +23,13 @@ export const MODULES: ModuleDef[] = [
   thirdPartyInspections,
   kmLogs,
   fuelLog,
+  fuelIssues,
   tripRequests,
   fuelExpenses,
   maintenanceRequests,
-  workOrders,
   maintenanceCosts,
   tyreRequests,
   washRequests,
-  vehicleEquipment,
   mandatoryTrainings,
   toolboxPlans,
   timesheets,
@@ -39,6 +37,9 @@ export const MODULES: ModuleDef[] = [
   leaveRequests,
   leaveBalances,
   incidents,
+  fleetRoster,
+  outstationAllowances,
+  pettyCash,
 ];
 
 const byKey = new Map(MODULES.map((m) => [m.key, m]));

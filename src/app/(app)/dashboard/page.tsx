@@ -44,7 +44,7 @@ import { t } from "@/i18n";
 type Row = Record<string, unknown>;
 
 const REQUESTS = [
-  { table: "fuel_requests", resource: "daily_use.fuel_log", path: "/daily-use/fuel-log", label: "daily_use.fuel.title", select: "id, request_date, created_at, vehicle:vehicles(registration)" },
+  { table: "fuel_requests", resource: "daily_use.fuel_log", path: "/daily-use/fuel-requests", label: "daily_use.fuel.title", select: "id, request_date, created_at, vehicle:vehicles(registration)" },
   { table: "vehicle_requests", resource: "daily_use.trip_requests", path: "/daily-use/trip-requests", label: "daily_use.trips.title", select: "id, requester_name, destination, created_at" },
   { table: "maintenance_requests", resource: "expenses.maintenance.requests", path: "/expenses/maintenance/requests", label: "expenses.maintenance.requests.title", select: "id, request_date, created_at, vehicle:vehicles(registration)" },
   { table: "tyre_requests", resource: "expenses.tyres", path: "/expenses/tyres", label: "expenses.tyres.title", select: "id, request_date, created_at, vehicle:vehicles(registration)" },
@@ -99,7 +99,6 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
     { data: costRows },
     { data: kmLogs },
     { data: vreq },
-    { data: workOrders },
     { data: reminders },
     { data: trainings },
     { data: drivers },
@@ -119,7 +118,6 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
     can("expenses", "view") ? supabase.rpc("generate_report", { p_type: "fleet_cost", p_filters: { from: mk[0] + "-01", to, vehicle_id: vehicleId } }) : { data: [] },
     can("daily_use.km_log", "view") ? supabase.from("km_logs").select("vehicle_id, log_date, total_km, trip_count").is("deleted_at", null).gte("log_date", from).lte("log_date", to) : { data: [] },
     can("daily_use.trip_requests", "view") ? supabase.from("vehicle_requests").select("status, requested_at").is("deleted_at", null).gte("requested_at", from).lte("requested_at", to + "T23:59:59") : { data: [] },
-    can("expenses.maintenance.work_orders", "view") ? supabase.from("work_orders").select("vehicle_id, total_days, date_out").is("deleted_at", null).gte("date_out", from).lte("date_out", to) : { data: [] },
     supabase.from("reminders").select("reminder_type, due_date, due_km, title, vehicle_id, driver_id, resource_key").is("deleted_at", null).neq("status", "done").order("due_date", { ascending: true, nullsFirst: false }),
     can("expenses.trainings.mandatory", "view") ? supabase.from("mandatory_trainings").select("driver_id, courses").is("deleted_at", null) : { data: [] },
     can("drivers.personal", "view") ? supabase.from("drivers").select("id").is("deleted_at", null).eq("is_active", true) : { data: [] },
@@ -170,10 +168,6 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
   // Requests by status
   const vr = (vreq ?? []) as { status: string }[];
   const requestsByStatus = ["submitted", "approved", "rejected"].map((s) => ({ key: s, label: t(`status.${s}`), value: vr.filter((r) => r.status === s).length })).filter((x) => x.value > 0);
-
-  // Days out of service
-  const wo = vf((workOrders ?? []) as { vehicle_id: string; total_days: number | null }[]);
-  const daysOut = Array.from(new Set(wo.map((r) => r.vehicle_id))).map((vid) => ({ label: vehicleName.get(vid) ?? vid.slice(0, 6), days: wo.filter((r) => r.vehicle_id === vid).reduce((s, r) => s + Number(r.total_days ?? 0), 0) }));
 
   // Compliance
   const rem = (reminders ?? []) as { reminder_type: string; due_date: string | null; title: string; vehicle_id: string | null; driver_id: string | null }[];
@@ -358,11 +352,6 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
       {can("daily_use.trip_requests", "view") && !isHod ? (
         <Widget href={"/daily-use/trip-requests"} icon={<Inbox />} tone="purple" title={t("dashboard.chart.requests_by_status")} description={t("dashboard.chart.requests_by_status_desc")} empty={requestsByStatus.length === 0}>
           <DonutChart data={requestsByStatus} />
-        </Widget>
-      ) : null}
-      {can("expenses.maintenance.work_orders", "view") && !isCoordinator ? (
-        <Widget href={"/expenses/maintenance/work-orders"} icon={<Wrench />} tone="amber" title={t("dashboard.chart.days_out")} description={t("dashboard.chart.days_out_desc")} empty={daysOut.length === 0}>
-          <MonthlyBarChart data={daysOut} series={[{ key: "days", label: t("dashboard.series.days") }]} />
         </Widget>
       ) : null}
       {(can("fleet", "view") || can("drivers", "view")) ? (

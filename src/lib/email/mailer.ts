@@ -27,7 +27,7 @@ export function emailConfigured() {
   return config() !== null;
 }
 
-export type MailMessage = { to: string | string[]; subject: string; html: string; text: string };
+export type MailMessage = { to: string | string[]; cc?: string[]; subject: string; html: string; text: string };
 export type MailResult = { ok: true } | { ok: false; error: string };
 
 export async function sendMail(message: MailMessage): Promise<MailResult> {
@@ -39,7 +39,7 @@ export async function sendMail(message: MailMessage): Promise<MailResult> {
     transporter = nodemailer.createTransport({ host: c.host, port: c.port, secure: c.secure, auth: c.auth, pool: true, maxConnections: 3 });
   }
   try {
-    await transporter.sendMail({ from: c.from, replyTo: c.replyTo, to: message.to, subject: message.subject, html: message.html, text: message.text });
+    await transporter.sendMail({ from: c.from, replyTo: c.replyTo, to: message.to, cc: message.cc?.length ? message.cc : undefined, subject: message.subject, html: message.html, text: message.text });
     return { ok: true };
   } catch (e) {
     const err = e as { message?: string; responseCode?: number };

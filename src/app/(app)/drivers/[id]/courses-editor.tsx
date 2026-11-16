@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DatePicker } from "@/components/patterns/date-picker";
 import { FormActions } from "@/components/patterns/form-actions";
+import { DocButton, type DocRef } from "@/components/patterns/doc-button";
 import { deleteRecord, saveRecord } from "@/lib/data/records";
 import { cn, formatDate } from "@/lib/utils";
 import { t } from "@/i18n";
@@ -25,7 +26,7 @@ type Draft = { checked: boolean; id?: string; course_other: string; institution:
  * institution and the date, because courses are often taken at different places.
  * Saved courses open as a short list; the ticks show only after Edit.
  */
-export function CoursesEditor({ driverId, rows, readOnly }: { driverId: string; rows: CourseRow[]; readOnly?: boolean }) {
+export function CoursesEditor({ driverId, rows, readOnly, docs = {}, canAttach = false }: { driverId: string; rows: CourseRow[]; readOnly?: boolean; docs?: Record<string, DocRef[]>; canAttach?: boolean }) {
   const router = useRouter();
   const initial = React.useMemo(() => {
     const m: Record<string, Draft> = {};
@@ -95,7 +96,7 @@ export function CoursesEditor({ driverId, rows, readOnly }: { driverId: string; 
     return (
       <section className="page-card p-4 md:p-5">
         <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">{t("drivers.tab.training")}</h2>
+          <h2 className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">{t("drivers.professional_training")}</h2>
           {!readOnly ? (
             <Button type="button" variant="outline" size="sm" className="h-9" onClick={() => setEditing(true)}>
               <Pencil /> {t("common.edit")}
@@ -105,19 +106,42 @@ export function CoursesEditor({ driverId, rows, readOnly }: { driverId: string; 
         {saved.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t("drivers.no_training")}</p>
         ) : (
-          <ul className="divide-y">
-            {saved.map((c) => {
-              const d = draft[c]!;
-              return (
-                <li key={c} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2.5 text-sm">
-                  <GraduationCap className="size-4 shrink-0 text-primary" aria-hidden="true" />
-                  <span className="min-w-[160px] flex-1 font-medium">{c === "other" ? d.course_other || t("drivers.course.other") : t(`drivers.course.${c}`)}</span>
-                  <span className="text-muted-foreground">{d.institution}</span>
-                  <span className="tabular-nums text-muted-foreground">{formatDate(d.date_completed)}</span>
-                </li>
-              );
-            })}
-          </ul>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[520px] text-sm">
+              <thead>
+                <tr className="border-b text-left text-xs tracking-wide text-muted-foreground uppercase">
+                  <th className="py-2 pr-3 font-medium">{t("drivers.course")}</th>
+                  <th className="py-2 pr-3 font-medium">{t("drivers.institution")}</th>
+                  <th className="py-2 pr-3 font-medium">{t("drivers.date_of_completion")}</th>
+                  <th className="py-2 font-medium">{t("drivers.certificate")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {saved.map((c) => {
+                  const d = draft[c]!;
+                  return (
+                    <tr key={c} className="border-b last:border-0">
+                      <td className="py-2.5 pr-3 font-medium">
+                        <span className="flex items-center gap-2">
+                          <GraduationCap className="size-4 shrink-0 text-primary" aria-hidden="true" />
+                          {c === "other" ? d.course_other || t("drivers.course.other") : t(`drivers.course.${c}`)}
+                        </span>
+                      </td>
+                      <td className="py-2.5 pr-3">{d.institution}</td>
+                      <td className="py-2.5 pr-3 tabular-nums">{formatDate(d.date_completed)}</td>
+                      <td className="py-2.5">
+                        <DocButton
+                          docs={d.id ? (docs[d.id] ?? []) : []}
+                          compact
+                          upload={canAttach && d.id ? { table: "driver_courses", rowId: d.id, resource: "drivers.training", bucket: "driver-docs", label: t("drivers.doc.course_certificates") } : null}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
     );
@@ -125,7 +149,7 @@ export function CoursesEditor({ driverId, rows, readOnly }: { driverId: string; 
 
   return (
     <section className="page-card p-4 md:p-6">
-      <h2 className="text-base font-semibold">{t("drivers.tab.training")}</h2>
+      <h2 className="text-base font-semibold">{t("drivers.professional_training")}</h2>
       <p className="mt-1 text-sm text-muted-foreground">{t("drivers.courses_hint")}</p>
       <datalist id="course-institutions">
         {INSTITUTIONS.map((i) => (

@@ -36,6 +36,9 @@ async function handle(request: NextRequest) {
     if (error) return NextResponse.json({ error: `Reminder check failed: ${error.message}` }, { status: 500 });
   }
 
+  // In-app alerts for vehicles with no km log yesterday (once a day each).
+  await admin.rpc("notify_missed_km_logs").then(({ error: e }) => e && console.error("[km-log alerts]", e.message));
+
   const { data: pending, error } = await admin
     .from("notifications")
     .select("id, user_id, kind, title, body, link, created_at")
