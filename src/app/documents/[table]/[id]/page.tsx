@@ -253,15 +253,15 @@ export default async function RequestDocumentPage({ params }: PageProps<"/docume
               ))}
             </div>
           </div>
-          <div className="flex items-start gap-3">
-            <div className="pt-1 text-right text-[11.5px] leading-relaxed text-[#55625e]">
+          <div className="flex shrink-0 flex-col items-end">
+            {/* Status seal stamped at an angle, above the reference and printed date. */}
+            {seal ? <StatusSeal status={seal} date={sealDate} className="pointer-events-none mb-1 w-[104px] -rotate-[12deg] opacity-90 mix-blend-multiply" /> : null}
+            <div className="text-right text-[11.5px] leading-relaxed text-[#55625e]">
               <p>
                 Reference <strong className="font-black text-[#17211e]">{ref}</strong>
               </p>
               <p>Printed {printedAt}</p>
             </div>
-            {/* Status seal at the right of the header, stamped at an angle. */}
-            {seal ? <StatusSeal status={seal} date={sealDate} className="pointer-events-none -my-2 w-[112px] shrink-0 -rotate-[12deg] opacity-90 mix-blend-multiply" /> : null}
           </div>
         </header>
         {/* Double rule between the header and the content */}
