@@ -253,10 +253,10 @@ export default async function RequestDocumentPage({ params }: PageProps<"/docume
               ))}
             </div>
           </div>
-          <div className="flex shrink-0 flex-col items-end">
-            {/* Status seal stamped at an angle, above the reference and printed date. */}
-            {seal ? <StatusSeal status={seal} date={sealDate} className="pointer-events-none mb-1 w-[104px] -rotate-[12deg] opacity-90 mix-blend-multiply" /> : null}
-            <div className="text-right text-[11.5px] leading-relaxed text-[#55625e]">
+          <div className="relative shrink-0">
+            {/* Status seal stamped over the reference and printed date, like ink: the words still show through. */}
+            {seal ? <StatusSeal status={seal} date={sealDate} className="pointer-events-none absolute top-1/2 right-6 z-10 w-[118px] -translate-y-1/2 -rotate-[12deg] opacity-85 mix-blend-multiply" /> : null}
+            <div className="relative text-right text-[11.5px] leading-relaxed text-[#55625e]">
               <p>
                 Reference <strong className="font-black text-[#17211e]">{ref}</strong>
               </p>
