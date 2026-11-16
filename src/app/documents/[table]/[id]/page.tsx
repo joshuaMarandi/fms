@@ -6,6 +6,7 @@ import { brandLines, SYSTEM_NAME } from "@/lib/branding";
 import { formatDate, formatNumber } from "@/lib/utils";
 import { hasKey, t } from "@/i18n";
 import { DocumentToolbar } from "./document-toolbar";
+import { StatusSeal, sealFor } from "./status-seal";
 
 export const metadata: Metadata = { title: "Request document", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
 type Table = "vehicle_requests" | "fuel_requests" | "leave_requests" | "maintenance_requests";
 type Sig = { name?: string; signed_at?: string; image?: string; method?: string } | null;
 type Field = { label: string; value: React.ReactNode; wide?: boolean };
-type Section = { title: string; fields?: Field[]; body?: React.ReactNode };
+type Section = { title: string; fields?: Field[]; body?: React.ReactNode; seal?: boolean };
 type HistoryRow = { at: string; action: string; who: string; detail: string | null };
 
 const DOC: Record<Table, { title: string; ref: string; noun: string }> = {
@@ -135,6 +136,7 @@ export default async function RequestDocumentPage({ params }: PageProps<"/docume
   const sig = r.approver_signature as Sig;
   sections.push({
     title: "Final review and decision",
+    seal: true,
     fields: [
       { label: "Decision", value: <StatusPill status={status} /> },
       { label: "Decided by", value: decided ? dash((r.approver_name as string) || nameOf(r.approved_by)) : "Waiting for a decision" },
@@ -222,6 +224,10 @@ export default async function RequestDocumentPage({ params }: PageProps<"/docume
   const events = ((history ?? []) as HistoryRow[]).map((h) => ({ ...h, text: historyText(doc.noun, h) }));
 
   const brand = session.brand;
+  // Seal: approved, submitted or rejected, dated with the decision (or when it was sent).
+  const seal = sealFor(status);
+  const sentAt = [...((history ?? []) as HistoryRow[])].reverse().find((h) => h.action === "submitted" || h.action === "resubmitted")?.at ?? (r.created_at as string | undefined) ?? null;
+  const sealDate = decided && r.approved_at ? formatDate(r.approved_at as string) : sentAt ? formatDate(sentAt) : null;
   const ref = `${doc.ref}-${id.slice(0, 8).toUpperCase()}`;
   const printedAt = formatDate(new Date().toISOString(), true);
 
@@ -269,7 +275,10 @@ export default async function RequestDocumentPage({ params }: PageProps<"/docume
         </div>
 
         {sections.map((s, i) => (
-          <section key={s.title} className="mb-6 break-inside-avoid">
+          <section key={s.title} className="relative mb-6 break-inside-avoid">
+            {s.seal && seal ? (
+              <StatusSeal status={seal} company={brand?.name ?? SYSTEM_NAME} date={sealDate} className="pointer-events-none absolute -top-3 right-2 z-10 w-[150px] -rotate-[10deg] opacity-90 mix-blend-multiply" />
+            ) : null}
             <h2 className="mb-3 flex items-center gap-3 border-b-2 border-[#0f3d34] pb-1.5 text-[14px] font-black tracking-wide text-[#0f3d34] uppercase">
               <span className="flex size-6 items-center justify-center rounded bg-[#0f3d34] text-[12px] text-white">{i + 1}</span>
               {s.title}
