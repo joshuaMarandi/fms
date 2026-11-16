@@ -253,11 +253,15 @@ export default async function RequestDocumentPage({ params }: PageProps<"/docume
               ))}
             </div>
           </div>
-          <div className="text-right text-[11.5px] leading-relaxed text-[#55625e]">
-            <p>
-              Reference <strong className="font-black text-[#17211e]">{ref}</strong>
-            </p>
-            <p>Printed {printedAt}</p>
+          <div className="flex items-start gap-3">
+            <div className="pt-1 text-right text-[11.5px] leading-relaxed text-[#55625e]">
+              <p>
+                Reference <strong className="font-black text-[#17211e]">{ref}</strong>
+              </p>
+              <p>Printed {printedAt}</p>
+            </div>
+            {/* Status seal at the right of the header, stamped at an angle. */}
+            {seal ? <StatusSeal status={seal} date={sealDate} className="pointer-events-none -my-2 w-[112px] shrink-0 -rotate-[12deg] opacity-90 mix-blend-multiply" /> : null}
           </div>
         </header>
         {/* Double rule between the header and the content */}
@@ -276,9 +280,6 @@ export default async function RequestDocumentPage({ params }: PageProps<"/docume
 
         {sections.map((s, i) => (
           <section key={s.title} className="relative mb-6 break-inside-avoid">
-            {s.seal && seal ? (
-              <StatusSeal status={seal} company={brand?.name ?? SYSTEM_NAME} date={sealDate} className="pointer-events-none absolute -top-3 right-2 z-10 w-[150px] -rotate-[10deg] opacity-90 mix-blend-multiply" />
-            ) : null}
             <h2 className="mb-3 flex items-center gap-3 border-b-2 border-[#0f3d34] pb-1.5 text-[14px] font-black tracking-wide text-[#0f3d34] uppercase">
               <span className="flex size-6 items-center justify-center rounded bg-[#0f3d34] text-[12px] text-white">{i + 1}</span>
               {s.title}

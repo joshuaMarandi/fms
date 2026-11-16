@@ -1,7 +1,7 @@
 /**
  * Rubber-stamp seal for a request document: APPROVED (green), SUBMITTED (charcoal) or REJECTED (red).
- * Drawn as vector art so it stays sharp when printed or saved as PDF: an outer double ring with the
- * company name along the top and "Fleet management" along the bottom, stars at the sides, and the
+ * Drawn as vector art so it stays sharp when printed or saved as PDF: an outer double ring with
+ * "Fleet management" along the top and "Official record" along the bottom, stars at the sides, and the
  * status on an angled banner across the middle with the date below it.
  */
 const TONES = {
@@ -28,14 +28,9 @@ function Star({ cx, cy, r, color }: { cx: number; cy: number; r: number; color: 
   return <polygon points={pts} fill={color} />;
 }
 
-export function StatusSeal({ status, company, date, className }: { status: SealStatus; company: string; date?: string | null; className?: string }) {
+export function StatusSeal({ status, date, className }: { status: SealStatus; date?: string | null; className?: string }) {
   const { color, word } = TONES[status];
   const id = `seal-${status}`;
-  // Company name without "Ltd" and the like; a long name is cut at a whole word.
-  let top = company.toUpperCase().replace(/[\s,]+(LTD|LIMITED|PLC|INC|CO|COMPANY)\.?$/, "").trim();
-  if (top.length > 22) top = top.slice(0, 22).replace(/\s+\S*$/, "").replace(/\s+(AND|OF|&|THE)$/, "");
-  // The company name shrinks to fit the top of the ring.
-  const topSize = Math.min(13, 170 / Math.max(top.length, 1));
   // Long words get a smaller banner font so they fit.
   const wordSize = word.length > 8 ? 21 : 23;
   return (
@@ -56,14 +51,14 @@ export function StatusSeal({ status, company, date, className }: { status: SealS
         <circle cx="100" cy="100" r="87" fill="none" stroke={color} strokeWidth="1.6" />
         <circle cx="100" cy="100" r="55" fill="none" stroke={color} strokeWidth="1.6" />
         <circle cx="100" cy="100" r="50" fill="none" stroke={color} strokeWidth="1" />
-        <text fill={color} fontFamily="Arial Black, Arial, Helvetica, sans-serif" fontWeight="900" fontSize={topSize.toFixed(1)} letterSpacing="0.8">
+        <text fill={color} fontFamily="Arial Black, Arial, Helvetica, sans-serif" fontWeight="900" fontSize="11.5" letterSpacing="0.8">
           <textPath href={`#${id}-top`} startOffset="50%" textAnchor="middle">
-            {top}
+            FLEET MANAGEMENT
           </textPath>
         </text>
         <text fill={color} fontFamily="Arial Black, Arial, Helvetica, sans-serif" fontWeight="900" fontSize="11.5" letterSpacing="1.2">
           <textPath href={`#${id}-bottom`} startOffset="50%" textAnchor="middle">
-            FLEET MANAGEMENT
+            OFFICIAL RECORD
           </textPath>
         </text>
         <Star cx={19} cy={100} r={6} color={color} />
