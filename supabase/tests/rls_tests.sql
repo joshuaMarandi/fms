@@ -1013,7 +1013,8 @@ begin
 
   perform pg_temp.check('m23: work orders are gone', to_regclass('public.work_orders') is null and to_regclass('public.vehicle_equipment') is null and to_regclass('public.first_aid_inspections') is null);
   perform pg_temp.check('m23: fleet administration is on the first level', (select parent_key from public.resources where key = 'expenses.admin') is null and (select parent_key from public.resources where key = 'expenses.timesheet') = 'expenses.admin');
-  perform pg_temp.check('m23: toolbox talks and safety are on the first level', (select count(*) from public.resources where key in ('expenses.trainings.toolbox', 'expenses.trainings.matrix', 'expenses.safety') and parent_key is null) = 3);
+  perform pg_temp.check('m25: fleet safety holds the inspections, trainings and safety records', (select count(*) from public.resources where parent_key = 'fleet_safety' and key in ('inspections.daily', 'inspections.third_party', 'expenses.trainings.mandatory', 'expenses.trainings.toolbox', 'expenses.trainings.matrix', 'expenses.safety.incidents', 'expenses.safety.reports')) = 7);
+  perform pg_temp.check('m25: fleet safety is on the first level', (select parent_key from public.resources where key = 'fleet_safety') is null);
 
   perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
   insert into public.petty_cash_entries (company_id, kind, description, amount_tzs) values ('11111111-1111-1111-1111-111111111111', 'received', 'Float', 100000);
@@ -1114,5 +1115,16 @@ begin
 
   update public.companies set settings = settings - 'jmp_method' where id = company;
 end $m24$;
+
+-- 26: miscellaneous expenses.
+do $m26$
+begin
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  insert into public.misc_expenses (company_id, description, quantity, unit, unit_price_tzs) values ('11111111-1111-1111-1111-111111111111', 'Wiper blades', 2, 'pcs', 15000);
+  perform pg_temp.check('m26: amount is qty times unit price', (select amount_tzs from public.misc_expenses where description = 'Wiper blades') = 30000);
+  perform pg_temp.check('m26: under fleet expenses', (select parent_key from public.resources where key = 'expenses.misc') = 'expenses');
+  perform pg_temp.as_admin();
+  delete from public.misc_expenses where description = 'Wiper blades';
+end $m26$;
 
 select 'ALL TESTS PASSED' as result;

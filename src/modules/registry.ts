@@ -1,7 +1,7 @@
 import type { ModuleDef } from "./types";
 import { dailyInspections, mobilizationInspections, thirdPartyInspections } from "./inspections";
 import { fuelIssues, fuelLog, kmLogs, tripRequests } from "./daily-use";
-import { fleetRoster, outstationAllowances, pettyCash } from "./administration";
+import { fleetRoster, miscExpenses, outstationAllowances, pettyCash } from "./administration";
 import {
   fuelExpenses,
   incidents,
@@ -40,6 +40,7 @@ export const MODULES: ModuleDef[] = [
   fleetRoster,
   outstationAllowances,
   pettyCash,
+  miscExpenses,
 ];
 
 const byKey = new Map(MODULES.map((m) => [m.key, m]));

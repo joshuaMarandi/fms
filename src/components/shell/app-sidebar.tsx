@@ -57,16 +57,17 @@ export function AppSidebar({ counts }: { counts: SidebarCounts; companies?: { id
     }
     // Fleet database and Driver details open one page each (tabs).
     const SINGLE_PAGE = new Set(["fleet", "drivers"]);
-    // Inspections drops down to its three kinds: daily pre-start, mobilization, third-party.
+    // Fleet safety drops down to the inspections, trainings and safety records.
     // Mobilization records are the vehicles' inspection status, so they follow that permission.
-    const MOBILIZATION: ResourceNode = { key: "inspections.mobilization", parent_key: "inspections", name: "Mobilization inspection", label_prefix: null, path: "/inspections/mobilization", icon: "clipboard-check", sort_order: 302, has_reminders: false, is_request: false, children: [] };
+    const MOBILIZATION: ResourceNode = { key: "inspections.mobilization", parent_key: "fleet_safety", name: "Mobilization inspection", label_prefix: null, path: "/inspections/mobilization", icon: "clipboard-check", sort_order: 302, has_reminders: false, is_request: false, children: [] };
     // Vehicle operations: the fuel log (fuel issued) sits after Fuel request, under the same permission.
     const FUEL_LOG: ResourceNode = { key: "daily_use.fuel_issues", parent_key: "daily_use", name: "Fuel log", label_prefix: null, path: "/daily-use/fuel-log", icon: "fuel", sort_order: 404, has_reminders: false, is_request: false, children: [] };
     const withMobilization = (n: ResourceNode): ResourceNode => {
       if (n.key === "daily_use" && n.children.some((c) => c.key === "daily_use.fuel_log")) {
         return { ...n, children: [...n.children, FUEL_LOG].sort((a, b) => a.sort_order - b.sort_order) };
       }
-      if (n.key !== "inspections" || !can(permissions, "fleet.inspection_status", "view")) return n;
+      // Fleet safety: mobilization inspection sits between daily pre-start and third-party.
+      if (n.key !== "fleet_safety" || !can(permissions, "fleet.inspection_status", "view")) return n;
       const children = [...n.children, MOBILIZATION].sort((a, b) => a.sort_order - b.sort_order);
       return { ...n, children };
     };
@@ -79,8 +80,9 @@ export function AppSidebar({ counts }: { counts: SidebarCounts; companies?: { id
     const prune = (nodes: ResourceNode[]): ResourceNode[] => nodes.map((n) => ({ ...n, children: prune(n.children) })).filter((n) => n.path || n.children.length > 0);
     if (!session.isOwner) return prune(visible);
     // Owner inside a company: show exactly the modules in that company's package.
+    // A group such as Fleet safety stays when any page under it is in the package.
     const keep = (nodes: ResourceNode[]): ResourceNode[] =>
-      nodes.filter((n) => packageAllows(permissions.packageKeys, n.key)).map((n) => ({ ...n, children: keep(n.children) }));
+      nodes.map((n) => ({ ...n, children: keep(n.children) })).filter((n) => packageAllows(permissions.packageKeys, n.key) || n.children.length > 0);
     return prune(keep(visible));
   }, [permissions, session.platformMode, session.isOwner]);
 
@@ -96,7 +98,7 @@ export function AppSidebar({ counts }: { counts: SidebarCounts; companies?: { id
 
   const badgeFor = (key: string) => {
     if (key === "daily_use" || key === "expenses") return counts.pendingApprovals > 0 ? counts.pendingApprovals : null;
-    if (key === "inspections") return counts.openAnomalies > 0 ? counts.openAnomalies : null;
+    if (key === "fleet_safety") return counts.openAnomalies > 0 ? counts.openAnomalies : null;
     if (key === "platform.registrations") return (counts.pendingRegistrations ?? 0) > 0 ? counts.pendingRegistrations! : null;
     return null;
   };
@@ -159,7 +161,7 @@ export function AppSidebar({ counts }: { counts: SidebarCounts; companies?: { id
                         </SidebarMenuButton>
                       </CollapsibleTrigger>
                       {badge ? (
-                        <SidebarMenuBadge className="right-8 bg-warning-bg text-warning" aria-label={node.key === "inspections" ? t("nav.open_anomalies", { count: badge }) : t("nav.pending_approvals", { count: badge })}>
+                        <SidebarMenuBadge className="right-8 bg-warning-bg text-warning" aria-label={node.key === "fleet_safety" ? t("nav.open_anomalies", { count: badge }) : t("nav.pending_approvals", { count: badge })}>
                           {badge}
                         </SidebarMenuBadge>
                       ) : null}

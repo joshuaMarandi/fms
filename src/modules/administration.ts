@@ -176,3 +176,57 @@ export const pettyCash: ModuleDef = {
     ],
   },
 };
+
+/** Fleet expenses: anything bought for the fleet that has no page of its own. */
+export const miscExpenses: ModuleDef = {
+  key: "expenses.misc",
+  path: "/expenses/misc",
+  resource: "expenses.misc",
+  table: "misc_expenses",
+  title: "expenses.misc.title",
+  description: "expenses.misc.description",
+  newLabel: "expenses.misc.new",
+  exportName: "miscellaneous-expenses",
+  optionSources: ["vehicles"],
+  titleOf: (r) => `${r.description ?? ""} ${r.expense_date ?? ""}`.trim(),
+  schema: {
+    table: "misc_expenses",
+    resource: "expenses.misc",
+    sections: [
+      {
+        fields: [
+          { name: "expense_date", label: "common.date", control: "date", required: true },
+          { name: "vehicle_id", label: "inspections.vehicle", control: "select", source: "vehicles" },
+          { name: "description", label: "expenses.misc.description_field", control: "text", required: true, colSpan: 2 },
+          { name: "quantity", label: "expenses.misc.quantity", control: "number", min: 0, step: 0.01, required: true },
+          { name: "unit", label: "expenses.misc.unit", control: "text", placeholder: "expenses.misc.unit_placeholder" },
+          { name: "unit_price_tzs", label: "expenses.misc.unit_price", control: "number", min: 0, unit: "TZS", required: true },
+          {
+            name: "amount_tzs",
+            label: "expenses.misc.amount",
+            control: "auto",
+            format: "tzs",
+            compute: (v) => (v.quantity === "" || v.quantity == null || v.unit_price_tzs === "" || v.unit_price_tzs == null ? null : Number(v.quantity) * Number(v.unit_price_tzs)),
+          },
+          { name: "supplier", label: "expenses.misc.supplier", control: "text" },
+          { name: "notes", label: "common.notes", control: "textarea" },
+          { name: "receipt", label: "expenses.misc.receipt", control: "file", bucket: "forms", labels: ["expenses.misc.receipt"] },
+        ],
+      },
+    ],
+  },
+  list: {
+    select: "*, vehicle:vehicles(registration)",
+    orderBy: { column: "expense_date", ascending: false },
+    searchKeys: ["vehicle.registration", "description", "supplier"],
+    columns: [
+      { key: "expense_date", header: "common.date", type: "date" },
+      { key: "vehicle.registration", header: "inspections.vehicle" },
+      { key: "description", header: "expenses.misc.description_field" },
+      { key: "quantity", header: "expenses.misc.quantity", type: "number", digits: 2 },
+      { key: "unit", header: "expenses.misc.unit" },
+      { key: "unit_price_tzs", header: "expenses.misc.unit_price", type: "tzs" },
+      { key: "amount_tzs", header: "expenses.misc.amount", type: "tzs" },
+    ],
+  },
+};
