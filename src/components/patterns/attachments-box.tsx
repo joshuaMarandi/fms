@@ -14,6 +14,7 @@ import { ConfirmDialog } from "./confirm-dialog";
 import { createClient } from "@/lib/supabase/client";
 import { usePermissions } from "@/components/permissions/provider";
 import { cn, daysUntil, formatDate } from "@/lib/utils";
+import type { DocRef } from "./doc-button";
 import { t } from "@/i18n";
 
 export type AttachmentRow = {
@@ -56,6 +57,7 @@ export function AttachmentsBox({
   sensitive,
   readOnly,
   className,
+  fallback = [],
 }: {
   table: string;
   rowId: string | null;
@@ -67,6 +69,8 @@ export function AttachmentsBox({
   sensitive?: boolean;
   readOnly?: boolean;
   className?: string;
+  /** Files kept elsewhere (for example the Documents tab), shown for a document type this record has no file for. */
+  fallback?: DocRef[];
 }) {
   const { can, session } = usePermissions();
   const [rows, setRows] = React.useState<AttachmentRow[]>([]);
@@ -253,11 +257,16 @@ export function AttachmentsBox({
       {expected.length > 0 ? (
         <ul className="grid gap-2 sm:grid-cols-2">
           {expected.map((l) => {
-            const row = rows.find((r) => r.label === l);
+            const own = rows.find((r) => r.label === l);
+            const other = own ? undefined : fallback.find((d) => d.label.toLowerCase() === l.toLowerCase());
+            const row: AttachmentRow | undefined = own ?? (other ? { id: other.id, label: other.label, file_name: other.file_name, mime_type: other.mime_type, size_bytes: null, expiry_date: other.expiry_date ?? null, bucket: other.bucket, path: other.path, created_at: "" } : undefined);
             const expired = row?.expiry_date ? (daysUntil(row.expiry_date) ?? 0) < 0 : false;
             return (
               <li key={l} className="flex min-h-[48px] items-center gap-2 rounded-lg border px-3 py-2 text-sm">
-                <span className="min-w-0 flex-1 truncate">{l}</span>
+                <span className="min-w-0 flex-1 truncate">
+                  {l}
+                  {other ? <span className="block text-xs text-muted-foreground">{t("attachments.from_documents")}</span> : null}
+                </span>
                 <StatusChip status={row ? (expired ? "expired" : "uploaded") : "missing"} />
                 {row ? (
                   <Button type="button" variant="ghost" size="icon" className="size-9" onClick={() => open(row)} aria-label={`${t("attachments.preview")}: ${l}`}>

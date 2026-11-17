@@ -1,6 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SignatureSummary, type SignatureValue } from "@/components/patterns/signature-field";
-import { FuelIssueForm } from "@/components/modules/fuel-issue-form";
 import { JmpReviewPanel, type JmpReview } from "@/components/modules/jmp-review-panel";
 import { AttachmentsBox } from "@/components/patterns/attachments-box";
 import { HubSummary } from "@/components/hub/vehicle-hub";
@@ -12,33 +11,37 @@ import { formatDate, formatNumber, formatTzs } from "@/lib/utils";
 import { t } from "@/i18n";
 
 /** Custom blocks rendered under a record form. */
-export async function DetailExtra({ name, record, options }: { name: string; record: Record<string, unknown>; options: LoadedOptions }) {
+export async function DetailExtra({ name, record }: { name: string; record: Record<string, unknown>; options: LoadedOptions }) {
   const session = await getSession();
   if (!session) return null;
   const supabase = await createClient();
 
   switch (name) {
     case "fuel_issue": {
+      // Once approved: the totals of the fuel issued (recorded automatically on approval).
       if (record.status !== "approved" && record.status !== "completed") return null;
-      const vehicle = options.vehicles?.find((v) => v.value === record.vehicle_id);
-      const [{ data: issue }, { data: price }] = await Promise.all([
-        supabase.from("fuel_issues").select("*").eq("fuel_request_id", record.id as string).is("deleted_at", null).maybeSingle(),
-        supabase.rpc("fuel_price_on", { p_company: record.company_id as string, p_date: new Date().toISOString().slice(0, 10), p_engine_type: (vehicle?.engine_type as string | null) ?? "all" }),
-      ]);
-      const canIssue = session.can("daily_use.fuel_log", "approve");
-      if (!issue && !canIssue) return null;
+      const { data: issue } = await supabase.from("fuel_issues").select("km_run, fuel_issued_l, consumption_km_per_l, total_cost_tzs").eq("fuel_request_id", record.id as string).is("deleted_at", null).maybeSingle();
+      const i = issue as { km_run: number | null; fuel_issued_l: number | null; consumption_km_per_l: number | null; total_cost_tzs: number | null } | null;
+      const prev = record.previous_odometer == null ? null : Number(record.previous_odometer);
+      const curr = record.current_odometer == null ? null : Number(record.current_odometer);
+      const kmRun = i?.km_run != null ? Number(i.km_run) : prev != null && curr != null ? curr - prev : null;
+      const litres = i?.fuel_issued_l != null ? Number(i.fuel_issued_l) : record.approved_l != null ? Number(record.approved_l) : null;
+      const ratio = i?.consumption_km_per_l != null ? Number(i.consumption_km_per_l) : kmRun != null && litres ? kmRun / litres : null;
+      const cost = i?.total_cost_tzs != null ? Number(i.total_cost_tzs) : null;
+      const items = [
+        { label: t("daily_use.fuel.km_run"), value: kmRun != null ? `${formatNumber(kmRun)} km` : "—" },
+        { label: t("daily_use.fuel.consumption"), value: ratio != null ? `${formatNumber(ratio, 2)} km/L` : "—" },
+        { label: t("daily_use.fuel.total_cost"), value: cost != null ? formatTzs(cost) : "—" },
+      ];
       return (
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle className="text-base">{t("daily_use.fuel.manager_view")}</CardTitle>
-            <CardDescription>
-              {vehicle?.label} · {t("daily_use.fuel.tank_capacity")}: {formatNumber(vehicle?.fuel_tank_capacity_l as number, 0)} L
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <FuelIssueForm request={record} issue={issue as Record<string, unknown> | null} vehicle={vehicle ?? null} readOnly={!canIssue} defaultPrice={price ? Number(price) : null} />
-          </CardContent>
-        </Card>
+        <div className="page-card mt-6 grid gap-4 p-4 sm:grid-cols-3 md:p-5">
+          {items.map((x) => (
+            <div key={x.label}>
+              <p className="text-xs text-muted-foreground">{x.label}</p>
+              <p className="mt-0.5 text-xl font-bold tabular-nums">{x.value}</p>
+            </div>
+          ))}
+        </div>
       );
     }
     case "trip_assignment": {

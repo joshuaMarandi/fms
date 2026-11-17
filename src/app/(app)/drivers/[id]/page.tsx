@@ -105,7 +105,7 @@ export default async function DriverPage({ params, searchParams }: PageProps<"/d
             <span className="font-medium">{t("drivers.expiry_date")}</span>
             <ReminderChip date={(currentLicence?.expiry_date as string) ?? null} />
           </div>
-          <SchemaForm key={(currentLicence?.id as string) ?? "new"} schemaKey="drivers.licence" record={currentLicence} extra={extra} revalidate={paths} readOnly={!session.can("drivers.licence", "edit")} />
+          <SchemaForm key={(currentLicence?.id as string) ?? "new"} schemaKey="drivers.licence" record={currentLicence} extra={extra} revalidate={paths} readOnly={!session.can("drivers.licence", "edit")} fileFallback={{ licence_file: fromTab("drivers.doc.licence") }} />
           {currentLicence && session.can("drivers.licence", "create") ? (
             <div className="mt-4">
               <Reveal label={t("drivers.licence.add")}>
@@ -121,7 +121,7 @@ export default async function DriverPage({ params, searchParams }: PageProps<"/d
               id: r.id as string,
               current: i === 0,
               cells: [(r.licence_number as string) || "—", (r.licence_class as string) || "—", formatDate(r.date_issued as string), <ReminderChip key="exp" date={(r.expiry_date as string) ?? null} showDate />],
-              docs: [...(licenceDocs.get(r.id as string) ?? []), ...(i === 0 ? fromTab("drivers.doc.licence") : [])],
+              docs: (licenceDocs.get(r.id as string) ?? []).length ? licenceDocs.get(r.id as string)! : i === 0 ? fromTab("drivers.doc.licence") : [],
             }))}
           />
         </TabsContent>
@@ -131,7 +131,7 @@ export default async function DriverPage({ params, searchParams }: PageProps<"/d
             <span className="font-medium">{t("drivers.osha_redo")}</span>
             <ReminderChip date={(currentOsha?.redo_date as string) ?? null} />
           </div>
-          <SchemaForm key={(currentOsha?.id as string) ?? "new"} schemaKey="drivers.osha" record={currentOsha} extra={extra} revalidate={paths} readOnly={!session.can("drivers.osha", "edit")} />
+          <SchemaForm key={(currentOsha?.id as string) ?? "new"} schemaKey="drivers.osha" record={currentOsha} extra={extra} revalidate={paths} readOnly={!session.can("drivers.osha", "edit")} fileFallback={{ report: fromTab("drivers.doc.osha_report") }} />
           {currentOsha && session.can("drivers.osha", "create") ? (
             <div className="mt-4">
               <Reveal label={t("drivers.osha.add")}>
@@ -147,7 +147,7 @@ export default async function DriverPage({ params, searchParams }: PageProps<"/d
               id: r.id as string,
               current: i === 0,
               cells: [formatDate(r.date_conducted as string), <ReminderChip key="redo" date={(r.redo_date as string) ?? null} showDate />, (r.result as string) || "—"],
-              docs: [...(oshaDocs.get(r.id as string) ?? []), ...(i === 0 ? fromTab("drivers.doc.osha_report") : [])],
+              docs: (oshaDocs.get(r.id as string) ?? []).length ? oshaDocs.get(r.id as string)! : i === 0 ? fromTab("drivers.doc.osha_report") : [],
             }))}
           />
         </TabsContent>

@@ -1127,4 +1127,21 @@ begin
   delete from public.misc_expenses where description = 'Wiper blades';
 end $m26$;
 
+-- 28: approving a fuel request records the fuel issued.
+do $m28$
+declare v_req uuid;
+begin
+  perform pg_temp.as_admin();
+  insert into public.fuel_requests (company_id, vehicle_id, request_date, previous_odometer, current_odometer, fuel_required_l, fuel_filled_l, status)
+  values ('11111111-1111-1111-1111-111111111111', '55555555-5555-5555-5555-000000000002', current_date, 900000, 900400, 45, 40, 'draft')
+  returning id into v_req;
+  update public.fuel_requests set status = 'submitted' where id = v_req;
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  perform public.approve_request('fuel_requests', v_req, null, '{"approved_l": 42}'::jsonb);
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m28: approval records the fuel issued', (select fuel_issued_l from public.fuel_issues where fuel_request_id = v_req) = 42);
+  perform pg_temp.check('m28: the issue has a price', (select price_per_litre from public.fuel_issues where fuel_request_id = v_req) > 0);
+  perform pg_temp.check('m28: only one issue per request', (select count(*) from public.fuel_issues where fuel_request_id = v_req) = 1);
+end $m28$;
+
 select 'ALL TESTS PASSED' as result;

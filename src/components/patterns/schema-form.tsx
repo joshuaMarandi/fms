@@ -21,6 +21,8 @@ import { AttachmentsBox } from "./attachments-box";
 import { SearchSelect, toSearchOptions } from "./search-select";
 import { FormActions } from "./form-actions";
 import { RecordView } from "./record-view";
+import { FileFallbackContext, useFileFallback } from "./file-fallback";
+import type { DocRef } from "./doc-button";
 import { usePermissions } from "@/components/permissions/provider";
 import { saveRecord } from "@/lib/data/records";
 import type { LoadedOptions } from "@/lib/data/records";
@@ -57,6 +59,8 @@ export type SchemaFormProps = {
   onSaved?: (id: string) => void;
   /** Open a saved record straight in the form instead of the read-only view. */
   startInEdit?: boolean;
+  /** Per file field: files kept elsewhere to show when this record has none of its own. */
+  fileFallback?: Record<string, DocRef[]>;
   children?: React.ReactNode;
   submitLabel?: string;
 };
@@ -86,7 +90,15 @@ function formatAuto(v: unknown, format?: string, digits?: number) {
   }
 }
 
-export function SchemaForm({ schemaKey, record, options = {}, afterSavePath, cancelHref, readOnly, extra, revalidate, onSaved, children, submitLabel, startInEdit }: SchemaFormProps) {
+export function SchemaForm(props: SchemaFormProps) {
+  return (
+    <FileFallbackContext.Provider value={props.fileFallback ?? {}}>
+      <SchemaFormInner {...props} />
+    </FileFallbackContext.Provider>
+  );
+}
+
+function SchemaFormInner({ schemaKey, record, options = {}, afterSavePath, cancelHref, readOnly, extra, revalidate, onSaved, children, submitLabel, startInEdit }: SchemaFormProps) {
   const router = useRouter();
   const schema = getSchema(schemaKey);
   const { can, session } = usePermissions();
@@ -249,6 +261,7 @@ export function SchemaForm({ schemaKey, record, options = {}, afterSavePath, can
 
 function FieldRenderer({ field: f, form, ctx, disabled, recordId, schema, prefix, rowIndex }: { field: Field; form: UseFormReturn<FieldValues>; ctx: FormComputeContext; disabled: boolean; recordId: string | null; schema: FormSchema; prefix?: string; rowIndex?: number }) {
   const name = prefix ? `${prefix}.${f.name}` : f.name;
+  const fallback = useFileFallback(f.name);
   const values = form.watch();
   const scopeValues = prefix ? (getPath(values, prefix) as Record<string, unknown>) ?? {} : values;
   if (!conditionMet(f.showWhen, scopeValues)) return null;
@@ -477,7 +490,7 @@ function FieldRenderer({ field: f, form, ctx, disabled, recordId, schema, prefix
       return (
         <div className={cn(span)}>
           <p className="mb-2 text-sm font-medium">{label}</p>
-          <AttachmentsBox table={schema.table} rowId={recordId} resource={schema.resource} bucket={f.bucket} labels={f.labels?.map(tl)} multiple={f.multiple} sensitive={f.sensitive} readOnly={isDisabled} />
+          <AttachmentsBox table={schema.table} rowId={recordId} resource={schema.resource} bucket={f.bucket} labels={f.labels?.map(tl)} multiple={f.multiple} sensitive={f.sensitive} readOnly={isDisabled} fallback={fallback} />
         </div>
       );
     case "rows":

@@ -4,6 +4,7 @@ import * as React from "react";
 import { Check, Pencil, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AttachmentsBox } from "./attachments-box";
+import { useFileFallback } from "./file-fallback";
 import type { SignatureValue } from "./signature-field";
 import { conditionMet, type Field, type FormComputeContext, type FormSchema, type FormSection } from "@/lib/forms/schema";
 import { cn, formatDate, formatNumber, formatTzs } from "@/lib/utils";
@@ -119,6 +120,7 @@ function display(f: Field, v: unknown, values: Values, ctx: FormComputeContext):
 const WIDE = new Set(["textarea", "rows", "file", "signature", "checkbox_group"]);
 
 function FieldItem({ f, values, ctx, recordId, schema }: { f: Field; values: Values; ctx: FormComputeContext; recordId: string | null; schema: FormSchema }) {
+  const fallback = useFileFallback(f.name);
   if (f.control === "hidden" || !conditionMet(f.showWhen, values)) return null;
   if (f.control === "file") {
     if (!recordId) return null;
@@ -126,7 +128,7 @@ function FieldItem({ f, values, ctx, recordId, schema }: { f: Field; values: Val
       <div className="sm:col-span-2 lg:col-span-3">
         <dt className="mb-1 text-xs font-medium text-muted-foreground">{shortLabel(f.label)}</dt>
         <dd>
-          <AttachmentsBox table={schema.table} rowId={recordId} resource={schema.resource} bucket={f.bucket} labels={f.labels?.map(tl)} multiple={f.multiple} sensitive={f.sensitive} readOnly />
+          <AttachmentsBox table={schema.table} rowId={recordId} resource={schema.resource} bucket={f.bucket} labels={f.labels?.map(tl)} multiple={f.multiple} sensitive={f.sensitive} readOnly fallback={fallback} />
         </dd>
       </div>
     );

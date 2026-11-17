@@ -577,7 +577,7 @@
   "daily_use.fuel.title": "Fuel request",
   "daily_use.fuel.description": "Driver fuel requests and the manager's fuel issue record.",
   "daily_use.fuel.new": "New fuel request",
-  "daily_use.fuel.driver_request": "Driver request",
+  "daily_use.fuel.driver_request": "Fuel request",
   "daily_use.fuel.manager_view": "Manager view",
   "daily_use.fuel.tank_capacity": "Fuel tank capacity (L)",
   "daily_use.fuel.request_date": "Fuel request date",
@@ -1822,5 +1822,6 @@
   "drivers.licence.add": "Record a renewed licence",
   "drivers.osha.history": "OSHA history",
   "drivers.osha.add": "Record a new OSHA test",
-  "drivers.osha.report": "Report"
+  "drivers.osha.report": "Report",
+  "attachments.from_documents": "From the Documents tab"
 }
