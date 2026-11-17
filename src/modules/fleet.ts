@@ -9,6 +9,7 @@ export const vehicleDetailsSchema: FormSchema = {
     { title: "fleet.view.identity", fields: ["registration", "make", "model", "engine_type", "yom", "year_first_use", "chassis_number", "engine_number"] },
     { title: "fleet.view.use", fields: ["odometer_km", "fuel_tank_capacity_l", "target_km_per_l", "site_id", "location", "owner_name"] },
     { title: "fleet.view.status", fields: ["status", "status_reason"] },
+    { title: "fleet.view.documents", fields: ["documents"] },
   ],
   sections: [
     {
@@ -52,6 +53,8 @@ export const vehicleDetailsSchema: FormSchema = {
           required: true,
         },
         { name: "status_reason", label: "fleet.status_reason", control: "textarea", required: true, showWhen: { field: "status", equals: "out_of_service" }, placeholder: "fleet.status_reason_placeholder" },
+        // Vehicle papers (kept on the vehicle; inspection and insurance papers live on their own tabs).
+        { name: "documents", label: "fleet.view.documents", control: "file", bucket: "vehicle-docs", labels: ["fleet.doc.registration", "fleet.doc.history_form", "fleet.doc.road_safety_sticker"] },
       ],
     },
   ],
@@ -101,6 +104,7 @@ export const insuranceSchema: FormSchema = {
         { name: "start_date", label: "fleet.insurance_start", control: "date", required: true },
         { name: "end_date", label: "fleet.insurance_end", control: "date", required: true, description: "Reminder" },
         { name: "premium_tzs", label: "fleet.premium", control: "number", min: 0, unit: "TZS" },
+        { name: "policy", label: "fleet.doc.insurance_policy", control: "file", bucket: "vehicle-docs", labels: ["fleet.doc.insurance_policy"], multiple: false },
       ],
     },
   ],

@@ -115,4 +115,3 @@ export const driverOshaSchema: FormSchema = {
   ],
 };
 
-export const DRIVER_DOCUMENTS = ["drivers.doc.licence", "drivers.doc.course_certificates", "drivers.doc.defensive_driving", "drivers.doc.osha_report", "drivers.doc.medical_report"];

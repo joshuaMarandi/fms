@@ -4,27 +4,25 @@ import { AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SchemaForm } from "@/components/patterns/schema-form";
-import { AttachmentsBox } from "@/components/patterns/attachments-box";
 import { KmReminderChip, ReminderChip, StatusChip } from "@/components/patterns/status-chip";
 import { VehicleStatus } from "@/components/patterns/vehicle-status";
 import { RecordTitle } from "@/components/modules/record-title";
 import { PrintButton } from "@/components/shell/print-frame";
 import { RemarksThread } from "./remarks-thread";
 import { InspectionHistory, type HistoryRow } from "./inspection-history";
-import { DocButton } from "@/components/patterns/doc-button";
-import { loadDocs, loadDocsByLabel } from "@/lib/data/docs";
+import { assignByDate, loadDocs, loadDocsByLabel } from "@/lib/data/docs";
 import { Reveal } from "@/components/patterns/reveal";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { loadOptions } from "@/lib/data/records";
-import { VEHICLE_DOCUMENTS } from "@/modules/fleet";
 import { formatDate, formatNumber, formatTzs, todayISO } from "@/lib/utils";
 import { t } from "@/i18n";
 
 export default async function VehiclePage({ params, searchParams }: PageProps<"/fleet/[id]">) {
   const { id } = await params;
   const sp = await searchParams;
-  const tab = typeof sp.tab === "string" ? sp.tab : "details";
+  // The Documents tab is gone: an old link to it opens Details (where those files now show).
+  const tab = typeof sp.tab === "string" && sp.tab !== "documents" ? sp.tab : "details";
   const session = await requirePermission("fleet.details", "view");
   const supabase = await createClient();
 
@@ -64,16 +62,24 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
   ]);
   const tpList = (thirdRows ?? []) as Record<string, unknown>[];
   const tpDocs = await loadDocs("third_party_inspections", tpList.map((r) => r.id as string));
-  const mobilizationHistory: HistoryRow[] = mobRows
-    .map((r) => ({ id: r.id as string, date: (r.inspection_date as string) ?? null, next: (r.renewal_date as string) ?? null, note: (r.notes as string) ?? null, href: `/inspections/mobilization/${r.id}`, docs: mobDocs.get(r.id as string) ?? [] }))
-    .sort(byDate);
-  const thirdHistory: HistoryRow[] = [
-    ...tpList.map((r) => ({ id: r.id as string, date: (r.inspection_date as string) ?? null, next: (r.renewal_date as string) ?? null, note: (r.inspector as string) ?? null, href: `/inspections/third-party/${r.id}`, docs: tpDocs.get(r.id as string) ?? [] })),
-    ...legacyThird.map((r) => ({ id: r.id as string, date: (r.inspection_date as string) ?? null, next: (r.renewal_date as string) ?? null, note: (r.notes as string) ?? null, href: null, docs: legacyDocs.get(r.id as string) ?? [] })),
-  ].sort(byDate);
   const docWith = (key: string) => vehicleDocs.filter((d) => d.label.toLowerCase() === t(key).toLowerCase());
-  const insuranceId = (insurance as Record<string, unknown> | null)?.id as string | undefined;
-  const insuranceDocs = [...docWith("fleet.doc.insurance_policy"), ...(insuranceId ? ((await loadDocs("vehicle_insurance", [insuranceId])).get(insuranceId) ?? []) : [])];
+  const withMatched = (rows: HistoryRow[], key: string) => {
+    const matched = assignByDate(rows.map((r) => ({ id: r.id, date: r.date })), docWith(key));
+    return rows.map((r) => ({ ...r, docs: [...r.docs, ...(matched.get(r.id) ?? [])] }));
+  };
+  const mobilizationHistory: HistoryRow[] = withMatched(
+    mobRows
+      .map((r) => ({ id: r.id as string, date: (r.inspection_date as string) ?? null, next: (r.renewal_date as string) ?? null, note: (r.notes as string) ?? null, href: `/inspections/mobilization/${r.id}`, docs: mobDocs.get(r.id as string) ?? [] }))
+      .sort(byDate),
+    "fleet.doc.internal_report",
+  );
+  const thirdHistory: HistoryRow[] = withMatched(
+    [
+      ...tpList.map((r) => ({ id: r.id as string, date: (r.inspection_date as string) ?? null, next: (r.renewal_date as string) ?? null, note: (r.inspector as string) ?? null, href: `/inspections/third-party/${r.id}`, docs: tpDocs.get(r.id as string) ?? [] })),
+      ...legacyThird.map((r) => ({ id: r.id as string, date: (r.inspection_date as string) ?? null, next: (r.renewal_date as string) ?? null, note: (r.notes as string) ?? null, href: null, docs: legacyDocs.get(r.id as string) ?? [] })),
+    ].sort(byDate),
+    "fleet.doc.third_party_report",
+  );
 
   const [{ data: recentTrips }, { data: recentFuel }, { data: recentWork }] = await Promise.all([
     supabase.from("km_logs").select("id, log_date, total_km, trip_count").eq("vehicle_id", id).is("deleted_at", null).order("log_date", { ascending: false }).limit(8),
@@ -113,7 +119,6 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
           {session.can("fleet.inspection_status", "view") ? <TabsTrigger value="inspection">{t("fleet.tab.inspection")}</TabsTrigger> : null}
           {session.can("fleet.insurance", "view") ? <TabsTrigger value="insurance">{t("fleet.tab.insurance")}</TabsTrigger> : null}
           {session.can("fleet.maintenance_schedule", "view") ? <TabsTrigger value="maintenance">{t("fleet.tab.maintenance")}</TabsTrigger> : null}
-          {session.can("fleet.documents", "view") ? <TabsTrigger value="documents">{t("fleet.tab.documents")}</TabsTrigger> : null}
           {session.can("fleet.remarks", "view") ? <TabsTrigger value="remarks">{t("fleet.tab.remarks")}</TabsTrigger> : null}
           <TabsTrigger value="history">{t("fleet.tab.history")}</TabsTrigger>
         </TabsList>
@@ -128,7 +133,7 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
             nextLabel={t("inspections.mobilization.renewal")}
             noteLabel={t("common.notes")}
             rows={mobilizationHistory}
-            report={docWith("fleet.doc.internal_report")}
+            report={[]}
             addHref={session.can("fleet.inspection_status", "create") ? `/inspections/mobilization/new?vehicle=${id}` : null}
           />
           <InspectionHistory
@@ -136,7 +141,7 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
             nextLabel={t("inspections.next_date")}
             noteLabel={t("inspections.inspector")}
             rows={thirdHistory}
-            report={docWith("fleet.doc.third_party_report")}
+            report={[]}
             addHref={session.can("inspections.third_party", "create") ? `/inspections/third-party/new?vehicle=${id}` : null}
           />
         </TabsContent>
@@ -145,11 +150,8 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
           <div className="mb-2 flex items-center gap-2 text-sm">
             <span className="font-medium">{t("fleet.insurance_end")}</span>
             <ReminderChip date={((insurance as Record<string, unknown> | null)?.end_date as string) ?? null} />
-            <span className="ml-auto">
-              <DocButton docs={insuranceDocs} label={insuranceDocs.length === 1 ? insuranceDocs[0]!.label : undefined} />
-            </span>
           </div>
-          <SchemaForm schemaKey="fleet.insurance" record={insurance as Record<string, unknown> | null} extra={extra} revalidate={paths} readOnly={!session.can("fleet.insurance", "edit")} />
+          <SchemaForm schemaKey="fleet.insurance" record={insurance as Record<string, unknown> | null} extra={extra} revalidate={paths} readOnly={!session.can("fleet.insurance", "edit")} fileFallback={{ policy: docWith("fleet.doc.insurance_policy") }} />
         </TabsContent>
 
         <TabsContent value="maintenance" className="space-y-4">
@@ -205,13 +207,6 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
                 </table>
               </div>
             )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="documents">
-          <div className="page-card p-4 md:p-6">
-            <h2 className="mb-4 text-base font-semibold">{t("fleet.tab.documents")}</h2>
-            <AttachmentsBox table="vehicles" rowId={id} resource="fleet.documents" bucket="vehicle-docs" labels={VEHICLE_DOCUMENTS.map((k) => t(k))} readOnly={!session.can("fleet.documents", "edit") && !session.can("fleet.documents", "create")} />
           </div>
         </TabsContent>
 

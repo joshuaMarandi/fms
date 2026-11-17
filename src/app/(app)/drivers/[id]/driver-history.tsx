@@ -55,3 +55,16 @@ export function DriverHistory({
     </section>
   );
 }
+
+/** Files uploaded in the old Documents tab that belong with this tab (opened with the eye). */
+export function EarlierDocs({ title, docs }: { title: string; docs: DocRef[] }) {
+  if (docs.length === 0) return null;
+  return (
+    <section className="page-card mt-6 flex flex-wrap items-center gap-3 p-4 md:p-5">
+      <h3 className="mr-auto text-sm font-semibold tracking-wide text-muted-foreground uppercase">{title}</h3>
+      {docs.map((d) => (
+        <DocButton key={d.id} docs={[d]} />
+      ))}
+    </section>
+  );
+}

@@ -2,13 +2,12 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/shell/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SchemaForm } from "@/components/patterns/schema-form";
-import { AttachmentsBox } from "@/components/patterns/attachments-box";
 import { ReminderChip, StatusChip } from "@/components/patterns/status-chip";
 import { RecordTitle } from "@/components/modules/record-title";
 import { PrintButton } from "@/components/shell/print-frame";
 import { CoursesEditor } from "./courses-editor";
 import { MandatoryTrainings, type MandatoryRow } from "./mandatory-trainings";
-import { DriverHistory } from "./driver-history";
+import { DriverHistory, EarlierDocs } from "./driver-history";
 import { Reveal } from "@/components/patterns/reveal";
 import { loadDocsByLabel } from "@/lib/data/docs";
 import { formatDate } from "@/lib/utils";
@@ -16,13 +15,12 @@ import { loadDocs } from "@/lib/data/docs";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { loadOptions } from "@/lib/data/records";
-import { DRIVER_DOCUMENTS } from "@/modules/drivers";
 import { t } from "@/i18n";
 
 export default async function DriverPage({ params, searchParams }: PageProps<"/drivers/[id]">) {
   const { id } = await params;
   const sp = await searchParams;
-  const tab = typeof sp.tab === "string" ? sp.tab : "personal";
+  const tab = typeof sp.tab === "string" && sp.tab !== "documents" ? sp.tab : "personal";
   const session = await requirePermission("drivers.personal", "view");
   const supabase = await createClient();
 
@@ -48,7 +46,8 @@ export default async function DriverPage({ params, searchParams }: PageProps<"/d
   const [licenceDocs, oshaDocs, driverDocs] = await Promise.all([
     session.can("drivers.licence", "view") ? loadDocs("driver_licences", licenceRows.map((r) => r.id as string)) : Promise.resolve(new Map()),
     session.can("drivers.osha", "view") ? loadDocs("driver_osha", oshaRows.map((r) => r.id as string)) : Promise.resolve(new Map()),
-    loadDocsByLabel("drivers", id, [t("drivers.doc.licence"), t("drivers.doc.osha_report")]),
+    // Files from the old Documents tab, shown on the tab they belong to.
+    loadDocsByLabel("drivers", id, [t("drivers.doc.licence"), t("drivers.doc.osha_report"), t("drivers.doc.course_certificates"), t("drivers.doc.defensive_driving"), t("drivers.doc.medical_report")]),
   ]);
   const fromTab = (key: string) => driverDocs.filter((d) => d.label.toLowerCase() === t(key).toLowerCase());
   const mandatoryRows = (trainings ?? []) as MandatoryRow[];
@@ -73,7 +72,6 @@ export default async function DriverPage({ params, searchParams }: PageProps<"/d
           {session.can("drivers.training", "view") ? <TabsTrigger value="training">{t("drivers.tab.training")}</TabsTrigger> : null}
           {session.can("drivers.licence", "view") ? <TabsTrigger value="licence">{t("drivers.tab.licence")}</TabsTrigger> : null}
           {session.can("drivers.osha", "view") ? <TabsTrigger value="osha">{t("drivers.tab.osha")}</TabsTrigger> : null}
-          {session.can("drivers.documents", "view") ? <TabsTrigger value="documents">{t("drivers.tab.documents")}</TabsTrigger> : null}
         </TabsList>
 
         <TabsContent value="personal">
@@ -98,6 +96,7 @@ export default async function DriverPage({ params, searchParams }: PageProps<"/d
               canAttach={session.can("expenses.trainings.mandatory", "edit") || session.can("expenses.trainings.mandatory", "create")}
             />
           ) : null}
+          <EarlierDocs title={t("drivers.earlier_certificates")} docs={[...fromTab("drivers.doc.course_certificates"), ...fromTab("drivers.doc.defensive_driving")]} />
         </TabsContent>
 
         <TabsContent value="licence">
@@ -150,14 +149,9 @@ export default async function DriverPage({ params, searchParams }: PageProps<"/d
               docs: (oshaDocs.get(r.id as string) ?? []).length ? oshaDocs.get(r.id as string)! : i === 0 ? fromTab("drivers.doc.osha_report") : [],
             }))}
           />
+          <EarlierDocs title={t("drivers.earlier_medical")} docs={fromTab("drivers.doc.medical_report")} />
         </TabsContent>
 
-        <TabsContent value="documents">
-          <div className="page-card p-4 md:p-6">
-            <h2 className="mb-4 text-base font-semibold">{t("drivers.tab.documents")}</h2>
-            <AttachmentsBox table="drivers" rowId={id} resource="drivers.documents" bucket="driver-docs" labels={DRIVER_DOCUMENTS.map((k) => t(k))} sensitive readOnly={!session.can("drivers.documents", "edit") && !session.can("drivers.documents", "create")} />
-          </div>
-        </TabsContent>
       </Tabs>
     </>
   );

@@ -35,7 +35,7 @@ insert into public.resources (key, parent_key, name, label_prefix, path, icon, s
   ('daily_use.trip_requests.jmp_control_room', 'daily_use.trip_requests', 'JMP: control room review', null, null, null, 407, false, false),
   ('daily_use.trip_requests.jmp_erc', 'daily_use.trip_requests', 'JMP: emergency response review', null, null, null, 408, false, false),
   ('expenses', null, 'Fleet expenses', '5', '/expenses', 'receipt', 500, true, true),
-  ('expenses.fuel', 'expenses', 'Fuel', 'a', '/expenses/fuel', 'fuel', 501, false, false),
+  ('expenses.fuel', 'expenses', 'Fuel cost', 'a', '/expenses/fuel', 'fuel', 501, false, false),
   ('expenses.maintenance', 'expenses', 'Maintenance and repair', 'b', '/expenses/maintenance', 'wrench', 502, false, true),
   ('expenses.maintenance.requests', 'expenses.maintenance', 'Maintenance requests', null, '/expenses/maintenance/requests', null, 503, false, true),
   ('expenses.maintenance.costs', 'expenses.maintenance', 'Maintenance cost', null, '/expenses/maintenance/costs', null, 504, false, false),

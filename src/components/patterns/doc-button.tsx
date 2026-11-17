@@ -13,7 +13,7 @@ import { formatDate } from "@/lib/utils";
 import { t } from "@/i18n";
 
 /** An attached file, as loaded on the server for a list or a record. */
-export type DocRef = { id: string; label: string; file_name: string; mime_type: string | null; bucket: string; path: string; expiry_date?: string | null };
+export type DocRef = { id: string; label: string; file_name: string; mime_type: string | null; bucket: string; path: string; expiry_date?: string | null; created_at?: string | null };
 
 /** Where a new document for this row is uploaded, when the viewer may add one. */
 export type DocUpload = { table: string; rowId: string; resource: string; bucket: string; label: string; sensitive?: boolean };

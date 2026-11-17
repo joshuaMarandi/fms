@@ -10,7 +10,7 @@ import { isPeriod, monthRange, periodRange, yearRange } from "./periods";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { getModule } from "@/modules/registry";
-import { loadDocs } from "@/lib/data/docs";
+import { assignByDate, loadDocs, loadVehicleDocs } from "@/lib/data/docs";
 import { formatDate, formatNumber, todayISO } from "@/lib/utils";
 import { t } from "@/i18n";
 
@@ -125,6 +125,15 @@ export async function VehicleRecordsPage({
   if (docsCol) {
     const docs = await loadDocs(def.table, rows.map((r) => r.id));
     for (const r of rows) r[docsCol.key] = docs.get(r.id) ?? [];
+    // Reports uploaded with the vehicle go to the record of that vehicle closest before their upload date.
+    if (def.list.vehicleDocLabel) {
+      const byVehicle = await loadVehicleDocs([...new Set(rows.map((r) => r.vehicle_id as string))], t(def.list.vehicleDocLabel));
+      for (const [vid, files] of byVehicle) {
+        const mine = rows.filter((r) => r.vehicle_id === vid);
+        const matched = assignByDate(mine.map((r) => ({ id: r.id, date: (r[dateColumn] as string) ?? null })), files);
+        for (const r of mine) r[docsCol.key] = [...((r[docsCol.key] as unknown[]) ?? []), ...(matched.get(r.id) ?? [])];
+      }
+    }
   }
 
   // Previous record date per group (for example the vehicle's previous third-party inspection).

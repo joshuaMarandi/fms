@@ -285,7 +285,7 @@
   "resource.daily_use.trip_requests.jmp_control_room": "JMP: control room review",
   "resource.daily_use.trip_requests.jmp_erc": "JMP: emergency response review",
   "resource.expenses": "Fleet expenses",
-  "resource.expenses.fuel": "Fuel",
+  "resource.expenses.fuel": "Fuel cost",
   "resource.expenses.maintenance": "Maintenance and repair",
   "resource.expenses.maintenance.requests": "Maintenance requests",
   "resource.expenses.maintenance.costs": "Maintenance cost",
@@ -633,7 +633,7 @@
   "daily_use.trips.jmp_print": "Print JMP",
   "daily_use.trips.assignment": "Assignment",
   "expenses.title": "Fleet expenses and administration",
-  "expenses.fuel.title": "Fuel",
+  "expenses.fuel.title": "Fuel cost",
   "expenses.fuel.description": "Fuel consumed against target, filled from the fuel log.",
   "expenses.fuel.km_start": "KM start",
   "expenses.fuel.km_end": "KM end",
@@ -1823,5 +1823,8 @@
   "drivers.osha.history": "OSHA history",
   "drivers.osha.add": "Record a new OSHA test",
   "drivers.osha.report": "Report",
-  "attachments.from_documents": "From the Documents tab"
+  "attachments.from_documents": "From the Documents tab",
+  "drivers.earlier_certificates": "Certificates uploaded earlier",
+  "drivers.earlier_medical": "Medical report",
+  "fleet.view.documents": "Vehicle documents"
 }

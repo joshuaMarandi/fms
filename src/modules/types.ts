@@ -35,6 +35,8 @@ export type ListDef = {
   detailSelect?: string;
   /** Keep the vehicle column when the records of one vehicle are shown. */
   keepVehicleColumn?: boolean;
+  /** A file type kept on the vehicle (label key) to show on these records, matched by date. */
+  vehicleDocLabel?: string;
 };
 
 export type ModuleDef = {

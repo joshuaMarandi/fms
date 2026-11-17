@@ -172,6 +172,7 @@ export const thirdPartyInspections: ModuleDef = {
     searchKeys: ["vehicle.registration", "inspector"],
     statusColumn: "remark",
     previous: { group: "vehicle_id", date: "inspection_date", as: "previous_date" },
+    vehicleDocLabel: "fleet.doc.third_party_report",
     derive: anomalyLines,
     detailColumns: [
       { key: "inspection_date", header: "inspections.date", type: "date" },
@@ -226,6 +227,7 @@ export const mobilizationInspections: ModuleDef = {
   list: {
     select: "*, vehicle:vehicles(registration)",
     eq: { kind: "internal" },
+    vehicleDocLabel: "fleet.doc.internal_report",
     orderBy: { column: "inspection_date", ascending: false },
     searchKeys: ["vehicle.registration"],
     previous: { group: "vehicle_id", date: "inspection_date", as: "previous_date" },
