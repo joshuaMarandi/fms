@@ -57,7 +57,7 @@ insert into public.resources (key, parent_key, name, label_prefix, path, icon, s
   ('expenses.safety', null, 'Safety', '9', null, 'siren', 580, false, false),
   ('expenses.safety.incidents', 'fleet_safety', 'Incident and accident records', null, '/expenses/safety/incidents', null, 307, false, false),
   ('expenses.safety.reports', 'fleet_safety', 'Safety reports', null, '/expenses/safety/reports', null, 308, false, false),
-  ('expenses.reports', 'expenses', 'Fleet data reports', 'j', '/expenses/reports', 'bar-chart-3', 521, false, false),
+  ('expenses.reports', null, 'Fleet data reports', '7', '/expenses/reports', 'bar-chart-3', 700, false, false),
   ('platform', null, 'Platform', null, '/platform', 'building', 50, false, false),
   ('platform.overview', 'platform', 'Overview', null, '/platform', 'layout-grid', 51, false, false),
   ('platform.companies', 'platform', 'Companies', null, '/platform/companies', 'building-2', 52, false, false),

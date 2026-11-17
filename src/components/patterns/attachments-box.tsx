@@ -410,19 +410,21 @@ export function AttachmentsBox({
 
       {/* Viewer */}
       <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="flex h-[94vh] w-[96vw] max-w-[96vw] flex-col gap-3 p-4 sm:max-w-[min(96vw,1200px)] sm:p-5">
           <DialogHeader>
             <DialogTitle className="truncate pr-8">{preview?.row.label}</DialogTitle>
             <DialogDescription className="truncate">{preview?.row.file_name}</DialogDescription>
           </DialogHeader>
           {preview?.loading ? (
-            <Skeleton className="h-[60vh] w-full" />
+            <Skeleton className="min-h-0 w-full flex-1" />
           ) : preview?.url ? (
             isImage(preview.row.mime_type) ? (
-              // eslint-disable-next-line @next/next/no-img-element -- in-memory blob, not optimisable
-              <img src={preview.url} alt={preview.row.label} className="max-h-[70vh] w-full rounded object-contain" />
+              <div className="min-h-0 flex-1 overflow-auto rounded border bg-muted/30">
+                {/* eslint-disable-next-line @next/next/no-img-element -- in-memory blob, not optimisable */}
+                <img src={preview.url} alt={preview.row.label} className="block h-auto w-full" />
+              </div>
             ) : isPdf(preview.row.mime_type) ? (
-              <object data={preview.url} type="application/pdf" className="h-[70vh] w-full rounded border">
+              <object data={preview.url} type="application/pdf" className="min-h-0 w-full flex-1 rounded border">
                 <p className="p-6 text-center text-sm text-muted-foreground">{t("attachments.no_inline_preview")}</p>
               </object>
             ) : (

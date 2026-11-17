@@ -2,14 +2,14 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Download, FileText, Paperclip, Upload } from "lucide-react";
+import { Download, Eye, FileText, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AttachmentsBox } from "./attachments-box";
 import { createClient } from "@/lib/supabase/client";
-import { cn, formatDate } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 import { t } from "@/i18n";
 
 /** An attached file, as loaded on the server for a list or a record. */
@@ -108,10 +108,26 @@ export function DocButton({ docs, upload, compact, label }: { docs: DocRef[]; up
 
   return (
     <span onClick={stop} onKeyDown={stop} className="inline-flex">
-      <Button type="button" variant="outline" size="sm" className={cn("h-8", compact && "px-2")} onClick={openViewer} aria-label={t("docs.view_count", { count: docs.length })}>
-        <Paperclip />
-        {compact ? (docs.length > 1 ? docs.length : t("docs.view")) : (label ?? (docs.length === 1 ? docs[0]!.label : t("docs.view_count", { count: docs.length })))}
-      </Button>
+      {compact ? (
+        // In a table: just an eye (with the count when there are several); it only appears when a file exists.
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="relative h-8 w-8 p-0 text-primary hover:bg-primary/10"
+          onClick={openViewer}
+          aria-label={docs.length === 1 ? `${t("docs.view")}: ${docs[0]!.label}` : t("docs.view_count", { count: docs.length })}
+          title={docs.length === 1 ? docs[0]!.label : t("docs.view_count", { count: docs.length })}
+        >
+          <Eye className="size-[18px]" />
+          {docs.length > 1 ? <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">{docs.length}</span> : null}
+        </Button>
+      ) : (
+        <Button type="button" variant="outline" size="sm" className="h-8" onClick={openViewer} aria-label={t("docs.view_count", { count: docs.length })}>
+          <Eye />
+          {label ?? (docs.length === 1 ? docs[0]!.label : t("docs.view_count", { count: docs.length }))}
+        </Button>
+      )}
       <Dialog
         open={open}
         onOpenChange={(o) => {
@@ -119,13 +135,13 @@ export function DocButton({ docs, upload, compact, label }: { docs: DocRef[]; up
           if (!o) setCurrent(null);
         }}
       >
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="flex h-[94vh] w-[96vw] max-w-[96vw] flex-col gap-3 p-4 sm:max-w-[min(96vw,1200px)] sm:p-5">
           <DialogHeader>
             <DialogTitle className="truncate pr-8">{current ? current.doc.label : t("docs.title")}</DialogTitle>
             <DialogDescription className="truncate">{current ? current.doc.file_name : t("docs.choose")}</DialogDescription>
           </DialogHeader>
           {!current ? (
-            <ul className="divide-y rounded-lg border">
+            <ul className="min-h-0 flex-1 divide-y overflow-auto rounded-lg border">
               {docs.map((d) => (
                 <li key={d.id}>
                   <button type="button" onClick={() => show(d)} className="flex w-full items-center gap-3 p-3 text-left text-sm hover:bg-muted/40">
@@ -142,13 +158,15 @@ export function DocButton({ docs, upload, compact, label }: { docs: DocRef[]; up
               ))}
             </ul>
           ) : current.loading ? (
-            <Skeleton className="h-[60vh] w-full" />
+            <Skeleton className="min-h-0 w-full flex-1" />
           ) : current.url ? (
             isImage(current.doc.mime_type) ? (
-              // eslint-disable-next-line @next/next/no-img-element -- in-memory blob, not optimisable
-              <img src={current.url} alt={current.doc.label} className="max-h-[70vh] w-full rounded object-contain" />
+              <div className="min-h-0 flex-1 overflow-auto rounded border bg-muted/30">
+                {/* eslint-disable-next-line @next/next/no-img-element -- in-memory blob, not optimisable */}
+                <img src={current.url} alt={current.doc.label} className="block h-auto w-full" />
+              </div>
             ) : isPdf(current.doc.mime_type) ? (
-              <object data={current.url} type="application/pdf" className="h-[70vh] w-full rounded border">
+              <object data={current.url} type="application/pdf" className="min-h-0 w-full flex-1 rounded border">
                 <p className="p-6 text-center text-sm text-muted-foreground">{t("attachments.no_inline_preview")}</p>
               </object>
             ) : (

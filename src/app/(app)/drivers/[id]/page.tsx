@@ -8,6 +8,10 @@ import { RecordTitle } from "@/components/modules/record-title";
 import { PrintButton } from "@/components/shell/print-frame";
 import { CoursesEditor } from "./courses-editor";
 import { MandatoryTrainings, type MandatoryRow } from "./mandatory-trainings";
+import { DriverHistory } from "./driver-history";
+import { Reveal } from "@/components/patterns/reveal";
+import { loadDocsByLabel } from "@/lib/data/docs";
+import { formatDate } from "@/lib/utils";
 import { loadDocs } from "@/lib/data/docs";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
@@ -25,8 +29,8 @@ export default async function DriverPage({ params, searchParams }: PageProps<"/d
   const [{ data: driver }, { data: courses }, { data: licence }, { data: osha }, { data: trainings }, options] = await Promise.all([
     supabase.from("drivers").select("*").eq("id", id).is("deleted_at", null).maybeSingle(),
     supabase.from("driver_courses").select("*").eq("driver_id", id).not("course", "is", null).is("deleted_at", null).order("date_completed", { ascending: false }),
-    supabase.from("driver_licences").select("*").eq("driver_id", id).is("deleted_at", null).order("expiry_date", { ascending: false }).limit(1).maybeSingle(),
-    supabase.from("driver_osha").select("*").eq("driver_id", id).is("deleted_at", null).order("redo_date", { ascending: false }).limit(1).maybeSingle(),
+    supabase.from("driver_licences").select("*").eq("driver_id", id).is("deleted_at", null).order("expiry_date", { ascending: false }),
+    supabase.from("driver_osha").select("*").eq("driver_id", id).is("deleted_at", null).order("date_conducted", { ascending: false, nullsFirst: false }),
     supabase.from("mandatory_trainings").select("id, courses, date_completed, refresher_date, trainer").eq("driver_id", id).is("deleted_at", null).order("date_completed", { ascending: false }),
     loadOptions(["profiles"]),
   ]);
@@ -35,6 +39,18 @@ export default async function DriverPage({ params, searchParams }: PageProps<"/d
   const extra = { driver_id: id };
   const paths = [`/drivers/${id}`, "/drivers"];
   const courseRows = (courses ?? []) as Record<string, unknown>[];
+  // Licence and OSHA: every record (newest first). The form edits the newest one.
+  const licenceRows = (licence ?? []) as Record<string, unknown>[];
+  const oshaRows = (osha ?? []) as Record<string, unknown>[];
+  const currentLicence = licenceRows[0] ?? null;
+  const currentOsha = oshaRows[0] ?? null;
+  // Each record's own file, plus the matching file from the Documents tab shown on the newest record.
+  const [licenceDocs, oshaDocs, driverDocs] = await Promise.all([
+    session.can("drivers.licence", "view") ? loadDocs("driver_licences", licenceRows.map((r) => r.id as string)) : Promise.resolve(new Map()),
+    session.can("drivers.osha", "view") ? loadDocs("driver_osha", oshaRows.map((r) => r.id as string)) : Promise.resolve(new Map()),
+    loadDocsByLabel("drivers", id, [t("drivers.doc.licence"), t("drivers.doc.osha_report")]),
+  ]);
+  const fromTab = (key: string) => driverDocs.filter((d) => d.label.toLowerCase() === t(key).toLowerCase());
   const mandatoryRows = (trainings ?? []) as MandatoryRow[];
   const [courseDocs, mandatoryDocs] = await Promise.all([loadDocs("driver_courses", courseRows.map((c) => c.id as string)), loadDocs("mandatory_trainings", mandatoryRows.map((r) => r.id))]);
 
@@ -87,21 +103,53 @@ export default async function DriverPage({ params, searchParams }: PageProps<"/d
         <TabsContent value="licence">
           <div className="mb-2 flex items-center gap-2 text-sm">
             <span className="font-medium">{t("drivers.expiry_date")}</span>
-            <ReminderChip date={((licence as Record<string, unknown> | null)?.expiry_date as string) ?? null} />
+            <ReminderChip date={(currentLicence?.expiry_date as string) ?? null} />
           </div>
-          <SchemaForm schemaKey="drivers.licence" record={licence as Record<string, unknown> | null} extra={extra} revalidate={paths} readOnly={!session.can("drivers.licence", "edit")} />
-          <div className="page-card mt-6 p-4 md:p-6">
-            <h3 className="mb-3 text-sm font-semibold">{t("drivers.licence_file")}</h3>
-            <AttachmentsBox table="drivers" rowId={id} resource="drivers.licence" bucket="driver-docs" labels={[t("drivers.doc.licence")]} multiple={false} readOnly={!session.can("drivers.licence", "edit")} />
-          </div>
+          <SchemaForm key={(currentLicence?.id as string) ?? "new"} schemaKey="drivers.licence" record={currentLicence} extra={extra} revalidate={paths} readOnly={!session.can("drivers.licence", "edit")} />
+          {currentLicence && session.can("drivers.licence", "create") ? (
+            <div className="mt-4">
+              <Reveal label={t("drivers.licence.add")}>
+                <SchemaForm schemaKey="drivers.licence" record={null} extra={extra} revalidate={paths} />
+              </Reveal>
+            </div>
+          ) : null}
+          <DriverHistory
+            title={t("drivers.licence.history")}
+            headers={[t("drivers.licence_number"), t("drivers.licence_class"), t("drivers.date_issued"), t("drivers.expiry_date")]}
+            docHeader={t("drivers.doc.licence")}
+            rows={licenceRows.map((r, i) => ({
+              id: r.id as string,
+              current: i === 0,
+              cells: [(r.licence_number as string) || "—", (r.licence_class as string) || "—", formatDate(r.date_issued as string), <ReminderChip key="exp" date={(r.expiry_date as string) ?? null} showDate />],
+              docs: [...(licenceDocs.get(r.id as string) ?? []), ...(i === 0 ? fromTab("drivers.doc.licence") : [])],
+            }))}
+          />
         </TabsContent>
 
         <TabsContent value="osha">
           <div className="mb-2 flex items-center gap-2 text-sm">
             <span className="font-medium">{t("drivers.osha_redo")}</span>
-            <ReminderChip date={((osha as Record<string, unknown> | null)?.redo_date as string) ?? null} />
+            <ReminderChip date={(currentOsha?.redo_date as string) ?? null} />
           </div>
-          <SchemaForm schemaKey="drivers.osha" record={osha as Record<string, unknown> | null} extra={extra} revalidate={paths} readOnly={!session.can("drivers.osha", "edit")} />
+          <SchemaForm key={(currentOsha?.id as string) ?? "new"} schemaKey="drivers.osha" record={currentOsha} extra={extra} revalidate={paths} readOnly={!session.can("drivers.osha", "edit")} />
+          {currentOsha && session.can("drivers.osha", "create") ? (
+            <div className="mt-4">
+              <Reveal label={t("drivers.osha.add")}>
+                <SchemaForm schemaKey="drivers.osha" record={null} extra={extra} revalidate={paths} />
+              </Reveal>
+            </div>
+          ) : null}
+          <DriverHistory
+            title={t("drivers.osha.history")}
+            headers={[t("drivers.osha_date"), t("drivers.osha_redo"), t("drivers.osha_result")]}
+            docHeader={t("drivers.osha.report")}
+            rows={oshaRows.map((r, i) => ({
+              id: r.id as string,
+              current: i === 0,
+              cells: [formatDate(r.date_conducted as string), <ReminderChip key="redo" date={(r.redo_date as string) ?? null} showDate />, (r.result as string) || "—"],
+              docs: [...(oshaDocs.get(r.id as string) ?? []), ...(i === 0 ? fromTab("drivers.doc.osha_report") : [])],
+            }))}
+          />
         </TabsContent>
 
         <TabsContent value="documents">

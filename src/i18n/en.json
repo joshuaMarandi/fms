@@ -1815,5 +1815,12 @@
   "expenses.misc.receipt": "Receipt or invoice",
   "daily_use.fuel_issues.filled": "Fuel filled",
   "daily_use.fuel_issues.km_start": "KM start",
-  "daily_use.fuel_issues.km_end": "KM end"
+  "daily_use.fuel_issues.km_end": "KM end",
+  "drivers.history.none": "Nothing recorded yet.",
+  "drivers.history.current": "Current",
+  "drivers.licence.history": "Licence history",
+  "drivers.licence.add": "Record a renewed licence",
+  "drivers.osha.history": "OSHA history",
+  "drivers.osha.add": "Record a new OSHA test",
+  "drivers.osha.report": "Report"
 }
