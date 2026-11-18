@@ -3,10 +3,11 @@ import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { todayISO } from "@/lib/utils";
 import { RosterBoard } from "./roster-board";
-import { addDays, cycleStartFor, type RosterException, type RosterMember, type RosterSettings } from "./cycle";
+import { addDays, cycleStartFor, daysBetween, type RosterException, type RosterMember, type RosterSettings } from "./cycle";
+import { isPeriod, periodRange, type PeriodKey } from "@/components/hub/periods";
 import { t } from "@/i18n";
 
-/** Fleet roster: the rotating block roster, one cycle (4 blocks) at a time. ?cycle=-1 / 1 moves back or forward. */
+/** Fleet roster: the rotating block roster for the dates chosen (the current cycle by default). */
 export default async function RosterPage({ searchParams }: PageProps<"/administration/roster">) {
   const session = await requirePermission("expenses.admin.roster", "view");
   const sp = await searchParams;
@@ -32,10 +33,24 @@ export default async function RosterPage({ searchParams }: PageProps<"/administr
     night_to: String(s?.night_to ?? "06:00").slice(0, 5),
   };
 
-  const offset = Math.max(-24, Math.min(24, Number(typeof sp.cycle === "string" ? sp.cycle : 0) || 0));
+  // Dates shown: the normal date filter (quick period or From and To); by default the current cycle.
+  const one = (v: unknown) => (typeof v === "string" ? v : undefined);
+  const isDay = (v: string | undefined) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
+  const period = isPeriod(one(sp.period)) ? (one(sp.period) as PeriodKey) : null;
   const len = settings.block_days * 4;
-  const start = addDays(cycleStartFor(today, settings), offset * len);
-  const end = addDays(start, len - 1);
+  let start = cycleStartFor(today, settings);
+  let end = addDays(start, len - 1);
+  const fromParam = one(sp.from);
+  const toParam = one(sp.to);
+  if (period) {
+    ({ from: start, to: end } = periodRange(period, today));
+  } else if (isDay(fromParam) || isDay(toParam)) {
+    start = isDay(fromParam) ? fromParam! : addDays(toParam!, -(len - 1));
+    end = isDay(toParam) ? toParam! : addDays(start, len - 1);
+  }
+  if (end < start) [start, end] = [end, start];
+  // Long ranges are capped at three months so the sheet stays readable.
+  if (daysBetween(start, end) > 92) end = addDays(start, 92);
 
   const { data: exceptionRows } = await supabase
     .from("fleet_rosters")
@@ -54,7 +69,8 @@ export default async function RosterPage({ searchParams }: PageProps<"/administr
         exceptions={(exceptionRows ?? []) as RosterException[]}
         drivers={((driverRows ?? []) as { id: string; full_name: string; employment_number: string | null }[]).map((d) => ({ value: d.id, label: d.full_name, employment: d.employment_number }))}
         start={start}
-        offset={offset}
+        end={end}
+        filter={{ period, from: period ? null : (isDay(fromParam) ? fromParam! : null), to: period ? null : (isDay(toParam) ? toParam! : null) }}
         today={today}
         canEdit={session.can("expenses.admin.roster", "edit") || session.can("expenses.admin.roster", "create")}
       />

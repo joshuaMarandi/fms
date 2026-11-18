@@ -1,10 +1,9 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Download, Settings2, Trash2, UserPlus, Users } from "lucide-react";
+import { Download, Settings2, Trash2, UserPlus, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,11 +11,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SearchSelect } from "@/components/patterns/search-select";
+import { DateRangeFilter, type DateValue } from "@/components/patterns/date-range-filter";
+import { startNavigationProgress } from "@/components/shell/navigation-progress";
+import type { PeriodKey } from "@/components/hub/periods";
 import { useSession } from "@/components/permissions/provider";
 import { deleteRecord, saveRecord } from "@/lib/data/records";
 import { exportExcel } from "@/lib/export";
 import { cn, formatDate } from "@/lib/utils";
-import { addDays, cycleShift, PATTERN, type RosterException, type RosterMember, type RosterSettings, type Shift } from "./cycle";
+import { addDays, cycleShift, daysBetween, PATTERN, type RosterException, type RosterMember, type RosterSettings, type Shift } from "./cycle";
 import { t } from "@/i18n";
 
 const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -29,15 +31,26 @@ const SHIFT_STYLE: Record<Shift, string> = {
   sick: "bg-[#f9e1de] text-[#8a1c12]",
   standby: "bg-[#e8e7e1] text-[#3f4a46]",
 };
+// Cell colours of the Excel sheet (whole cell filled).
+const SHIFT_CELL: Record<Shift, string> = {
+  day: "bg-[#fff2cc] text-[#3b3000]",
+  noon: "bg-[#fce4d6] text-[#5a2a0c]",
+  night: "bg-[#d9e1f2] text-[#1f3864]",
+  off: "bg-[#e2efda] text-[#274e13]",
+  leave: "bg-[#e4dfec] text-[#3f2f68]",
+  sick: "bg-[#f8d7da] text-[#7a1a12]",
+  standby: "bg-[#ededed] text-[#3a3a3a]",
+};
 const CHOICES: Shift[] = ["day", "noon", "night", "off", "leave", "sick", "standby"];
 const PATHS = ["/administration/roster"];
 
 type DriverOption = { value: string; label: string; employment: string | null };
 
 /**
- * The rotating block roster on one screen: people by team down the side, the days of one cycle
- * across, coloured by shift, and the number on each shift per day at the bottom. Clicking a day
- * changes it for that person only (an exception); the cycle carries on as before.
+ * The rotating block roster laid out like the company's Excel sheet: a title band, the shift hours,
+ * driver and coordinator details on the left, days grouped by week across, coloured cells, and the
+ * number on each shift per day at the bottom. The dates come from the normal date filter. Clicking
+ * a day changes it for that person only (an exception); the cycle carries on as before.
  */
 export function RosterBoard({
   settings,
@@ -45,7 +58,8 @@ export function RosterBoard({
   exceptions,
   drivers,
   start,
-  offset,
+  end,
+  filter,
   today,
   canEdit,
 }: {
@@ -54,17 +68,36 @@ export function RosterBoard({
   exceptions: RosterException[];
   drivers: DriverOption[];
   start: string;
-  offset: number;
+  end: string;
+  filter: { period: PeriodKey | null; from: string | null; to: string | null };
   today: string;
   canEdit: boolean;
 }) {
   const router = useRouter();
   const session = useSession();
   const len = settings.block_days * 4;
-  const days = React.useMemo(() => Array.from({ length: len }, (_, i) => addDays(start, i)), [start, len]);
+  const days = React.useMemo(() => Array.from({ length: daysBetween(start, end) + 1 }, (_, i) => addDays(start, i)), [start, end]);
   const exceptionOf = React.useMemo(() => new Map(exceptions.map((e) => [`${e.member_id}:${e.roster_date}`, e])), [exceptions]);
   const [membersOpen, setMembersOpen] = React.useState(false);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
+
+  // Day number and week of the cycle, as on the sheet (D1-D28, Week 1-4).
+  const cycleDay = (d: string) => ((((daysBetween(settings.cycle_start, d) % len) + len) % len) + 1);
+  const cycleWeek = (d: string) => Math.floor((cycleDay(d) - 1) / settings.block_days) + 1;
+  const weeks = React.useMemo(() => {
+    const out: { key: string; week: number; from: number; to: number; days: string[] }[] = [];
+    for (const d of days) {
+      const w = cycleWeek(d);
+      const last = out[out.length - 1];
+      if (last && last.week === w && cycleDay(d) === last.to + 1) {
+        last.days.push(d);
+        last.to = cycleDay(d);
+      } else out.push({ key: d, week: w, from: cycleDay(d), to: cycleDay(d), days: [d] });
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- cycleDay and cycleWeek depend only on settings
+  }, [days, settings.cycle_start, settings.block_days]);
+  const weekStart = new Set(weeks.map((w) => w.key));
 
   const shiftOf = (m: RosterMember, date: string): { shift: Shift; changed: RosterException | null } => {
     const ex = exceptionOf.get(`${m.id}:${date}`) ?? null;
@@ -77,6 +110,7 @@ export function RosterBoard({
     for (const m of members) map.set(m.team, [...(map.get(m.team) ?? []), m]);
     return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
   }, [members]);
+  const ordered = teams.flatMap(([, list]) => list);
 
   const counts = (date: string) => {
     const c: Record<string, number> = { day: 0, noon: 0, night: 0, off: 0, away: 0 };
@@ -100,61 +134,59 @@ export function RosterBoard({
     else router.refresh();
   }
 
+  const dayLabel = (d: string) => `D${cycleDay(d)} ${WEEKDAY[new Date(`${d}T00:00:00Z`).getUTCDay()]}`;
+  const driverCount = members.filter((m) => m.role === "driver").length;
+  const perShift = days.length ? counts(days[0]!).day : 0;
+  const title = t("roster.sheet_title", { drivers: driverCount, days: len, per: perShift, off: settings.block_days });
+  const subtitle = t("roster.sheet_subtitle", {
+    day: `${settings.day_from}–${settings.day_to}`,
+    noon: `${settings.noon_from}–${settings.noon_to}`,
+    night: `${settings.night_from}–${settings.night_to}`,
+    block: settings.block_days,
+  });
+
   async function exportSheet() {
     const cols = [
       { key: "team", header: t("roster.team") },
       { key: "employment_id", header: t("roster.employment_id") },
       { key: "name", header: t("roster.name") },
-      ...days.map((d, i) => ({ key: d, header: `D${i + 1} ${WEEKDAY[new Date(`${d}T00:00:00Z`).getUTCDay()]}` })),
+      ...days.map((d) => ({ key: d, header: dayLabel(d) })),
     ];
-    const rows: Record<string, unknown>[] = [];
-    for (const [, list] of teams) {
-      for (const m of list) {
-        const r: Record<string, unknown> = { team: m.team, employment_id: m.employment_id ?? "", name: m.person_name };
-        for (const d of days) r[d] = t(`roster.shift.${shiftOf(m, d).shift}`);
-        rows.push(r);
-      }
-    }
+    const rows: Record<string, unknown>[] = ordered.map((m) => {
+      const r: Record<string, unknown> = { team: m.team, employment_id: m.employment_id ?? "", name: m.person_name };
+      for (const d of days) r[d] = t(`roster.shift.${shiftOf(m, d).shift}`);
+      return r;
+    });
     for (const key of ["day", "noon", "night", "off"] as const) {
       const r: Record<string, unknown> = { team: "", employment_id: "", name: t(`roster.total.${key}`) };
       for (const d of days) r[d] = counts(d)[key];
       rows.push(r);
     }
-    await exportExcel(cols, rows, `fleet-roster-${start}`, `${t("roster.title")} ${formatDate(start)} – ${formatDate(days[days.length - 1]!)}`, { brand: session.brand, printedBy: session.fullName });
+    await exportExcel(cols, rows, `fleet-roster-${start}`, `${title} · ${formatDate(start)} – ${formatDate(end)}`, { brand: session.brand, printedBy: session.fullName });
   }
 
-  const weeks = Array.from({ length: 4 }, (_, w) => days.slice(w * settings.block_days, (w + 1) * settings.block_days));
+  // The date filter lives in the address, like every other page.
+  const dateValue: DateValue = filter.period ? { kind: "period", period: filter.period } : filter.from || filter.to ? { kind: "range", from: filter.from ?? "", to: filter.to ?? "" } : { kind: "all" };
+  const onDate = (v: DateValue) => {
+    const q = new URLSearchParams();
+    if (v.kind === "period") q.set("period", v.period);
+    else if (v.kind === "range") {
+      if (v.from) q.set("from", v.from);
+      if (v.to) q.set("to", v.to);
+    }
+    startNavigationProgress();
+    router.push(`/administration/roster${q.size ? `?${q.toString()}` : ""}`);
+  };
 
   return (
     <div className="space-y-4">
-      {/* Shifts and cycle, with navigation and actions */}
-      <div className="page-card flex flex-wrap items-center gap-3 p-3">
-        <div className="flex items-center gap-1">
-          <Button asChild variant="outline" size="icon" className="size-10" aria-label={t("roster.previous")}>
-            <Link href={`/administration/roster?cycle=${offset - 1}`}>
-              <ChevronLeft />
-            </Link>
-          </Button>
-          <div className="min-w-[210px] px-2 text-center">
-            <p className="text-sm font-semibold">
-              {formatDate(start)} – {formatDate(days[days.length - 1]!)}
-            </p>
-            <p className="text-xs text-muted-foreground">{offset === 0 ? t("roster.this_cycle") : t("roster.cycle_offset", { n: offset > 0 ? `+${offset}` : String(offset) })}</p>
-          </div>
-          <Button asChild variant="outline" size="icon" className="size-10" aria-label={t("roster.next")}>
-            <Link href={`/administration/roster?cycle=${offset + 1}`}>
-              <ChevronRight />
-            </Link>
-          </Button>
-          {offset !== 0 ? (
-            <Button asChild variant="ghost" className="h-10">
-              <Link href="/administration/roster">{t("roster.today")}</Link>
-            </Button>
-          ) : null}
-        </div>
-        <p className="text-xs text-muted-foreground">
-          {t("roster.shifts_line", { day: `${settings.day_from}–${settings.day_to}`, noon: `${settings.noon_from}–${settings.noon_to}`, night: `${settings.night_from}–${settings.night_to}`, block: settings.block_days })}
-        </p>
+      {/* Filters and actions, like every other table */}
+      <div className="page-card flex flex-wrap items-center gap-2 p-3">
+        <DateRangeFilter value={dateValue} onChange={onDate} />
+        <span className="text-xs text-muted-foreground">
+          {formatDate(start)} – {formatDate(end)}
+          {dateValue.kind === "all" ? ` · ${t("roster.this_cycle")}` : ""}
+        </span>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <Button type="button" variant="outline" className="h-10" onClick={exportSheet} disabled={members.length === 0}>
             <Download /> {t("roster.export")}
@@ -183,74 +215,88 @@ export function RosterBoard({
           ) : null}
         </div>
       ) : (
-        <div className="page-card overflow-x-auto">
-          <table className="w-max min-w-full border-collapse text-xs">
+        <div className="overflow-x-auto rounded-lg border border-[#b4c0d6] bg-white text-[#17211e]">
+          <table className="w-max min-w-full border-collapse text-[11.5px]" style={{ fontFamily: "Calibri, Arial, Helvetica, sans-serif" }}>
             <thead>
+              {/* Title band and shift line, as on the sheet */}
               <tr>
-                <th colSpan={3} className="sticky left-0 z-20 border-b border-r bg-[#0f3d34] px-3 py-2 text-left text-[11px] font-semibold tracking-wide text-white uppercase">
+                <th colSpan={3} className="sticky left-0 z-20 border border-[#b4c0d6] bg-white" />
+                <th colSpan={days.length} className="border border-[#1f3864] bg-[#1f3864] px-3 py-1.5 text-center text-[15px] font-bold tracking-wide text-white uppercase">
+                  {title}
+                </th>
+              </tr>
+              <tr>
+                <th colSpan={3} className="sticky left-0 z-20 border border-[#b4c0d6] bg-white" />
+                <th colSpan={days.length} className="border border-[#b4c0d6] bg-white px-3 py-1 text-center text-[11px] font-normal text-[#1f3864] italic">
+                  {subtitle}
+                </th>
+              </tr>
+              <tr>
+                <th colSpan={3} className="sticky left-0 z-20 border border-[#1f3864] bg-[#2f5496] px-3 py-1.5 text-center text-[11px] font-bold tracking-wide text-white uppercase">
                   {t("roster.people_heading")}
                 </th>
-                {weeks.map((w, i) => (
-                  <th key={i} colSpan={w.length} className="border-b border-l bg-muted/60 px-2 py-2 text-center text-[11px] font-semibold tracking-wide uppercase">
-                    {t("roster.week", { n: i + 1, from: i * settings.block_days + 1, to: (i + 1) * settings.block_days })}
+                {weeks.map((w) => (
+                  <th key={w.key} colSpan={w.days.length} className="border border-[#8ea2c8] bg-[#dbe2ef] px-2 py-1.5 text-center text-[11px] font-bold tracking-wide text-[#1f3864] uppercase">
+                    {t("roster.week", { n: w.week, from: w.from, to: w.to })}
                   </th>
                 ))}
               </tr>
               <tr>
-                <th className="sticky left-0 z-20 w-[72px] border-b bg-[#0f5c4d] px-2 py-1.5 text-left font-semibold text-white">{t("roster.team")}</th>
-                <th className="sticky left-[72px] z-20 w-[84px] border-b bg-[#0f5c4d] px-2 py-1.5 text-left font-semibold text-white">{t("roster.employment_id")}</th>
-                <th className="sticky left-[156px] z-20 min-w-[170px] border-b border-r bg-[#0f5c4d] px-2 py-1.5 text-left font-semibold text-white">{t("roster.name")}</th>
-                {days.map((d, i) => (
-                  <th key={d} className={cn("min-w-[44px] border-b px-1 py-1 text-center font-semibold", i % settings.block_days === 0 && "border-l", d === today ? "bg-[#d98b1f] text-white" : "bg-muted/40")} title={formatDate(d)}>
-                    <span className="block">D{i + 1}</span>
-                    <span className="block font-normal">{WEEKDAY[new Date(`${d}T00:00:00Z`).getUTCDay()]}</span>
-                    <span className={cn("block text-[10px] font-normal", d === today ? "text-white/90" : "text-muted-foreground")}>{d.slice(8, 10)}</span>
+                <th className="sticky left-0 z-20 w-[70px] border border-[#1f3864] bg-[#1f3864] px-2 py-1.5 text-center font-bold text-white">{t("roster.team")}</th>
+                <th className="sticky left-[70px] z-20 w-[96px] border border-[#1f3864] bg-[#1f3864] px-2 py-1.5 text-center font-bold text-white">{t("roster.employment_id")}</th>
+                <th className="sticky left-[166px] z-20 min-w-[180px] border border-[#1f3864] bg-[#1f3864] px-2 py-1.5 text-center font-bold text-white">{t("roster.name")}</th>
+                {days.map((d) => (
+                  <th
+                    key={d}
+                    className={cn("min-w-[46px] border border-[#1f3864] bg-[#1f3864] px-1 py-1 text-center font-bold text-white", weekStart.has(d) && "border-l-2 border-l-white", d === today && "bg-[#d98b1f] border-[#d98b1f]")}
+                    title={formatDate(d)}
+                  >
+                    <span className="block leading-tight">D{cycleDay(d)}</span>
+                    <span className="block leading-tight">{WEEKDAY[new Date(`${d}T00:00:00Z`).getUTCDay()]}</span>
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {teams.map(([team, list]) =>
-                list.map((m, j) => (
-                  <tr key={m.id} className={cn(j === list.length - 1 && "border-b-2 border-[#0f3d34]/20")}>
-                    <td className="sticky left-0 z-10 w-[72px] border-b bg-card px-2 py-1 font-medium">{j === 0 ? team : ""}</td>
-                    <td className="sticky left-[72px] z-10 w-[84px] border-b bg-card px-2 py-1 tabular-nums text-muted-foreground">{m.employment_id ?? "—"}</td>
-                    <td className="sticky left-[156px] z-10 min-w-[170px] border-b border-r bg-card px-2 py-1 font-medium">
-                      {m.person_name}
-                      {m.role === "coordinator" ? <span className="ml-1 text-[10px] text-muted-foreground">({t("roster.coordinator")})</span> : null}
-                    </td>
-                    {days.map((d, i) => {
-                      const { shift, changed } = shiftOf(m, d);
-                      const cell = (
-                        <span className={cn("relative flex h-7 items-center justify-center rounded text-[11px] font-semibold", SHIFT_STYLE[shift], changed && "ring-2 ring-[#d98b1f] ring-inset")}>
-                          {t(`roster.shift.${shift}`)}
-                          {changed ? <span className="absolute top-0.5 right-0.5 size-1.5 rounded-full bg-[#d98b1f]" /> : null}
-                        </span>
-                      );
-                      return (
-                        <td key={d} className={cn("border-b px-0.5 py-0.5", i % settings.block_days === 0 && "border-l", d === today && "bg-[#d98b1f]/10")}>
-                          {canEdit ? (
-                            <DayPicker current={shift} cycle={cycleShift(m, d, settings)} changed={!!changed} onPick={(s) => setShift(m, d, s)} label={`${m.person_name}, ${formatDate(d)}`}>
-                              {cell}
-                            </DayPicker>
-                          ) : (
-                            cell
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                )),
-              )}
+              {ordered.map((m) => (
+                <tr key={m.id}>
+                  <td className="sticky left-0 z-10 w-[70px] border border-[#c9d2e3] bg-white px-2 py-1 font-semibold">{m.team}</td>
+                  <td className="sticky left-[70px] z-10 w-[96px] border border-[#c9d2e3] bg-white px-2 py-1 text-center">{m.employment_id ?? ""}</td>
+                  <td className="sticky left-[166px] z-10 min-w-[180px] border border-[#c9d2e3] bg-white px-2 py-1">{m.person_name}</td>
+                  {days.map((d) => {
+                    const { shift, changed } = shiftOf(m, d);
+                    const cell = (
+                      <span className={cn("relative flex h-6 items-center justify-center", changed && "font-bold underline decoration-[#d98b1f] decoration-2 underline-offset-2")}>
+                        {t(`roster.shift.${shift}`)}
+                      </span>
+                    );
+                    return (
+                      <td key={d} className={cn("border border-[#c9d2e3] p-0 text-center", SHIFT_CELL[shift], weekStart.has(d) && "border-l-2 border-l-[#8ea2c8]")}>
+                        {canEdit ? (
+                          <DayPicker current={shift} cycle={cycleShift(m, d, settings)} changed={!!changed} onPick={(s) => setShift(m, d, s)} label={`${m.person_name}, ${formatDate(d)}`}>
+                            {cell}
+                          </DayPicker>
+                        ) : (
+                          cell
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+              {/* An empty spacer row, then the totals, as on the sheet */}
+              <tr>
+                <td colSpan={3 + days.length} className="h-4 border border-[#c9d2e3] bg-white" />
+              </tr>
             </tbody>
             <tfoot>
               {(["day", "noon", "night", "off"] as const).map((key) => (
-                <tr key={key} className={SHIFT_STYLE[key]}>
-                  <td colSpan={3} className="sticky left-0 z-10 border-b border-r bg-inherit px-2 py-1.5 font-semibold">
+                <tr key={key}>
+                  <td colSpan={3} className={cn("sticky left-0 z-10 border border-[#c9d2e3] px-2 py-1 font-bold", SHIFT_CELL[key])}>
                     {t(`roster.total.${key}`)}
                   </td>
-                  {days.map((d, i) => (
-                    <td key={d} className={cn("border-b px-1 py-1.5 text-center font-semibold tabular-nums", i % settings.block_days === 0 && "border-l")}>
+                  {days.map((d) => (
+                    <td key={d} className={cn("border border-[#c9d2e3] px-1 py-1 text-center font-semibold tabular-nums", SHIFT_CELL[key], weekStart.has(d) && "border-l-2 border-l-[#8ea2c8]")}>
                       {counts(d)[key]}
                     </td>
                   ))}
@@ -258,7 +304,7 @@ export function RosterBoard({
               ))}
             </tfoot>
           </table>
-          <p className="border-t px-3 py-2 text-xs text-muted-foreground">{t("roster.legend")}</p>
+          <p className="border-t border-[#c9d2e3] px-3 py-2 text-xs text-muted-foreground">{t("roster.legend")}</p>
         </div>
       )}
 
