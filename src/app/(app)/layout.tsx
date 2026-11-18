@@ -8,6 +8,7 @@ import { OfflineBanner } from "@/components/pwa/offline-banner";
 import { SubscriptionBlocked } from "@/components/shell/subscription-blocked";
 import { OwnerWorkspaceBar } from "@/components/shell/owner-workspace-bar";
 import { PrintFrame } from "@/components/shell/print-frame";
+import { PageTitleProvider } from "@/components/shell/page-title";
 import { WaitingRequestsGate } from "@/components/shell/waiting-requests-gate";
 import { requireSession } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
@@ -42,6 +43,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <PermissionProvider session={sessionLite} permissions={session.permissions}>
       <RecordTitleProvider>
+        <PageTitleProvider>
         <SidebarProvider>
           <AppSidebar
             counts={{
@@ -63,6 +65,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             {session.isDriverOnly ? <DriverBottomNav /> : null}
           </SidebarInset>
         </SidebarProvider>
+        </PageTitleProvider>
       </RecordTitleProvider>
     </PermissionProvider>
   );
