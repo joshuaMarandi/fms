@@ -90,10 +90,6 @@ export const maintenanceRequests: ModuleDef = {
   editableStatuses: ["draft", "rejected"],
   detailExtra: "works_order",
   titleOf: (r) => `${(r.vehicle as { registration?: string } | undefined)?.registration ?? ""} ${r.request_date ?? ""}`.trim(),
-  approvalExtra: () => [
-    { name: "approver_name", label: "approval.approver_name", control: "text", required: true },
-    { name: "approver_position", label: "approval.approver_position", control: "text", required: true },
-  ],
   schema: {
     table: "maintenance_requests",
     resource: "expenses.maintenance.requests",
@@ -396,6 +392,24 @@ export const toolboxPlans: ModuleDef = {
 };
 
 const DAY_TYPES: Option[] = ["work", "rest", "leave", "public_holiday", "sick"].map((k) => ({ value: k, label: `expenses.timesheet.day_type.${k}` }));
+const SHIFT_TYPES: Option[] = ["day", "night"].map((k) => ({ value: k, label: `expenses.timesheet.shift.${k}` }));
+
+/** Hours worked on a day: time out - time in - break (a night shift runs past midnight). */
+function workedHours(v: Record<string, unknown>): number | null {
+  const mins = (x: unknown) => {
+    const m = /^(\d{2}):(\d{2})/.exec(String(x ?? ""));
+    return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+  };
+  const inn = mins(v.time_in);
+  const out = mins(v.time_out);
+  if (inn === null || out === null) return null;
+  let total = out - inn;
+  if (total < 0) total += 1440;
+  const bf = mins(v.break_from);
+  const bt = mins(v.break_to);
+  if (bf !== null && bt !== null) total -= bt >= bf ? bt - bf : bt - bf + 1440;
+  return Math.max(0, Math.round((total / 60) * 100) / 100);
+}
 
 export const timesheets: ModuleDef = {
   key: "expenses.timesheet",
@@ -438,39 +452,77 @@ export const timesheets: ModuleDef = {
             minRows: 1,
             fields: [
               { name: "work_date", label: "expenses.timesheet.work_date", control: "date", required: true },
+              {
+                name: "weekday",
+                label: "expenses.timesheet.day",
+                control: "auto",
+                format: "text",
+                compute: (v) => (v.work_date ? new Date(`${v.work_date}T00:00:00`).toLocaleDateString("en-GB", { weekday: "long" }) : ""),
+              },
               { name: "day_type", label: "expenses.timesheet.day_type", control: "select", options: DAY_TYPES, required: true },
+              { name: "shift", label: "expenses.timesheet.shift", control: "select", options: SHIFT_TYPES, required: true },
               { name: "time_in", label: "expenses.timesheet.time_in", control: "time" },
+              { name: "break_from", label: "expenses.timesheet.break_from", control: "time" },
+              { name: "break_to", label: "expenses.timesheet.break_to", control: "time" },
               { name: "time_out", label: "expenses.timesheet.time_out", control: "time" },
-              { name: "normal_hours", label: "expenses.timesheet.normal_hours", control: "number", min: 0, max: 24, step: 0.25, unit: "h" },
-              { name: "overtime_hours", label: "expenses.timesheet.overtime_hours", control: "number", min: 0, max: 24, step: 0.25, unit: "h" },
-              { name: "remarks", label: "common.remarks", control: "text" },
+              { name: "total_hours", label: "expenses.timesheet.total_hours", control: "auto", format: "hours", compute: (v) => workedHours(v) },
+              { name: "overtime_hours", label: "expenses.timesheet.normal_ot", control: "number", min: 0, max: 24, step: 0.25, unit: "h", description: "expenses.timesheet.normal_ot_hint" },
+              { name: "special_overtime_hours", label: "expenses.timesheet.special_ot", control: "number", min: 0, max: 24, step: 0.25, unit: "h", description: "expenses.timesheet.special_ot_hint" },
             ],
             defaultRow: (values, rows) => {
               const last = rows[rows.length - 1]?.work_date as string | undefined;
               const base = last ? new Date(last + "T00:00:00") : values.period_month ? new Date((values.period_month as string) + "T00:00:00") : new Date();
               if (last) base.setDate(base.getDate() + 1);
-              return { work_date: base.toISOString().slice(0, 10), day_type: "work", time_in: "07:30", time_out: "17:00", normal_hours: 8, overtime_hours: 1.5, remarks: "" };
+              return { work_date: base.toISOString().slice(0, 10), day_type: "work", shift: "day", time_in: "07:30", break_from: "13:00", break_to: "14:00", time_out: "17:00", overtime_hours: "", special_overtime_hours: "" };
             },
             totals: [
-              { label: "expenses.timesheet.total_normal", format: "number", compute: (rows) => rows.reduce((s, r) => s + (Number(r.normal_hours) || 0), 0) },
-              { label: "expenses.timesheet.total_overtime", format: "number", compute: (rows) => rows.reduce((s, r) => s + (Number(r.overtime_hours) || 0), 0) },
+              { label: "expenses.timesheet.total_hours_all", format: "number", compute: (rows) => rows.reduce((s, r) => s + (workedHours(r) ?? 0), 0) },
+              { label: "expenses.timesheet.normal_ot", format: "number", compute: (rows) => rows.reduce((s, r) => s + (Number(r.overtime_hours) || 0), 0) },
+              { label: "expenses.timesheet.special_ot", format: "number", compute: (rows) => rows.reduce((s, r) => s + (Number(r.special_overtime_hours) || 0), 0) },
             ],
           },
+        ],
+      },
+      {
+        title: "expenses.timesheet.signatures",
+        fields: [
+          { name: "employee_signature", label: "expenses.timesheet.driver_signature", control: "signature", required: true },
+          { name: "coordinator_name", label: "expenses.timesheet.coordinator_name", control: "text" },
+          { name: "coordinator_signature", label: "expenses.timesheet.coordinator_signature", control: "signature" },
         ],
       },
     ],
   },
   list: {
-    select: "*",
+    select: "*, days:timesheet_days(day_type, shift, total_hours, overtime_hours, special_overtime_hours, deleted_at)",
     orderBy: { column: "period_month", ascending: false },
-    searchKeys: ["employee_name", "department", "status"],
+    searchKeys: ["employee_name", "employment_number", "job_title", "status"],
     statusColumn: "status",
+    // The Excel summary: days and hours of the month for each employee.
+    derive: (r) => {
+      const days = ((r.days as { day_type: string; shift: string; total_hours: number; overtime_hours: number; special_overtime_hours: number; deleted_at: string | null }[] | null) ?? []).filter((d) => !d.deleted_at);
+      const hrs = (d: { total_hours: number }) => Number(d.total_hours) || 0;
+      return {
+        period_label: r.period_month ? new Date(`${r.period_month}T00:00:00`).toLocaleDateString("en-GB", { month: "long", year: "numeric" }) : "",
+        normal_days: days.filter((d) => d.day_type === "work" && hrs(d) > 0).length,
+        holiday_days: days.filter((d) => d.day_type === "public_holiday" && hrs(d) > 0).length,
+        normal_ot: days.reduce((s, d) => s + (Number(d.overtime_hours) || 0), 0),
+        holiday_ot: days.reduce((s, d) => s + (Number(d.special_overtime_hours) || 0), 0),
+        night_hours: days.filter((d) => d.shift === "night").reduce((s, d) => s + hrs(d), 0),
+        off_day_hours: days.filter((d) => d.day_type === "rest").reduce((s, d) => s + hrs(d), 0),
+      };
+    },
     columns: [
-      { key: "period_month", header: "expenses.timesheet.period", type: "date" },
-      { key: "employee_name", header: "expenses.timesheet.employee" },
-      { key: "department", header: "expenses.timesheet.department" },
-      { key: "total_normal_hours", header: "expenses.timesheet.total_normal", type: "hours" },
-      { key: "total_overtime_hours", header: "expenses.timesheet.total_overtime", type: "hours" },
+      { key: "period_label", header: "expenses.timesheet.period" },
+      { key: "employee_name", header: "expenses.timesheet.employee_name" },
+      { key: "employment_number", header: "expenses.timesheet.employment_number" },
+      { key: "job_title", header: "expenses.timesheet.position" },
+      { key: "normal_days", header: "expenses.timesheet.normal_days", type: "number" },
+      { key: "holiday_days", header: "expenses.timesheet.holiday_days", type: "number" },
+      { key: "normal_ot", header: "expenses.timesheet.normal_ot", type: "hours" },
+      { key: "holiday_ot", header: "expenses.timesheet.holiday_ot", type: "hours" },
+      { key: "night_hours", header: "expenses.timesheet.night_hours", type: "hours" },
+      { key: "off_day_hours", header: "expenses.timesheet.off_day_hours", type: "hours" },
       { key: "status", header: "common.status", type: "status" },
     ],
   },
@@ -551,10 +603,6 @@ export const leaveRequests: ModuleDef = {
   editableStatuses: ["draft", "rejected"],
   detailExtra: "leave_balance",
   titleOf: (r) => `${(r.employee as { full_name?: string } | undefined)?.full_name ?? ""} ${r.date_from ?? ""}`.trim(),
-  approvalExtra: () => [
-    { name: "approver_name", label: "approval.approver_name", control: "text", required: true },
-    { name: "approver_position", label: "approval.approver_position", control: "text", required: true },
-  ],
   schema: {
     table: "leave_requests",
     resource: "expenses.leave.requests",

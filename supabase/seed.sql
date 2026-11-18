@@ -57,6 +57,10 @@ insert into public.resources (key, parent_key, name, label_prefix, path, icon, s
   ('expenses.safety', null, 'Safety', '9', null, 'siren', 580, false, false),
   ('expenses.safety.incidents', 'fleet_safety', 'Incident and accident records', null, '/expenses/safety/incidents', null, 307, false, false),
   ('expenses.safety.reports', 'fleet_safety', 'Safety reports', null, '/expenses/safety/reports', null, 308, false, false),
+  ('expenses.travel', null, 'Travel coordination', '8', null, 'map-pin', 560, false, false),
+  ('expenses.travel.departures', 'expenses.travel', 'Local departures', null, '/travel/departures', null, 561, false, false),
+  ('expenses.travel.arrivals', 'expenses.travel', 'Local arrivals', null, '/travel/arrivals', null, 562, false, false),
+  ('expenses.travel.settings', 'expenses.travel', 'Pickup settings', null, '/travel/settings', null, 563, false, false),
   ('expenses.reports', null, 'Fleet data reports', '7', '/expenses/reports', 'bar-chart-3', 700, false, false),
   ('platform', null, 'Platform', null, '/platform', 'building', 50, false, false),
   ('platform.overview', 'platform', 'Overview', null, '/platform', 'layout-grid', 51, false, false),
@@ -464,6 +468,8 @@ begin
       -- Fuel issue roughly every 9 working days.
       if (extract(doy from d)::int + i) % 9 = 0 then
         v_litres := round((v_km - v_prev_km) / coalesce(v.target_km_per_l, 9) * (0.95 + ((extract(doy from d)::int % 7) * 0.03)), 1);
+        -- Never more than the tank holds.
+        v_litres := least(v_litres, coalesce(v.fuel_tank_capacity_l, v_litres));
         insert into public.fuel_requests (company_id, driver_id, vehicle_id, request_date, previous_odometer, current_odometer, fuel_required_l, approved_l, status, approved_by, approved_at, created_by)
         values (v.company_id, v_driver, v.id, d, v_prev_km, v_km, v_litres, v_litres, 'draft', null, null, (select profile_id from public.drivers where id = v_driver))
         returning id into v_req;
@@ -471,6 +477,8 @@ begin
         update public.fuel_requests set status = 'submitted' where id = v_req;
         update public.fuel_requests set status = 'approved', approved_by = '33333333-3333-3333-3333-000000000002', approved_at = d + time '10:00' where id = v_req;
         perform set_config('fms.approving', 'off', true);
+        -- Approval already recorded an issue; replace it with the demo values.
+        delete from public.fuel_issues where fuel_request_id = v_req;
         insert into public.fuel_issues (company_id, fuel_request_id, vehicle_id, driver_id, issue_date, previous_filled_l, previous_odometer, current_odometer, fuel_filled_l, fuel_issued_l, price_per_litre, created_by)
         values (v.company_id, v_req, v.id, v_driver, d, v_litres, v_prev_km, v_km, v_litres, v_litres, 3050 + ((extract(month from d)::int % 4) * 40), '33333333-3333-3333-3333-000000000003');
         v_prev_km := v_km;

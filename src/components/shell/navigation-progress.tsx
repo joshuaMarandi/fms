@@ -55,7 +55,7 @@ function Progress() {
     function start() {
       stopTimer();
       setState("loading");
-      setWidth(12);
+      setWidth(22);
       timer.current = setInterval(() => setWidth((w) => (w < 85 ? w + (90 - w) * 0.08 : w)), 150);
     }
     document.addEventListener("click", onClick, true);
@@ -69,8 +69,14 @@ function Progress() {
 
   if (state === "idle") return null;
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-0 z-[100] h-[3px]" role="progressbar" aria-label="Loading page" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(width)}>
-      <div className="h-full bg-primary transition-[width] duration-200 ease-out" style={{ width: `${width}%`, opacity: state === "done" ? 0 : 1, transitionProperty: "width, opacity" }} />
+    <div className="pointer-events-none fixed inset-x-0 top-0 z-[100] h-[5px] bg-[#d98b1f]/15" role="progressbar" aria-label="Loading page" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(width)}>
+      {/* Amber bar with a soft glow so it stands out on the dark green header and on white pages. */}
+      <div
+        className="relative h-full rounded-r-full bg-[#d98b1f] transition-[width] duration-200 ease-out"
+        style={{ width: `${width}%`, opacity: state === "done" ? 0 : 1, transitionProperty: "width, opacity", boxShadow: "0 0 10px 1px rgba(217,139,31,0.75), 0 0 3px rgba(217,139,31,0.9)" }}
+      >
+        <span className="absolute top-1/2 right-0 size-2.5 -translate-y-1/2 rounded-full bg-[#f0b35a] shadow-[0_0_10px_3px_rgba(240,179,90,0.8)]" />
+      </div>
     </div>
   );
 }

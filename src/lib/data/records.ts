@@ -174,6 +174,12 @@ export async function loadOptions(sources: OptionSource[]): Promise<LoadedOption
           out.companies = (data ?? []).map((x: Record<string, unknown>) => ({ ...x, value: x.id as string, label: x.name as string }));
           break;
         }
+        case "travel_airports": {
+          const { data } = await supabase.from("travel_airports").select("id, name, pickup_lead_hours, host_person").is("deleted_at", null).order("name");
+          // The airport is stored by name on the movement, so the option value is the name.
+          out.travel_airports = (data ?? []).map((x: Record<string, unknown>) => ({ ...x, value: x.name as string, label: `${x.name} (${x.pickup_lead_hours} h before)` }));
+          break;
+        }
         case "maintenance_requests": {
           const { data } = await supabase.from("maintenance_requests").select("id, request_date, vehicle_id, reason, status").is("deleted_at", null).order("request_date", { ascending: false }).limit(200);
           out.maintenance_requests = (data ?? []).map((x: Record<string, unknown>) => ({ ...x, value: x.id as string, label: `${x.request_date} ${x.reason}` }));

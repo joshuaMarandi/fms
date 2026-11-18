@@ -26,6 +26,7 @@ import { usePermissions } from "@/components/permissions/provider";
 import { buildResourceTree, can, filterTree, packageAllows, type ResourceNode } from "@/lib/permissions";
 import { DynamicIcon } from "./icon";
 import { LinkPending } from "./link-pending";
+import { NavLink } from "./nav-link";
 import { ProfileBlock } from "./profile-menu";
 import { t, hasKey } from "@/i18n";
 
@@ -135,11 +136,11 @@ export function AppSidebar({ counts }: { counts: SidebarCounts; companies?: { id
                   return (
                     <SidebarMenuItem key={node.key}>
                       <SidebarMenuButton asChild isActive={isActive(node.path)} tooltip={numbered} className="h-10 data-active:bg-sidebar-active data-active:text-sidebar-accent-foreground">
-                        <Link href={node.path ?? "#"} onClick={() => setOpenMobile(false)}>
+                        <NavLink href={node.path ?? "#"} onClick={() => setOpenMobile(false)}>
                           <DynamicIcon icon={node.icon} />
                           <span>{numbered}</span>
                           <LinkPending />
-                        </Link>
+                        </NavLink>
                       </SidebarMenuButton>
                       {badge ? (
                         <SidebarMenuBadge className="bg-warning-bg text-warning" aria-label={`${badge}`}>
@@ -170,10 +171,10 @@ export function AppSidebar({ counts }: { counts: SidebarCounts; companies?: { id
                           {node.children.map((child) => (
                             <SidebarMenuSubItem key={child.key}>
                               <SidebarMenuSubButton asChild isActive={isActive(child.path)} className="h-9 data-active:bg-sidebar-active data-active:text-sidebar-accent-foreground">
-                                <Link href={child.path ?? node.path ?? "#"} onClick={() => setOpenMobile(false)}>
+                                <NavLink href={child.path ?? node.path ?? "#"} onClick={() => setOpenMobile(false)}>
                                   <span>{resourceLabel(child)}</span>
                                   <LinkPending />
-                                </Link>
+                                </NavLink>
                               </SidebarMenuSubButton>
                               {child.key !== "daily_use.trip_requests" && child.children.filter((g) => g.path).length > 0 ? (
                                 <SidebarMenuSub className="mr-0 gap-1 border-l-0 pl-4">
@@ -182,10 +183,10 @@ export function AppSidebar({ counts }: { counts: SidebarCounts; companies?: { id
                                     .map((g) => (
                                       <SidebarMenuSubItem key={g.key}>
                                         <SidebarMenuSubButton asChild size="sm" isActive={isActive(g.path) && pathname === basePath(g.path)} className="h-8 data-active:bg-sidebar-active data-active:text-sidebar-accent-foreground">
-                                          <Link href={g.path!} onClick={() => setOpenMobile(false)}>
+                                          <NavLink href={g.path!} onClick={() => setOpenMobile(false)}>
                                             <span>{resourceLabel(g)}</span>
                                             <LinkPending />
-                                          </Link>
+                                          </NavLink>
                                         </SidebarMenuSubButton>
                                       </SidebarMenuSubItem>
                                     ))}

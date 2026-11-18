@@ -38,7 +38,10 @@ const fuelRequired = (values: Record<string, unknown>, ctx: Ctx) => {
   const run = fuelKmRun(values, ctx);
   const rate = num(vehicleOf(values, ctx)?.target_km_per_l);
   if (run === null || Number.isNaN(rate) || rate <= 0) return undefined;
-  return Math.round((run / rate) * 10) / 10;
+  // Never more than the tank holds: balance in the tank + fuel requested = tank capacity.
+  const tank = num(vehicleOf(values, ctx)?.fuel_tank_capacity_l);
+  const need = Math.round((run / rate) * 10) / 10;
+  return !Number.isNaN(tank) && tank > 0 ? Math.min(need, tank) : need;
 };
 
 export const kmLogs: ModuleDef = {

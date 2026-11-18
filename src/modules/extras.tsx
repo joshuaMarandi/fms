@@ -185,18 +185,19 @@ export async function ListExtra({ name }: { name: string; searchParams?: Record<
 
   switch (name) {
     case "petty_cash_summary": {
-      // Reconciliation: money received, money spent and what should be left in the box.
-      const { data } = await supabase.from("petty_cash_entries").select("kind, amount_tzs, entry_date").is("deleted_at", null).limit(5000);
-      const rows = (data ?? []) as { kind: string; amount_tzs: number; entry_date: string }[];
-      const received = rows.filter((r) => r.kind === "received").reduce((s, r) => s + Number(r.amount_tzs ?? 0), 0);
-      const spent = rows.filter((r) => r.kind === "spent").reduce((s, r) => s + Number(r.amount_tzs ?? 0), 0);
-      const balance = received - spent;
+      // As on the Excel dashboard: requested, received and spent to date, and the balance in hand.
+      const { data } = await supabase.from("petty_cash_requests").select("status, amount_requested_tzs, amount_received_tzs, amount_spent_tzs").is("deleted_at", null).limit(5000);
+      const rows = ((data ?? []) as { status: string; amount_requested_tzs: number; amount_received_tzs: number; amount_spent_tzs: number }[]).filter((r) => r.status !== "rejected" && r.status !== "draft");
+      const sum = (k: "amount_requested_tzs" | "amount_received_tzs" | "amount_spent_tzs") => rows.reduce((s, r) => s + Number(r[k] ?? 0), 0);
+      const received = sum("amount_received_tzs");
+      const spent = sum("amount_spent_tzs");
       return (
         <HubSummary
           tiles={[
-            { label: t("admin.petty_cash.total_received"), value: formatTzs(received) },
-            { label: t("admin.petty_cash.total_spent"), value: formatTzs(spent) },
-            { label: t("admin.petty_cash.balance"), value: formatTzs(balance), sub: t("admin.petty_cash.balance_hint"), tone: balance < 0 ? "danger" : undefined },
+            { label: t("admin.petty_cash.total_requested"), value: formatTzs(sum("amount_requested_tzs")), sub: t("admin.petty_cash.to_date") },
+            { label: t("admin.petty_cash.total_received"), value: formatTzs(received), sub: t("admin.petty_cash.to_date") },
+            { label: t("admin.petty_cash.total_spent"), value: formatTzs(spent), sub: t("admin.petty_cash.to_date") },
+            { label: t("admin.petty_cash.balance"), value: formatTzs(received - spent), sub: t("admin.petty_cash.balance_hint"), tone: received - spent < 0 ? "danger" : undefined },
           ]}
         />
       );

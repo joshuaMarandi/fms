@@ -1144,4 +1144,88 @@ begin
   perform pg_temp.check('m28: only one issue per request', (select count(*) from public.fuel_issues where fuel_request_id = v_req) = 1);
 end $m28$;
 
+-- 30: fuel requested and approved stay within the tank capacity.
+do $m30$
+declare v_req uuid; v_tank numeric; v_ok boolean;
+begin
+  perform pg_temp.as_admin();
+  select fuel_tank_capacity_l into v_tank from public.vehicles where id = '55555555-5555-5555-5555-000000000002';
+  begin
+    insert into public.fuel_requests (company_id, vehicle_id, request_date, previous_odometer, current_odometer, fuel_required_l, status)
+    values ('11111111-1111-1111-1111-111111111111', '55555555-5555-5555-5555-000000000002', current_date, 950000, 950100, v_tank + 1, 'draft');
+    v_ok := false;
+  exception when check_violation then
+    v_ok := true;
+  end;
+  perform pg_temp.check('m30: a request above the tank capacity is refused', v_ok);
+
+  insert into public.fuel_requests (company_id, vehicle_id, request_date, previous_odometer, current_odometer, fuel_required_l, status)
+  values ('11111111-1111-1111-1111-111111111111', '55555555-5555-5555-5555-000000000002', current_date, 950000, 950100, v_tank, 'draft')
+  returning id into v_req;
+  perform pg_temp.check('m30: a request equal to the tank capacity is accepted', v_req is not null);
+  update public.fuel_requests set status = 'submitted' where id = v_req;
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  begin
+    perform public.approve_request('fuel_requests', v_req, null, jsonb_build_object('approved_l', v_tank + 5));
+    v_ok := false;
+  exception when check_violation then
+    v_ok := true;
+  end;
+  perform pg_temp.check('m30: approving above the tank capacity is refused', v_ok);
+  perform pg_temp.as_admin();
+  delete from public.fuel_requests where id = v_req;
+end $m30$;
+
+-- 31: the approver's name and position come from their profile.
+do $m31$
+declare v_req uuid;
+begin
+  perform pg_temp.as_admin();
+  update public.profiles set job_title = 'Fleet Manager' where id = '33333333-3333-3333-3333-000000000002';
+  insert into public.maintenance_requests (company_id, requester_id, vehicle_id, request_date, odometer_km, reason, faults, status, created_by)
+  values ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-000000000005', '55555555-5555-5555-5555-000000000005', current_date, 20000, 'ppm', '{filters}', 'draft', '33333333-3333-3333-3333-000000000005')
+  returning id into v_req;
+  update public.maintenance_requests set status = 'submitted' where id = v_req;
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  perform public.approve_request('maintenance_requests', v_req);
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m31: approver name filled from the profile', (select approver_name from public.maintenance_requests where id = v_req) = (select full_name from public.profiles where id = '33333333-3333-3333-3333-000000000002'));
+  perform pg_temp.check('m31: approver position filled from the job title', (select approver_position from public.maintenance_requests where id = v_req) = 'Fleet Manager');
+end $m31$;
+
+-- 32: Excel formats.
+do $m32$
+declare v_ts uuid; v_out uuid; v_pc uuid; d record;
+begin
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  -- Timesheet day: 07:30 to 17:00 with a one-hour break = 8.5 h, 0.5 h normal overtime.
+  insert into public.timesheets (company_id, employee_id, employee_name, period_month) values ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-000000000002', 'Test', date_trunc('month', current_date + 400)::date) returning id into v_ts;
+  insert into public.timesheet_days (company_id, timesheet_id, work_date, day_type, shift, time_in, break_from, break_to, time_out) values ('11111111-1111-1111-1111-111111111111', v_ts, current_date + 400, 'work', 'day', '07:30', '13:00', '14:00', '17:00');
+  select * into d from public.timesheet_days where timesheet_id = v_ts;
+  perform pg_temp.check('m32: total hours take the break off', d.total_hours = 8.5);
+  perform pg_temp.check('m32: hours over 8 are normal overtime', d.overtime_hours = 0.5);
+  insert into public.timesheet_days (company_id, timesheet_id, work_date, day_type, shift, time_in, time_out) values ('11111111-1111-1111-1111-111111111111', v_ts, current_date + 401, 'public_holiday', 'night', '22:00', '06:00');
+  perform pg_temp.check('m32: night shift over midnight, public holiday hours are special overtime', (select special_overtime_hours from public.timesheet_days where timesheet_id = v_ts and day_type = 'public_holiday') = 8);
+
+  -- Outstation: 7 days x 80,000 + other expenses 2 x 30,000.
+  insert into public.outstation_requests (company_id, date_from, date_to, location, total_days, dsa_tzs) values ('11111111-1111-1111-1111-111111111111', current_date, current_date + 6, 'Kahama', 7, 80000) returning id into v_out;
+  insert into public.outstation_expense_items (company_id, outstation_request_id, description, quantity, unit, unit_price_tzs) values ('11111111-1111-1111-1111-111111111111', v_out, 'Car wash', 2, 'Vehicle', 30000);
+  perform pg_temp.check('m32: total outstation cost = allowance + other expenses', (select total_cost_tzs from public.outstation_requests where id = v_out) = 620000);
+
+  -- Petty cash: received 250,000, spent 185,000, balance 65,000.
+  insert into public.petty_cash_requests (company_id, amount_requested_tzs, amount_received_tzs) values ('11111111-1111-1111-1111-111111111111', 250000, 250000) returning id into v_pc;
+  insert into public.petty_cash_transactions (company_id, petty_cash_request_id, description, quantity, price_tzs) values ('11111111-1111-1111-1111-111111111111', v_pc, 'Fuel top-up', 1, 185000);
+  perform pg_temp.check('m32: petty cash balance = received - spent', (select balance_tzs from public.petty_cash_requests where id = v_pc) = 65000);
+  perform pg_temp.check('m32: requester filled from the profile', (select requester_name from public.petty_cash_requests where id = v_pc) is not null);
+
+  perform pg_temp.check('m32: pickup rules exist', exists (select 1 from public.travel_airports where name = 'JKNIA' and pickup_lead_hours = 3.5));
+  insert into public.travel_movements (company_id, direction, travel_date, travellers, airport, flight_time) values ('11111111-1111-1111-1111-111111111111', 'departure', current_date, 'David Michael', 'JKNIA', '12:30');
+  perform pg_temp.check('m32: travel coordination is on the first level', (select parent_key from public.resources where key = 'expenses.travel') is null);
+  perform pg_temp.as_admin();
+  delete from public.timesheets where id = v_ts;
+  delete from public.outstation_requests where id = v_out;
+  delete from public.petty_cash_requests where id = v_pc;
+  delete from public.travel_movements where travellers = 'David Michael';
+end $m32$;
+
 select 'ALL TESTS PASSED' as result;

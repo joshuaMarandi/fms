@@ -52,10 +52,7 @@ export function DecisionForm({
             { name: "driver_id", label: "Assigned driver", kind: "select", options: drivers },
             { name: "vehicle_id", label: "Assigned vehicle", kind: "select", options: vehicles },
           ]
-        : [
-            { name: "approver_name", label: "Your name", kind: "text" },
-            { name: "approver_position", label: "Your position", kind: "text" },
-          ];
+        : []; // Name and position come from the person's profile.
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();

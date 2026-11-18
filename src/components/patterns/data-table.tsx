@@ -254,17 +254,25 @@ export function DataTable<T extends Record<string, unknown>>({
                 <Settings2 /> <span className="hidden sm:inline">{t("common.columns")}</span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuContent align="end" className="max-h-[70vh] w-60 overflow-y-auto">
               <DropdownMenuLabel>{t("table.toggle_columns")}</DropdownMenuLabel>
               <DropdownMenuSeparator />
+              {/* The menu stays open so several columns can be hidden or shown in one go. Hidden
+                  columns come back when the page is reloaded. */}
               {table
                 .getAllLeafColumns()
                 .filter((c) => c.getCanHide())
                 .map((c) => (
-                  <DropdownMenuCheckboxItem key={c.id} checked={c.getIsVisible()} onCheckedChange={(v) => c.toggleVisibility(!!v)}>
+                  <DropdownMenuCheckboxItem key={c.id} checked={c.getIsVisible()} onCheckedChange={(v) => c.toggleVisibility(!!v)} onSelect={(e) => e.preventDefault()}>
                     {typeof c.columnDef.header === "string" ? c.columnDef.header : c.id}
                   </DropdownMenuCheckboxItem>
                 ))}
+              {table.getAllLeafColumns().some((c) => c.getCanHide() && !c.getIsVisible()) ? (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={(e) => { e.preventDefault(); table.resetColumnVisibility(); }}>{t("table.show_all_columns")}</DropdownMenuItem>
+                </>
+              ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
           {canExport ? (

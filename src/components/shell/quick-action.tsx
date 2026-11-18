@@ -20,6 +20,8 @@ export const QUICK_ACTIONS: { prefix: string; resource: string; href: string; la
   { prefix: "/daily-use/trip-requests", resource: "daily_use.trip_requests", href: "/daily-use/trip-requests/new", label: "daily_use.trips.new" },
   { prefix: "/expenses/maintenance/requests", resource: "expenses.maintenance.requests", href: "/expenses/maintenance/requests/new", label: "expenses.maintenance.new" },
   { prefix: "/expenses/maintenance/costs", resource: "expenses.maintenance.costs", href: "/expenses/maintenance/costs/new", label: "expenses.maintenance.costs.new" },
+  { prefix: "/travel/departures", resource: "expenses.travel", href: "/travel/departures/new", label: "travel.departures.new" },
+  { prefix: "/travel/arrivals", resource: "expenses.travel", href: "/travel/arrivals/new", label: "travel.arrivals.new" },
   { prefix: "/expenses/misc", resource: "expenses.misc", href: "/expenses/misc/new", label: "expenses.misc.new" },
   { prefix: "/administration/roster", resource: "expenses.admin.roster", href: "/administration/roster/new", label: "admin.roster.new" },
   { prefix: "/administration/outstation", resource: "expenses.admin.outstation", href: "/administration/outstation/new", label: "admin.outstation.new" },
