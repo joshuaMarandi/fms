@@ -29,6 +29,7 @@ export type RequestLike = {
   created_at: string;
   created_by?: string | null;
   updated_at?: string;
+  submitted_at?: string | null;
   approved_at?: string | null;
   approved_by?: string | null;
   approver_signature?: SignatureValue | null;
@@ -155,7 +156,7 @@ export function ApprovalPanel({
 
   const timeline: { label: string; date?: string | null; state: "done" | "danger" | "pending" }[] = [
     { label: t("status.draft"), date: request.created_at, state: "done" },
-    { label: t("status.submitted"), date: request.status === "draft" ? null : request.updated_at, state: request.status === "draft" ? "pending" : "done" },
+    { label: t("status.submitted"), date: request.status === "draft" ? null : (request.submitted_at ?? request.updated_at), state: request.status === "draft" ? "pending" : "done" },
     request.status === "rejected"
       ? { label: t("status.rejected"), date: request.approved_at, state: "danger" }
       : { label: t("status.approved"), date: request.status === "approved" || request.status === "completed" ? request.approved_at : null, state: request.status === "approved" || request.status === "completed" ? "done" : "pending" },

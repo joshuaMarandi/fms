@@ -957,7 +957,7 @@ declare
 begin
   perform pg_temp.as_admin();
   perform pg_temp.check('m19: first aid resource is gone', not exists (select 1 from public.resources where key = 'inspections.first_aid'));
-  perform pg_temp.check('m19: third-party sorts after mobilization', (select sort_order from public.resources where key = 'inspections.third_party') = 303);
+  perform pg_temp.check('m19: third-party sorts after mobilization', (select sort_order from public.resources where key = 'inspections.third_party') = 304);
   perform pg_temp.check('m19: no role keeps a first aid permission', not exists (select 1 from public.role_grants where resource_key = 'inspections.first_aid'));
   select id, company_id into v_vehicle, v_company from public.vehicles where deleted_at is null order by registration limit 1;
 
@@ -1236,5 +1236,105 @@ begin
   perform pg_temp.check('m33: a driver on the roster takes the driver name and number', (select person_name from public.roster_members where driver_id = '66666666-6666-6666-6666-000000000001') = 'Juma Hassan');
   perform pg_temp.check('m33: one change from the cycle', (select count(*) from public.fleet_rosters where member_id is not null and shift = 'leave') = 1);
 end $m33$;
+
+-- 34: vehicle status follows problems; totals per vehicle; East Africa Time.
+do $m34$
+declare v_insp uuid; v_an uuid; v_req uuid; v uuid := '55555555-5555-5555-5555-000000000005'; n integer;
+begin
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m34: the database works in East Africa Time', current_setting('timezone') = 'Africa/Dar_es_Salaam');
+  update public.vehicles set status = 'in_service' where id = v;
+  insert into public.daily_inspections (company_id, vehicle_id, inspection_date, mileage_km, remark) values ('11111111-1111-1111-1111-111111111111', v, current_date, 18300, 'anomalies') returning id into v_insp;
+  insert into public.inspection_anomalies (company_id, daily_inspection_id, vehicle_id, description, action_required, when_to_act, status, date_opened)
+  values ('11111111-1111-1111-1111-111111111111', v_insp, v, 'Brakes failing', 'Replace pads', 'immediately', 'open', current_date) returning id into v_an;
+  perform pg_temp.check('m34: an immediate problem takes the vehicle out of service', (select status from public.vehicles where id = v) = 'out_of_service' and (select status_reason from public.vehicles where id = v) like '%Brakes failing%');
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  update public.inspection_anomalies set status = 'closed', date_closed = current_date where id = v_an;
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m34: closing it puts the vehicle back in service', (select status from public.vehicles where id = v) = 'in_service');
+
+  insert into public.maintenance_requests (company_id, requester_id, vehicle_id, request_date, odometer_km, reason, faults, takes_out_of_service, status, created_by)
+  values ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-000000000005', v, current_date, 18300, 'breakdown', '{engine}', true, 'draft', '33333333-3333-3333-3333-000000000005') returning id into v_req;
+  perform pg_temp.check('m34: a draft request does not change the status', (select status from public.vehicles where id = v) = 'in_service');
+  update public.maintenance_requests set status = 'submitted' where id = v_req;
+  perform pg_temp.check('m34: a sent repair request takes the vehicle out of service', (select status from public.vehicles where id = v) = 'out_of_service');
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  perform public.reject_request('maintenance_requests', v_req, 'Not needed');
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m34: rejecting it puts the vehicle back in service', (select status from public.vehicles where id = v) = 'in_service');
+
+  update public.vehicles set status = 'out_of_service', status_reason = 'Sold' where id = v;
+  insert into public.inspection_anomalies (company_id, daily_inspection_id, vehicle_id, description, action_required, when_to_act, status, date_opened)
+  values ('11111111-1111-1111-1111-111111111111', v_insp, v, 'Mirror broken', 'Replace', 'immediately', 'open', current_date) returning id into v_an;
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  update public.inspection_anomalies set status = 'closed', date_closed = current_date where id = v_an;
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m34: a vehicle taken out by hand stays out', (select status from public.vehicles where id = v) = 'out_of_service' and (select status_reason from public.vehicles where id = v) = 'Sold');
+  update public.vehicles set status = 'in_service' where id = v;
+
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  select count(*) into n from public.vehicle_totals('fuel_issues', null, null);
+  perform pg_temp.check('m34: totals per vehicle for all time', n > 0);
+  perform pg_temp.check('m34: totals follow the dates', (select coalesce(sum(litres), 0) from public.vehicle_totals('fuel_issues', current_date + 1000, current_date + 1001)) = 0);
+  perform pg_temp.check('m34: menu order', (select sort_order from public.resources where key = 'daily_use') < (select sort_order from public.resources where key = 'fleet_safety')
+    and (select parent_key from public.resources where key = 'expenses.maintenance.requests') = 'daily_use');
+end $m34$;
+
+-- 35: driver confirms requests made for them; submission time kept; totals; weekly inspections.
+do $m35$
+declare v uuid := '55555555-5555-5555-5555-000000000005'; v_fr uuid; v_tok text; ok boolean; n integer; v_w uuid;
+begin
+  perform pg_temp.as_admin();
+  insert into public.fuel_requests (company_id, driver_id, vehicle_id, request_date, current_odometer, fuel_required_l, status, created_by)
+  values ('11111111-1111-1111-1111-111111111111', '66666666-6666-6666-6666-000000000001', v, current_date, (select coalesce(max(current_odometer), 18300) + 50 from public.fuel_requests where vehicle_id = v), 10, 'submitted', '33333333-3333-3333-3333-000000000003')
+  returning id into v_fr;
+  perform pg_temp.check('m35: a request made for a driver asks them to confirm', exists (select 1 from public.driver_confirmations where table_name = 'fuel_requests' and record_id = v_fr and confirmed_at is null));
+  v_tok := pg_temp.link_for('33333333-3333-3333-3333-000000000005', 'driver_confirm');
+  perform pg_temp.check('m35: the driver gets a personal link', v_tok is not null and (public.driver_confirmation_open(v_tok) ->> 'state') = 'open');
+  perform pg_temp.check('m35: sending sets the submission time', (select submitted_at from public.fuel_requests where id = v_fr) is not null);
+  update public.fuel_requests set submitted_at = '2026-01-01 00:00+03' where id = v_fr;
+
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  ok := false;
+  begin
+    perform public.approve_request('fuel_requests', v_fr);
+  exception when check_violation then ok := true;
+  end;
+  perform pg_temp.check('m35: it cannot be approved before the driver signs', ok);
+
+  perform pg_temp.as_admin();
+  ok := false;
+  begin
+    perform public.driver_confirmation_sign('not-a-token', '{"name": "x"}');
+  exception when invalid_parameter_value then ok := true;
+  end;
+  perform pg_temp.check('m35: a wrong link cannot sign', ok);
+  perform public.driver_confirmation_sign(v_tok, '{"name": "Juma Hassan", "image": "data:image/png;base64,AA=="}');
+  perform pg_temp.check('m35: the link is used once', (public.driver_confirmation_open(v_tok) ->> 'state') = 'done');
+
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  perform pg_temp.check('m35: people who see the request see the signature', (select signature ->> 'name' from public.driver_confirmations where record_id = v_fr) = 'Juma Hassan');
+  perform public.approve_request('fuel_requests', v_fr);
+  perform pg_temp.check('m35: approved once signed', (select status from public.fuel_requests where id = v_fr) = 'approved');
+  perform pg_temp.check('m35: approving keeps the original submission time', (select submitted_at from public.fuel_requests where id = v_fr) = '2026-01-01 00:00+03'::timestamptz);
+
+  select count(*) into n from public.vehicle_totals('fuel_expenses', null, null);
+  perform pg_temp.check('m35: fuel cost totals per vehicle', n >= 0);
+  perform pg_temp.check('m35: maintenance totals split into maintenance and repairs',
+    (select coalesce(sum(cost), 0) from public.vehicle_totals('maintenance_costs', null, null)) = (select coalesce(sum(litres + trips), 0) from public.vehicle_totals('maintenance_costs', null, null)));
+
+  perform pg_temp.as_admin();
+  insert into public.daily_inspections (company_id, vehicle_id, inspection_date, mileage_km, remark, frequency)
+  values ('11111111-1111-1111-1111-111111111111', v, current_date, 18400, 'safe', 'weekly') returning id into v_w;
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  perform pg_temp.check('m35: a weekly inspection shows as weekly', (select weekly_last from public.v_vehicle_inspection_summary where vehicle_id = v) = current_date);
+  perform pg_temp.check('m35: and not as a daily one', (select coalesce(daily_last, current_date - 1) from public.v_vehicle_inspection_summary where vehicle_id = v) <> current_date
+    or exists (select 1 from public.daily_inspections where vehicle_id = v and inspection_date = current_date and frequency = 'daily' and deleted_at is null));
+  perform pg_temp.as_admin();
+  delete from public.daily_inspections where id = v_w;
+  delete from public.fuel_issues where fuel_request_id = v_fr;
+  delete from public.driver_confirmations where record_id = v_fr;
+  delete from public.fuel_requests where id = v_fr;
+end $m35$;
 
 select 'ALL TESTS PASSED' as result;

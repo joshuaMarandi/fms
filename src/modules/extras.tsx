@@ -4,6 +4,8 @@ import { JmpReviewPanel, type JmpReview } from "@/components/modules/jmp-review-
 import { AttachmentsBox } from "@/components/patterns/attachments-box";
 import { HubSummary } from "@/components/hub/vehicle-hub";
 import { loadDocs } from "@/lib/data/docs";
+import { SummaryDates } from "@/components/hub/daily-use-hub";
+import { rangeFromParams } from "@/lib/date-range";
 import { getSession } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import type { LoadedOptions } from "@/lib/data/records";
@@ -178,28 +180,58 @@ export async function DetailExtra({ name, record }: { name: string; record: Reco
 }
 
 /** Custom blocks rendered above a module list. */
-export async function ListExtra({ name }: { name: string; searchParams?: Record<string, string | string[] | undefined> }) {
+export async function ListExtra({ name, searchParams }: { name: string; searchParams?: Record<string, string | string[] | undefined> }) {
+  const range = rangeFromParams(searchParams);
+  const when = range?.label ?? t("hub.all_time");
   const session = await getSession();
   if (!session) return null;
   const supabase = await createClient();
 
   switch (name) {
+    case "trip_summary": {
+      // Vehicle requests for the chosen dates (all time by default).
+      let q = supabase.from("vehicle_requests").select("status, trip_type, requested_at").is("deleted_at", null).limit(10000);
+      if (range) q = q.gte("requested_at", range.from).lte("requested_at", `${range.to}T23:59:59`);
+      const { data } = await q;
+      const rows = (data ?? []) as { status: string; trip_type: string }[];
+      const count = (f: (r: { status: string; trip_type: string }) => boolean) => rows.filter(f).length;
+      const waiting = count((r) => r.status === "submitted");
+      const rejected = count((r) => r.status === "rejected");
+      return (
+        <>
+          <SummaryDates label={when} />
+          <HubSummary
+            tiles={[
+              { label: t("trips.summary.total"), value: formatNumber(rows.length), sub: t("trips.summary.split", { short: count((r) => r.trip_type === "short"), long: count((r) => r.trip_type === "long") }) },
+              { label: t("trips.summary.waiting"), value: formatNumber(waiting), sub: when, tone: waiting ? "warning" : undefined },
+              { label: t("trips.summary.approved"), value: formatNumber(count((r) => r.status === "approved" || r.status === "completed")), sub: when },
+              { label: t("trips.summary.rejected"), value: formatNumber(rejected), sub: when, tone: rejected ? "danger" : undefined },
+            ]}
+          />
+        </>
+      );
+    }
     case "petty_cash_summary": {
       // As on the Excel dashboard: requested, received and spent to date, and the balance in hand.
-      const { data } = await supabase.from("petty_cash_requests").select("status, amount_requested_tzs, amount_received_tzs, amount_spent_tzs").is("deleted_at", null).limit(5000);
+      let pq = supabase.from("petty_cash_requests").select("status, amount_requested_tzs, amount_received_tzs, amount_spent_tzs").is("deleted_at", null).limit(5000);
+      if (range) pq = pq.gte("request_date", range.from).lte("request_date", range.to);
+      const { data } = await pq;
       const rows = ((data ?? []) as { status: string; amount_requested_tzs: number; amount_received_tzs: number; amount_spent_tzs: number }[]).filter((r) => r.status !== "rejected" && r.status !== "draft");
       const sum = (k: "amount_requested_tzs" | "amount_received_tzs" | "amount_spent_tzs") => rows.reduce((s, r) => s + Number(r[k] ?? 0), 0);
       const received = sum("amount_received_tzs");
       const spent = sum("amount_spent_tzs");
       return (
+        <>
+        <SummaryDates label={when} />
         <HubSummary
           tiles={[
-            { label: t("admin.petty_cash.total_requested"), value: formatTzs(sum("amount_requested_tzs")), sub: t("admin.petty_cash.to_date") },
-            { label: t("admin.petty_cash.total_received"), value: formatTzs(received), sub: t("admin.petty_cash.to_date") },
-            { label: t("admin.petty_cash.total_spent"), value: formatTzs(spent), sub: t("admin.petty_cash.to_date") },
+            { label: t("admin.petty_cash.total_requested"), value: formatTzs(sum("amount_requested_tzs")), sub: when },
+            { label: t("admin.petty_cash.total_received"), value: formatTzs(received), sub: when },
+            { label: t("admin.petty_cash.total_spent"), value: formatTzs(spent), sub: when },
             { label: t("admin.petty_cash.balance"), value: formatTzs(received - spent), sub: t("admin.petty_cash.balance_hint"), tone: received - spent < 0 ? "danger" : undefined },
           ]}
         />
+        </>
       );
     }
     case "wash_report": {

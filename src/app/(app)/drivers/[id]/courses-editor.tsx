@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { DatePicker } from "@/components/patterns/date-picker";
 import { FormActions } from "@/components/patterns/form-actions";
 import { DocButton, type DocRef } from "@/components/patterns/doc-button";
+import { AttachmentsBox } from "@/components/patterns/attachments-box";
 import { deleteRecord, saveRecord } from "@/lib/data/records";
 import { cn, formatDate } from "@/lib/utils";
 import { t } from "@/i18n";
@@ -190,6 +191,14 @@ export function CoursesEditor({ driverId, rows, readOnly, docs = {}, canAttach =
                     <Label htmlFor={`${id}-date`}>{t("drivers.date_completed")}</Label>
                     <DatePicker id={`${id}-date`} value={d.date_completed} disabled={readOnly} onChange={(v) => set(c, { date_completed: v ?? "" })} />
                     {errors[`${c}.date_completed`] ? <p className="text-sm text-danger">{errors[`${c}.date_completed`]}</p> : null}
+                  </div>
+                  <div className="space-y-1.5 md:col-span-2">
+                    <Label>{t("drivers.certificate")}</Label>
+                    {d.id ? (
+                      <AttachmentsBox table="driver_courses" rowId={d.id} resource="drivers.training" bucket="driver-docs" labels={[t("drivers.doc.course_certificates")]} multiple={false} readOnly={readOnly} />
+                    ) : (
+                      <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">{t("drivers.certificate_after_save")}</p>
+                    )}
                   </div>
                 </div>
               ) : null}

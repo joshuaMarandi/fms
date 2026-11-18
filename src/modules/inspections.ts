@@ -1,6 +1,6 @@
 import type { ColumnSpec, ModuleDef } from "./types";
 import type { Field } from "@/lib/forms/schema";
-import { formatDate } from "@/lib/utils";
+import { formatDate, todayISO } from "@/lib/utils";
 import { hasKey, t } from "@/i18n";
 
 type Anomaly = { description?: string | null; action_required?: string | null; when_to_act?: string | null; status?: string | null; date_opened?: string | null; date_closed?: string | null; deleted_at?: string | null };
@@ -94,7 +94,7 @@ const inspectionCore = (childFk: string): Field[] => [
     showWhen: { field: "remark", equals: "anomalies" },
     fields: anomalyRowFields,
     addLabel: "inspections.add_anomaly",
-    defaultRow: () => ({ description: "", action_required: "", when_to_act: "before_next_service", status: "open", date_opened: new Date().toISOString().slice(0, 10), date_closed: "" }),
+    defaultRow: () => ({ description: "", action_required: "", when_to_act: "before_next_service", status: "open", date_opened: todayISO(), date_closed: "" }),
   },
   { name: "scan", label: "inspections.scanned_report", control: "file", bucket: "inspection-scans", labels: ["inspections.scanned_report"] },
 ];
@@ -115,8 +115,10 @@ export const dailyInspections: ModuleDef = {
     resource: "inspections.daily",
     sections: [{ fields: inspectionCore("daily_inspection_id") }],
   },
+  fixed: { frequency: "daily" },
   list: {
     select: `*, vehicle:vehicles(registration), driver:drivers(full_name), ${ANOMALY_SELECT}`,
+    eq: { frequency: "daily" },
     orderBy: { column: "inspection_date", ascending: false },
     searchKeys: ["vehicle.registration", "driver.full_name"],
     statusColumn: "remark",
@@ -240,4 +242,16 @@ export const mobilizationInspections: ModuleDef = {
       { key: "docs", header: "docs.column", type: "docs", sortable: false },
     ],
   },
+};
+
+/** Weekly inspection: the same checks as the daily pre-start inspection, done once a week. */
+export const weeklyInspections: ModuleDef = {
+  ...dailyInspections,
+  key: "inspections.weekly",
+  path: "/inspections/weekly",
+  title: "inspections.weekly.title",
+  description: "inspections.weekly.description",
+  exportName: "weekly-inspections",
+  fixed: { frequency: "weekly" },
+  list: { ...dailyInspections.list, eq: { frequency: "weekly" } },
 };

@@ -212,6 +212,7 @@ export const tripRequests: ModuleDef = {
   isRequest: true,
   editableStatuses: ["draft", "rejected"],
   detailExtra: "trip_assignment",
+  listExtra: "trip_summary",
   titleOf: (r) => `${r.requester_name ?? ""}: ${r.destination ?? ""}`,
   approvalExtra: (options) => [
     { name: "driver_id", label: "approval.assigned_driver", control: "select", required: true, options: (options.drivers ?? []).map((d) => ({ value: d.value, label: `${d.label}${d.phone ? ` (${d.phone})` : ""}` })) },
@@ -312,6 +313,12 @@ export const fuelIssues: ModuleDef = {
   },
   list: {
     select: "*, vehicle:vehicles(registration), driver:drivers(full_name)",
+    // Km run since the last refill were covered by that refill: ratio = km run / fuel consumed.
+    derive: (r) => {
+      const used = r.previous_filled_l == null ? null : Number(r.previous_filled_l);
+      const km = r.km_run == null ? null : Number(r.km_run);
+      return { ratio: used && km != null ? Math.round((km / used) * 100) / 100 : null };
+    },
     orderBy: { column: "issue_date", ascending: false },
     searchKeys: ["vehicle.registration", "driver.full_name"],
     columns: [
@@ -322,7 +329,8 @@ export const fuelIssues: ModuleDef = {
       { key: "previous_odometer", header: "daily_use.fuel_issues.km_start", type: "km" },
       { key: "current_odometer", header: "daily_use.fuel_issues.km_end", type: "km" },
       { key: "km_run", header: "daily_use.fuel.col.km_run", type: "km" },
-      { key: "consumption_km_per_l", header: "daily_use.fuel_issues.consumption", type: "number", digits: 2 },
+      { key: "previous_filled_l", header: "daily_use.fuel_issues.consumed", type: "litres" },
+      { key: "ratio", header: "daily_use.fuel_issues.consumption", type: "number", digits: 2 },
       { key: "price_per_litre", header: "daily_use.fuel_issues.price", type: "tzs" },
     ],
   },

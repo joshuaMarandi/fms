@@ -1,6 +1,10 @@
-import { ModuleListPage } from "@/components/modules/module-list-page";
+import { ExpenseHub } from "@/components/hub/expense-hub";
+import { VehicleRecordsPage } from "@/components/hub/vehicle-records-page";
+import { t } from "@/i18n";
 
+/** No vehicle chosen: every vehicle with its totals. A vehicle (or "all"): its records by month. */
 export default async function Page({ searchParams }: PageProps<"/expenses/fuel">) {
   const sp = await searchParams;
-  return <ModuleListPage moduleKey="expenses.fuel" searchParams={sp} />;
+  if (!sp.vehicle) return <ExpenseHub kind="fuel_cost" searchParams={sp} />;
+  return <VehicleRecordsPage moduleKey="expenses.fuel" searchParams={sp} dateColumn="expense_date" monthly hubHref="/expenses/fuel" hubLabel={t("expenses.fuel.title")} />;
 }

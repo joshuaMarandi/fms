@@ -30,7 +30,8 @@ export function InspectionHistory({
 }: {
   title: string;
   nextLabel: string;
-  noteLabel: string;
+  /** Third column (notes or inspector); null leaves it out. */
+  noteLabel: string | null;
   rows: HistoryRow[];
   /** The matching document from the vehicle's Documents tab. */
   report: DocRef[];
@@ -64,7 +65,7 @@ export function InspectionHistory({
               <tr className="border-b text-left text-xs tracking-wide text-muted-foreground uppercase">
                 <th className="py-2 pr-3 font-medium">{t("fleet.history.date")}</th>
                 <th className="py-2 pr-3 font-medium">{nextLabel}</th>
-                <th className="py-2 pr-3 font-medium">{noteLabel}</th>
+                {noteLabel ? <th className="py-2 pr-3 font-medium">{noteLabel}</th> : null}
                 <th className="py-2 font-medium">{t("docs.column")}</th>
               </tr>
             </thead>
@@ -82,7 +83,7 @@ export function InspectionHistory({
                     {i === 0 ? <span className="status-chip status-chip-success ml-2">{t("fleet.history.latest")}</span> : null}
                   </td>
                   <td className="py-2 pr-3">{r.next ? formatDate(r.next) : <span className="text-muted-foreground">—</span>}</td>
-                  <td className="max-w-[280px] py-2 pr-3 whitespace-pre-line">{r.note || <span className="text-muted-foreground">—</span>}</td>
+                  {noteLabel ? <td className="max-w-[280px] py-2 pr-3 whitespace-pre-line">{r.note || <span className="text-muted-foreground">—</span>}</td> : null}
                   <td className="py-2">
                     <DocButton docs={r.docs} compact />
                   </td>

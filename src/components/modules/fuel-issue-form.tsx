@@ -8,14 +8,14 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { DatePicker } from "@/components/patterns/date-picker";
 import { FormActions } from "@/components/patterns/form-actions";
 import { saveRecord } from "@/lib/data/records";
-import { formatNumber, formatTzs } from "@/lib/utils";
+import { formatNumber, formatTzs, todayISO } from "@/lib/utils";
 import { t } from "@/i18n";
 
 /** Fuel log manager view: previous fill, balance, odometers, issued litres, price and the computed cost. */
 export function FuelIssueForm({ request, issue, vehicle, readOnly, defaultPrice }: { request: Record<string, unknown>; issue: Record<string, unknown> | null; vehicle: Record<string, unknown> | null; readOnly: boolean; defaultPrice?: number | null }) {
   const router = useRouter();
   const [v, setV] = React.useState({
-    issue_date: (issue?.issue_date as string) ?? new Date().toISOString().slice(0, 10),
+    issue_date: (issue?.issue_date as string) ?? todayISO(),
     previous_filled_l: String(issue?.previous_filled_l ?? request.fuel_filled_l ?? ""),
     balance_l: String(issue?.balance_l ?? ""),
     previous_odometer: String(issue?.previous_odometer ?? request.previous_odometer ?? ""),

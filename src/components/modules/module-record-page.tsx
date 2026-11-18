@@ -13,6 +13,7 @@ import { loadOptions } from "@/lib/data/records";
 import { getModule } from "@/modules/registry";
 import { allFields } from "@/lib/forms/schema";
 import { DetailExtra } from "@/modules/extras";
+import { DriverConfirmationCard } from "./driver-confirmation";
 import { t } from "@/i18n";
 
 const DOCUMENT_TABLES = new Set(["vehicle_requests", "fuel_requests", "leave_requests", "maintenance_requests"]);
@@ -83,6 +84,7 @@ export async function ModuleRecordPage({ moduleKey, id, preset }: { moduleKey: s
           ) : undefined
         }
       />
+      {record ? <DriverConfirmationCard table={def.table} id={record.id as string} /> : null}
       <div className={showApproval ? "grid gap-6 lg:grid-cols-3" : undefined}>
         <div className={showApproval ? "lg:col-span-2" : undefined}>
           <SchemaForm

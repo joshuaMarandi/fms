@@ -1,6 +1,7 @@
 import type { ModuleDef } from "./types";
 import type { Field, Option } from "@/lib/forms/schema";
 import { MONTH_OPTIONS } from "@/lib/forms/schema";
+import { toISODate } from "@/lib/utils";
 
 export const TZ_REGIONS = [
   "Arusha", "Dar es Salaam", "Dodoma", "Geita", "Iringa", "Kagera", "Katavi", "Kigoma", "Kilimanjaro", "Lindi", "Manyara", "Mara", "Mbeya", "Morogoro", "Mtwara", "Mwanza", "Njombe", "Pemba North", "Pemba South", "Pwani", "Rukwa", "Ruvuma", "Shinyanga", "Simiyu", "Singida", "Songwe", "Tabora", "Tanga", "Unguja North", "Unguja South", "Unguja Urban West",
@@ -112,6 +113,8 @@ export const maintenanceRequests: ModuleDef = {
           { name: "reason_other", label: "expenses.maintenance.reason_other", control: "textarea", required: true, showWhen: { field: "reason", equals: "other" } },
           { name: "faults", label: "expenses.maintenance.faults", control: "checkbox_group", options: FAULTS, columns: 3, required: true },
           { name: "fault_details", label: "expenses.maintenance.fault_details", control: "textarea" },
+          // Ticked: the vehicle goes out of service in Fleet database until the request is closed.
+          { name: "takes_out_of_service", label: "expenses.maintenance.takes_out_of_service", control: "checkbox", description: "expenses.maintenance.takes_out_of_service_hint" },
           { name: "confirmation", label: "expenses.maintenance.confirmation", control: "signature", required: true },
         ],
       },
@@ -326,7 +329,9 @@ export const mandatoryTrainings: ModuleDef = {
           { name: "date_completed", label: "expenses.trainings.date_completed", control: "date", required: true },
           { name: "trainer", label: "expenses.trainings.trainer", control: "text" },
           { name: "cost_tzs", label: "expenses.trainings.cost", control: "number", min: 0, unit: "TZS" },
-          { name: "refresher_date", label: "expenses.trainings.refresher", control: "date", description: "Reminder" },
+          // Some trainings never expire: tick N/A and no expiry date (or reminder) is kept.
+          { name: "no_expiry", label: "expenses.trainings.no_expiry", control: "checkbox" },
+          { name: "refresher_date", label: "expenses.trainings.refresher", control: "date", description: "Reminder", required: true, showWhen: { field: "no_expiry", truthy: false } },
         ],
       },
       {
@@ -338,6 +343,7 @@ export const mandatoryTrainings: ModuleDef = {
   },
   list: {
     select: "*, driver:drivers(full_name)",
+    derive: (r) => ({ expiry: r.no_expiry ? "N/A" : r.refresher_date }),
     orderBy: { column: "date_completed", ascending: false },
     searchKeys: ["driver.full_name", "trainer"],
     columns: [
@@ -346,7 +352,7 @@ export const mandatoryTrainings: ModuleDef = {
       { key: "date_completed", header: "expenses.trainings.date_completed", type: "date" },
       { key: "trainer", header: "expenses.trainings.trainer" },
       { key: "cost_tzs", header: "expenses.trainings.cost", type: "tzs" },
-      { key: "refresher_date", header: "expenses.trainings.refresher", type: "reminder" },
+      { key: "expiry", header: "expenses.trainings.refresher", type: "reminder" },
     ],
   },
 };
@@ -473,7 +479,7 @@ export const timesheets: ModuleDef = {
               const last = rows[rows.length - 1]?.work_date as string | undefined;
               const base = last ? new Date(last + "T00:00:00") : values.period_month ? new Date((values.period_month as string) + "T00:00:00") : new Date();
               if (last) base.setDate(base.getDate() + 1);
-              return { work_date: base.toISOString().slice(0, 10), day_type: "work", shift: "day", time_in: "07:30", break_from: "13:00", break_to: "14:00", time_out: "17:00", overtime_hours: "", special_overtime_hours: "" };
+              return { work_date: toISODate(base), day_type: "work", shift: "day", time_in: "07:30", break_from: "13:00", break_to: "14:00", time_out: "17:00", overtime_hours: "", special_overtime_hours: "" };
             },
             totals: [
               { label: "expenses.timesheet.total_hours_all", format: "number", compute: (rows) => rows.reduce((s, r) => s + (workedHours(r) ?? 0), 0) },
@@ -834,3 +840,21 @@ export const incidents: ModuleDef = {
     ],
   },
 };
+
+/** Fleet expenses > Maintenance cost and Repair cost: the maintenance and repair records of one kind. */
+const costsOf = (kind: "maintenance" | "repairs"): ModuleDef => ({
+  ...maintenanceCosts,
+  key: kind === "maintenance" ? "expenses.maintenance.costs.maintenance" : "expenses.maintenance.costs.repairs",
+  path: kind === "maintenance" ? "/expenses/maintenance-cost" : "/expenses/repair-cost",
+  title: kind === "maintenance" ? "expenses.maintenance_cost.title" : "expenses.repair_cost.title",
+  description: kind === "maintenance" ? "expenses.maintenance_cost.description" : "expenses.repair_cost.description",
+  exportName: kind === "maintenance" ? "maintenance-cost" : "repair-cost",
+  fixed: { work_type: kind },
+  list: {
+    ...maintenanceCosts.list,
+    eq: { work_type: kind },
+    columns: maintenanceCosts.list.columns.filter((c) => c.key !== "work_type"),
+  },
+});
+export const maintenanceCostOnly = costsOf("maintenance");
+export const repairCostOnly = costsOf("repairs");

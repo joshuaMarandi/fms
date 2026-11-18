@@ -6,14 +6,14 @@ import { Button } from "@/components/ui/button";
 import { ReminderChip, StatusChip } from "@/components/patterns/status-chip";
 import { requireSession } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
-import { formatDate, formatNumber } from "@/lib/utils";
+import { formatDate, formatNumber, todayISO } from "@/lib/utils";
 import { t } from "@/i18n";
 
 /** Driver role: no charts. A Today screen with vehicle, tasks and personal reminders. */
 export async function DriverToday() {
   const session = await requireSession();
   const supabase = await createClient();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   const driverId = session.profile.driver_id;
 
   const [{ data: assignment }, { data: inspection }, { data: kmLog }, { data: reminders }, { data: requests }] = await Promise.all([

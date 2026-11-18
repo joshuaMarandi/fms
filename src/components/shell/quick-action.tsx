@@ -12,6 +12,7 @@ export const QUICK_ACTIONS: { prefix: string; resource: string; href: string; la
   { prefix: "/fleet", resource: "fleet.details", href: "/fleet/new", label: "fleet.add_vehicle" },
   { prefix: "/drivers", resource: "drivers.personal", href: "/drivers/new", label: "drivers.add_driver" },
   { prefix: "/inspections/daily", resource: "inspections.daily", href: "/inspections/daily/new", label: "inspections.new" },
+  { prefix: "/inspections/weekly", resource: "inspections.daily", href: "/inspections/weekly/new", label: "inspections.new" },
   { prefix: "/inspections/third-party", resource: "inspections.third_party", href: "/inspections/third-party/new", label: "inspections.new" },
   { prefix: "/inspections/mobilization", resource: "fleet.inspection_status", href: "/inspections/mobilization/new", label: "inspections.new" },
   { prefix: "/daily-use/km-log", resource: "daily_use.km_log", href: "/daily-use/km-log/new", label: "daily_use.km_log.new" },

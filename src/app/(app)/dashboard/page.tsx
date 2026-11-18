@@ -25,7 +25,6 @@ import {
   Timer,
   Truck,
   Users,
-  Wrench,
 } from "lucide-react";
 import { TONE, CLICKABLE_CARD, type Tone } from "@/components/patterns/tone";
 import { ListCardHeader, ROW_LINK, StatCard } from "@/components/patterns/stat-card";

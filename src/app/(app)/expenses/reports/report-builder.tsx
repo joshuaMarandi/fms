@@ -18,7 +18,7 @@ import { MonthlyBarChart, MonthlyLineChart, Widget } from "@/app/(app)/dashboard
 import { createClient } from "@/lib/supabase/client";
 import { useSession } from "@/components/permissions/provider";
 import { exportCsv, exportExcel, exportPdf } from "@/lib/export";
-import { formatDate, formatNumber, humanize } from "@/lib/utils";
+import { formatDate, formatNumber, humanize, todayISO } from "@/lib/utils";
 import { t } from "@/i18n";
 
 export type Preset = { id: string; name: string; report_type: string; filters: Record<string, string> };
@@ -29,10 +29,12 @@ const DATE_KEYS = new Set(["date", "month", "from", "to", "due_date", "date_comp
 export function ReportBuilder({ types, presets, vehicles, drivers, canExport, companyId }: { types: string[]; presets: Preset[]; vehicles: { id: string; registration: string }[]; drivers: { id: string; full_name: string }[]; canExport: boolean; companyId: string }) {
   const router = useRouter();
   const session = useSession();
-  const today = new Date();
   const [type, setType] = React.useState(types[0] ?? "fuel");
-  const [from, setFrom] = React.useState(new Date(today.getFullYear(), today.getMonth() - 5, 1).toISOString().slice(0, 10));
-  const [to, setTo] = React.useState(today.toISOString().slice(0, 10));
+  const [from, setFrom] = React.useState(() => {
+    const [y, m] = todayISO().split("-").map(Number) as [number, number];
+    return new Date(Date.UTC(y, m - 6, 1)).toISOString().slice(0, 10);
+  });
+  const [to, setTo] = React.useState(() => todayISO());
   const [vehicle, setVehicle] = React.useState("all");
   const [driver, setDriver] = React.useState("all");
   const [rows, setRows] = React.useState<Row[] | null>(null);

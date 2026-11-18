@@ -15,6 +15,9 @@ function appVersion() {
 }
 const version = appVersion();
 
+// The server works in East Africa Time (dates such as "today" and times on documents).
+process.env.TZ = "Africa/Dar_es_Salaam";
+
 const nextConfig: NextConfig = {
   deploymentId: version,
   env: { NEXT_PUBLIC_APP_VERSION: version },

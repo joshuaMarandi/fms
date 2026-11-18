@@ -1,5 +1,6 @@
 import type { ColumnSpec, ModuleDef } from "./types";
 import type { Field, Option } from "@/lib/forms/schema";
+import { todayISO } from "@/lib/utils";
 
 /** Fleet administration: roster, outstation allowance and petty cash (timesheet and leave live in expenses.ts). */
 
@@ -230,7 +231,7 @@ export const pettyCash: ModuleDef = {
               { name: "verification", label: "admin.petty_cash.status", control: "select", options: VERIFY, required: true },
               { name: "verified_by", label: "admin.petty_cash.verified_by", control: "text", showWhen: { field: "verification", equals: "verified" } },
             ],
-            defaultRow: () => ({ txn_date: new Date().toISOString().slice(0, 10), description: "", quantity: 1, unit: "", price_tzs: "", receipt_number: "", verification: "not_verified", verified_by: "" }),
+            defaultRow: () => ({ txn_date: todayISO(), description: "", quantity: 1, unit: "", price_tzs: "", receipt_number: "", verification: "not_verified", verified_by: "" }),
             totals: [{ label: "admin.petty_cash.amount_spent", format: "tzs", compute: (rows) => rows.reduce((s, r) => s + (Number(r.quantity) || 0) * (Number(r.price_tzs) || 0), 0) }],
           },
           { name: "receipts", label: "admin.petty_cash.receipts", control: "file", bucket: "forms", labels: ["admin.petty_cash.receipts"] },

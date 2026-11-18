@@ -130,8 +130,8 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
         <TabsContent value="inspection" className="space-y-6">
           <InspectionHistory
             title={t("inspections.mobilization.title")}
-            nextLabel={t("inspections.mobilization.renewal")}
-            noteLabel={t("common.notes")}
+            nextLabel={t("inspections.next_date")}
+            noteLabel={null}
             rows={mobilizationHistory}
             report={[]}
             addHref={session.can("fleet.inspection_status", "create") ? `/inspections/mobilization/new?vehicle=${id}` : null}
@@ -183,7 +183,6 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
                     <tr className="border-b text-left text-muted-foreground">
                       <th className="py-2 pr-3 font-medium">{t("fleet.last_service_date")}</th>
                       <th className="py-2 pr-3 text-right font-medium">{t("fleet.last_service_km")}</th>
-                      <th className="py-2 pr-3 text-right font-medium">{t("fleet.service_interval")}</th>
                       <th className="py-2 pr-3 text-right font-medium">{t("fleet.next_service_km")}</th>
                       <th className="py-2 pr-3 font-medium">{t("fleet.service.garage")}</th>
                       <th className="py-2 font-medium">{t("fleet.service.work_done")}</th>
@@ -197,7 +196,6 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
                           {i === 0 ? <span className="status-chip status-chip-success ml-2">{t("fleet.service.current")}</span> : null}
                         </td>
                         <td className="py-2 pr-3 text-right tabular-nums">{formatNumber(h.last_service_km as number)}</td>
-                        <td className="py-2 pr-3 text-right tabular-nums">{formatNumber(h.interval_km as number)}</td>
                         <td className="py-2 pr-3 text-right tabular-nums">{formatNumber(h.next_service_km as number)}</td>
                         <td className="py-2 pr-3">{(h.garage as string) || ""}</td>
                         <td className="py-2 whitespace-pre-line">{(h.notes as string) || ""}</td>

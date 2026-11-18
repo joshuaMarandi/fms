@@ -5,9 +5,14 @@ import { PageHeader } from "@/components/shell/page-header";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { DriversTable, type DriverRow } from "./drivers-table";
+import { HubSummary } from "@/components/hub/vehicle-hub";
+import { SummaryDates } from "@/components/hub/daily-use-hub";
+import { inRange, rangeFromParams } from "@/lib/date-range";
+import { daysFromNowISO, formatNumber, todayISO } from "@/lib/utils";
 import { t } from "@/i18n";
 
-export default async function DriversPage() {
+export default async function DriversPage({ searchParams }: PageProps<"/drivers">) {
+  const range = rangeFromParams(await searchParams);
   const session = await requirePermission("drivers.personal", "view");
   const supabase = await createClient();
 
@@ -57,7 +62,35 @@ export default async function DriversPage() {
           ) : null
         }
       />
+      <SummaryDates label={range ? t("drivers.summary.expiring_in", { when: range.label }) : t("drivers.summary.default")} />
+      <HubSummary tiles={summaryTiles(rows, range)} />
       <DriversTable rows={rows} />
     </>
   );
+}
+
+/**
+ * Summary cards: drivers, and how many licences, defensive driving refreshers and OSHA retests need
+ * attention. All time: expired and due within 30 days. With dates: those falling in the dates.
+ */
+function summaryTiles(rows: DriverRow[], range: { from: string; to: string; label: string } | null) {
+  const today = todayISO();
+  const in30 = daysFromNowISO(30);
+  const active = rows.filter((r) => r.is_active);
+  const card = (label: string, dates: (string | null)[]) => {
+    const set = dates.filter((d): d is string => !!d);
+    if (range) {
+      const n = set.filter((d) => inRange(range, d)).length;
+      return { label, value: formatNumber(n), sub: t("drivers.summary.expiring"), tone: n ? ("warning" as const) : undefined };
+    }
+    const expired = set.filter((d) => d < today).length;
+    const due = set.filter((d) => d >= today && d <= in30).length;
+    return { label, value: formatNumber(expired + due), sub: t("drivers.summary.expired_due", { expired, due }), tone: expired ? ("danger" as const) : due ? ("warning" as const) : undefined };
+  };
+  return [
+    { label: t("drivers.summary.total"), value: formatNumber(active.length), sub: t("drivers.summary.inactive", { count: rows.length - active.length }) },
+    card(t("drivers.licence_expiry"), active.map((r) => r.licence_expiry)),
+    card(t("drivers.ddt_refresher"), active.map((r) => r.ddt_refresher)),
+    card(t("drivers.osha_refresher"), active.map((r) => r.osha_redo)),
+  ];
 }

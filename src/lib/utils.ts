@@ -14,32 +14,36 @@ export function formatTzs(value: number | string | null | undefined) {
   return `TZS ${new Intl.NumberFormat("en-TZ", { maximumFractionDigits: 0 }).format(n)}`;
 }
 
+/** Every date and time in the app is East Africa Time, wherever the server or the browser runs. */
+export const APP_TIME_ZONE = "Africa/Dar_es_Salaam";
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
 export function formatDate(value: string | Date | null | undefined, withTime = false) {
   if (!value) return "";
-  const d = typeof value === "string" ? new Date(value) : value;
+  // A plain date (2026-11-19) is a calendar day: show it as it is, never shifted by a time zone.
+  const d = typeof value === "string" ? new Date(DATE_ONLY.test(value) ? `${value}T12:00:00Z` : value) : value;
   if (Number.isNaN(d.getTime())) return "";
   return new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
     month: "short",
     year: "numeric",
-    ...(withTime ? { hour: "2-digit", minute: "2-digit" } : {}),
+    timeZone: APP_TIME_ZONE,
+    ...(withTime ? { hour: "2-digit", minute: "2-digit", hour12: false } : {}),
   }).format(d);
 }
 
+/** Days from today (East Africa Time) to the date; negative when it has passed. */
 export function daysUntil(value: string | Date | null | undefined) {
   if (!value) return null;
-  const d = typeof value === "string" ? new Date(value) : value;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  d.setHours(0, 0, 0, 0);
-  return Math.round((d.getTime() - today.getTime()) / 86400000);
+  const target = typeof value === "string" && DATE_ONLY.test(value) ? value : toISODate(typeof value === "string" ? new Date(value) : value);
+  const ms = (iso: string) => Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)));
+  return Math.round((ms(target) - ms(todayISO())) / 86400000);
 }
 
+/** The calendar day of a moment in East Africa Time, as YYYY-MM-DD. */
 export function toISODate(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return new Intl.DateTimeFormat("en-CA", { timeZone: APP_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
 }
 
 export function initials(name: string | null | undefined) {

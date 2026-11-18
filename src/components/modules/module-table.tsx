@@ -45,9 +45,9 @@ export function renderCell(spec: ColumnSpec, value: unknown): React.ReactNode {
     case "status":
       return <StatusChip status={String(value)} />;
     case "reminder":
-      return <ReminderChip date={value as string} />;
+      return value === "N/A" ? <span className="text-muted-foreground">{t("common.not_applicable")}</span> : <ReminderChip date={value as string} />;
     case "reminder_date":
-      return <ReminderChip date={value as string} showDate />;
+      return value === "N/A" ? <span className="text-muted-foreground">{t("common.not_applicable")}</span> : <ReminderChip date={value as string} showDate />;
     case "actions": {
       const list = (Array.isArray(value) ? (value as { action_required?: string; status?: string; deleted_at?: string | null }[]) : []).filter((a) => !a.deleted_at);
       if (list.length === 0) return <span className="text-muted-foreground">{"—"}</span>;

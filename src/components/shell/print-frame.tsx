@@ -7,7 +7,7 @@ import { useSession } from "@/components/permissions/provider";
 import { brandLines, SYSTEM_NAME } from "@/lib/branding";
 import { t } from "@/i18n";
 
-const stamp = () => new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date());
+const stamp = () => new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Africa/Dar_es_Salaam" }).format(new Date());
 
 /**
  * Letterhead and footer that exist only on paper (window.print): company logo and details at the top,

@@ -10,7 +10,7 @@ import { StatusChip } from "@/components/patterns/status-chip";
 import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { saveRecord } from "@/lib/data/records";
-import { daysUntil, formatDate } from "@/lib/utils";
+import { daysUntil, formatDate, todayISO } from "@/lib/utils";
 import { t } from "@/i18n";
 
 export type AnomalyRow = {
@@ -85,7 +85,7 @@ export function AnomaliesTable({ rows, canClose }: { rows: AnomalyRow[]; canClos
         confirmLabel={t("inspections.anomaly.close")}
         onConfirm={async () => {
           if (!closing) return;
-          const res = await saveRecord({ table: "inspection_anomalies", id: closing.id, values: { status: "closed", date_closed: new Date().toISOString().slice(0, 10) }, revalidate: ["/inspections/anomalies", "/fleet"] });
+          const res = await saveRecord({ table: "inspection_anomalies", id: closing.id, values: { status: "closed", date_closed: todayISO() }, revalidate: ["/inspections/anomalies", "/fleet"] });
           if (!res.ok) toast.error(res.error);
           else {
             toast.success(t("inspections.anomaly.closed"));

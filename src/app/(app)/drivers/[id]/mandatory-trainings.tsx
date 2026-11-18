@@ -6,7 +6,7 @@ import { DocButton, type DocRef } from "@/components/patterns/doc-button";
 import { formatDate } from "@/lib/utils";
 import { hasKey, t } from "@/i18n";
 
-export type MandatoryRow = { id: string; courses: string[] | null; trainer: string | null; date_completed: string | null; refresher_date: string | null };
+export type MandatoryRow = { id: string; courses: string[] | null; trainer: string | null; date_completed: string | null; refresher_date: string | null; no_expiry?: boolean };
 
 const courseName = (c: string) => (hasKey(`expenses.trainings.course.${c}`) ? t(`expenses.trainings.course.${c}`) : c);
 
@@ -48,7 +48,7 @@ export function MandatoryTrainings({ driverId, rows, docs, canAdd, canAttach }: 
                   </td>
                   <td className="py-2.5 pr-3">{r.trainer || <span className="text-muted-foreground">—</span>}</td>
                   <td className="py-2.5 pr-3 tabular-nums">{formatDate(r.date_completed)}</td>
-                  <td className="py-2.5 pr-3">{r.refresher_date ? <ReminderChip date={r.refresher_date} showDate /> : <span className="text-muted-foreground">—</span>}</td>
+                  <td className="py-2.5 pr-3">{r.no_expiry ? <span className="text-muted-foreground">{t("common.not_applicable")}</span> : r.refresher_date ? <ReminderChip date={r.refresher_date} showDate /> : <span className="text-muted-foreground">—</span>}</td>
                   <td className="py-2.5">
                     <DocButton
                       docs={docs.get(r.id) ?? []}

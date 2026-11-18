@@ -1,4 +1,4 @@
-import { DocButton, type DocRef } from "@/components/patterns/doc-button";
+import { DocButton, type DocRef, type DocUpload } from "@/components/patterns/doc-button";
 import { t } from "@/i18n";
 
 /**
@@ -13,7 +13,8 @@ export function DriverHistory({
 }: {
   title: string;
   headers: string[];
-  rows: { id: string; cells: React.ReactNode[]; docs: DocRef[]; current?: boolean }[];
+  /** upload: where a missing document is attached from the row (an Attach button instead of —). */
+  rows: { id: string; cells: React.ReactNode[]; docs: DocRef[]; current?: boolean; upload?: DocUpload | null }[];
   docHeader: string;
 }) {
   return (
@@ -44,7 +45,7 @@ export function DriverHistory({
                     </td>
                   ))}
                   <td className="py-2.5">
-                    <DocButton docs={r.docs} compact />
+                    <DocButton docs={r.docs} compact upload={r.upload} />
                   </td>
                 </tr>
               ))}

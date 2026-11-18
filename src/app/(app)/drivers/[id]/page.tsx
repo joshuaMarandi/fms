@@ -29,7 +29,7 @@ export default async function DriverPage({ params, searchParams }: PageProps<"/d
     supabase.from("driver_courses").select("*").eq("driver_id", id).not("course", "is", null).is("deleted_at", null).order("date_completed", { ascending: false }),
     supabase.from("driver_licences").select("*").eq("driver_id", id).is("deleted_at", null).order("expiry_date", { ascending: false }),
     supabase.from("driver_osha").select("*").eq("driver_id", id).is("deleted_at", null).order("date_conducted", { ascending: false, nullsFirst: false }),
-    supabase.from("mandatory_trainings").select("id, courses, date_completed, refresher_date, trainer").eq("driver_id", id).is("deleted_at", null).order("date_completed", { ascending: false }),
+    supabase.from("mandatory_trainings").select("id, courses, date_completed, refresher_date, no_expiry, trainer").eq("driver_id", id).is("deleted_at", null).order("date_completed", { ascending: false }),
     loadOptions(["profiles"]),
   ]);
   if (!driver) notFound();
@@ -115,12 +115,13 @@ export default async function DriverPage({ params, searchParams }: PageProps<"/d
           <DriverHistory
             title={t("drivers.licence.history")}
             headers={[t("drivers.licence_number"), t("drivers.licence_class"), t("drivers.date_issued"), t("drivers.expiry_date")]}
-            docHeader={t("drivers.doc.licence")}
+            docHeader={t("drivers.history.document")}
             rows={licenceRows.map((r, i) => ({
               id: r.id as string,
               current: i === 0,
               cells: [(r.licence_number as string) || "—", (r.licence_class as string) || "—", formatDate(r.date_issued as string), <ReminderChip key="exp" date={(r.expiry_date as string) ?? null} showDate />],
               docs: (licenceDocs.get(r.id as string) ?? []).length ? licenceDocs.get(r.id as string)! : i === 0 ? fromTab("drivers.doc.licence") : [],
+              upload: session.can("drivers.licence", "edit") || session.can("drivers.licence", "create") ? { table: "driver_licences", rowId: r.id as string, resource: "drivers.licence", bucket: "driver-docs", label: t("drivers.doc.licence") } : null,
             }))}
           />
         </TabsContent>
@@ -140,13 +141,14 @@ export default async function DriverPage({ params, searchParams }: PageProps<"/d
           ) : null}
           <DriverHistory
             title={t("drivers.osha.history")}
-            headers={[t("drivers.osha_date"), t("drivers.osha_redo"), t("drivers.osha_result")]}
+            headers={[t("drivers.osha_date"), t("drivers.osha_result"), t("drivers.osha_redo")]}
             docHeader={t("drivers.osha.report")}
             rows={oshaRows.map((r, i) => ({
               id: r.id as string,
               current: i === 0,
-              cells: [formatDate(r.date_conducted as string), <ReminderChip key="redo" date={(r.redo_date as string) ?? null} showDate />, (r.result as string) || "—"],
+              cells: [formatDate(r.date_conducted as string), (r.result as string) || "—", <ReminderChip key="redo" date={(r.redo_date as string) ?? null} showDate />],
               docs: (oshaDocs.get(r.id as string) ?? []).length ? oshaDocs.get(r.id as string)! : i === 0 ? fromTab("drivers.doc.osha_report") : [],
+              upload: session.can("drivers.osha", "edit") || session.can("drivers.osha", "create") ? { table: "driver_osha", rowId: r.id as string, resource: "drivers.osha", bucket: "driver-docs", label: t("drivers.doc.osha_report"), sensitive: true } : null,
             }))}
           />
           <EarlierDocs title={t("drivers.earlier_medical")} docs={fromTab("drivers.doc.medical_report")} />

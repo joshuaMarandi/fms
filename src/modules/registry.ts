@@ -1,5 +1,5 @@
 import type { ModuleDef } from "./types";
-import { dailyInspections, mobilizationInspections, thirdPartyInspections } from "./inspections";
+import { dailyInspections, mobilizationInspections, thirdPartyInspections, weeklyInspections } from "./inspections";
 import { fuelIssues, fuelLog, kmLogs, tripRequests } from "./daily-use";
 import { fleetRoster, miscExpenses, outstationAllowances, pettyCash, travelAirports, travelArrivals, travelDepartures } from "./administration";
 import {
@@ -9,6 +9,8 @@ import {
   leavePlans,
   leaveRequests,
   maintenanceCosts,
+  maintenanceCostOnly,
+  repairCostOnly,
   maintenanceRequests,
   mandatoryTrainings,
   timesheets,
@@ -19,6 +21,7 @@ import {
 
 export const MODULES: ModuleDef[] = [
   dailyInspections,
+  weeklyInspections,
   mobilizationInspections,
   thirdPartyInspections,
   kmLogs,
@@ -28,6 +31,8 @@ export const MODULES: ModuleDef[] = [
   fuelExpenses,
   maintenanceRequests,
   maintenanceCosts,
+  maintenanceCostOnly,
+  repairCostOnly,
   tyreRequests,
   washRequests,
   mandatoryTrainings,

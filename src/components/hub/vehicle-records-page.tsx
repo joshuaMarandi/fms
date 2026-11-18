@@ -11,7 +11,7 @@ import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { getModule } from "@/modules/registry";
 import { assignByDate, loadDocs, loadVehicleDocs } from "@/lib/data/docs";
-import { formatDate, formatNumber, todayISO } from "@/lib/utils";
+import { formatDate, formatNumber, formatTzs, todayISO } from "@/lib/utils";
 import { t } from "@/i18n";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -24,7 +24,8 @@ type Tile = { label: string; value: string; sub?: string; tone?: "danger" | "war
 /** Summary cards above the records, for the kinds that have them. */
 function summaryFor(moduleKey: string, rows: Row[]): Tile[] | null {
   switch (moduleKey) {
-    case "inspections.daily": {
+    case "inspections.daily":
+    case "inspections.weekly": {
       const anomalies = rows.flatMap((r) => ((r.actions as { status?: string; deleted_at?: string | null }[] | null) ?? []).filter((a) => !a.deleted_at));
       const open = anomalies.filter((a) => a.status === "open").length;
       const withAnomalies = rows.filter((r) => r.remark === "anomalies").length;
@@ -55,6 +56,28 @@ function summaryFor(moduleKey: string, rows: Row[]): Tile[] | null {
         { label: t("records.tile.km_run"), value: `${formatNumber(km)} km`, sub: t("records.tile.between_refills") },
         { label: t("records.tile.fuel_required"), value: `${formatNumber(required, 1)} L`, sub: t("records.tile.asked_for") },
         { label: t("records.tile.fuel_approved"), value: `${formatNumber(approved, 1)} L`, sub: km && approved ? t("records.tile.km_per_l", { value: formatNumber(km / approved, 2) }) : t("records.tile.in_period") },
+      ];
+    }
+    case "expenses.fuel": {
+      const km = rows.reduce((s, r) => s + n(r.km_run), 0);
+      const used = rows.reduce((s, r) => s + n(r.fuel_consumed_l), 0);
+      return [
+        { label: t("expenses.hub.fuel_amount"), value: formatTzs(rows.reduce((s, r) => s + n(r.amount_tzs), 0)), sub: t("records.tile.logs", { count: rows.length }) },
+        { label: t("expenses.hub.fuel_consumed"), value: `${formatNumber(used, 1)} L`, sub: t("records.tile.in_period") },
+        { label: t("records.tile.km_run"), value: `${formatNumber(km)} km`, sub: t("records.tile.in_period") },
+        { label: t("hub.tile.consumption"), value: used ? `${formatNumber(km / used, 2)} km/L` : "—", sub: t("records.tile.in_period") },
+      ];
+    }
+    case "expenses.maintenance.costs":
+    case "expenses.maintenance.costs.maintenance":
+    case "expenses.maintenance.costs.repairs": {
+      const total = rows.reduce((s, r) => s + n(r.cost_tzs), 0);
+      const part = (w: string) => rows.filter((r) => r.work_type === w).reduce((s, r) => s + n(r.cost_tzs), 0);
+      return [
+        { label: t("expenses.hub.total_cost"), value: formatTzs(total), sub: t("records.tile.in_period") },
+        { label: t("expenses.hub.records"), value: formatNumber(rows.length), sub: t("records.tile.in_period") },
+        { label: t("expenses.hub.maintenance_part"), value: formatTzs(part("maintenance")), sub: t("records.tile.in_period") },
+        { label: t("expenses.hub.repair_part"), value: formatTzs(part("repairs")), sub: t("records.tile.in_period") },
       ];
     }
     default:
