@@ -641,6 +641,43 @@ insert into public.incident_vehicles (company_id, incident_id, vehicle_id) value
 insert into public.incident_people (company_id, incident_id, kind, name, sex, age, contact, address) values
   ('11111111-1111-1111-1111-111111111111', 'bbbbbbbb-bbbb-bbbb-bbbb-000000000002', 'injured', 'Samwel Magesa', 'male', 34, '+255700000099', 'Buswelu, Ilemela');
 
+-- Travel coordination: local departures and arrivals (pickup times follow each airport's rule:
+-- JKNIA 3.5 h before departure, other airports 3 h; arrivals are met at landing).
+insert into public.travel_movements (company_id, direction, travel_date, travellers, airport, flight, flight_time, pickup_from, pickup_time, transport_to, host, driver_id, vehicle_id, notes) values
+  ('11111111-1111-1111-1111-111111111111', 'departure', current_date + 2, 'David Michael', 'Kahama Airport', 'Precision Air PW 711', '12:30', 'Submarine Hotel', '09:30', 'Kahama Airport', null, '66666666-6666-6666-6666-000000000001', '55555555-5555-5555-5555-000000000001', null),
+  ('11111111-1111-1111-1111-111111111111', 'departure', current_date + 2, E'Loi Rogers
+Anna Peter', 'JKNIA', 'Air Tanzania TC 100', '15:00', 'Dar es Salaam HQ', '11:30', 'JKNIA Terminal 3', null, '66666666-6666-6666-6666-000000000002', '55555555-5555-5555-5555-000000000002', 'Two bags each'),
+  ('11111111-1111-1111-1111-111111111111', 'departure', current_date + 5, 'Grace Mollel', 'Mwanza Airport', 'Air Tanzania TC 141', '08:45', 'Mwanza site', '05:45', 'Mwanza Airport', null, '66666666-6666-6666-6666-000000000003', '55555555-5555-5555-5555-000000000003', null),
+  ('11111111-1111-1111-1111-111111111111', 'arrival', current_date + 1, 'Matteo Gurau', 'Kahama Airport', 'Precision Air PW 710', '10:15', 'Kahama Airport', '10:15', 'Submarine Hotel', 'Site manager', '66666666-6666-6666-6666-000000000001', '55555555-5555-5555-5555-000000000001', null),
+  ('11111111-1111-1111-1111-111111111111', 'arrival', current_date + 3, E'Loi Rogers
+James Otieno', 'JKNIA', 'Air Tanzania TC 101', '18:40', 'JKNIA Terminal 3', '18:40', 'Dar es Salaam HQ', 'Fleet coordinator', '66666666-6666-6666-6666-000000000004', '55555555-5555-5555-5555-000000000005', 'Meet at arrivals with a name board'),
+  ('11111111-1111-1111-1111-111111111111', 'arrival', current_date - 2, 'Sarah Kimaro', 'Arusha Airport', 'Precision Air PW 422', '13:05', 'Arusha Airport', '13:05', 'Arusha guest house', null, '66666666-6666-6666-6666-000000000002', '55555555-5555-5555-5555-000000000004', null);
+
+-- Fleet roster: a 28-day rotating block roster (7 Day, 7 Noon, 7 Night, 7 OFF). Coordinators in
+-- Team 0 each start on a different shift; driver teams 1-4 start one block apart.
+insert into public.roster_settings (company_id, cycle_start) values ('11111111-1111-1111-1111-111111111111', (date_trunc('week', current_date))::date);
+insert into public.roster_members (company_id, team, driver_id, person_name, employment_id, role, start_phase, sort_order) values
+  ('11111111-1111-1111-1111-111111111111', 'Team 0', null, 'Neema Kisanga', 'COR-01', 'coordinator', 0, 0),
+  ('11111111-1111-1111-1111-111111111111', 'Team 0', null, 'Baraka Mushi', 'COR-02', 'coordinator', 3, 1),
+  ('11111111-1111-1111-1111-111111111111', 'Team 0', null, 'Halima Juma', 'COR-03', 'coordinator', 2, 2),
+  ('11111111-1111-1111-1111-111111111111', 'Team 0', null, 'Peter Lyimo', 'COR-04', 'coordinator', 1, 3),
+  ('11111111-1111-1111-1111-111111111111', 'Team 1', '66666666-6666-6666-6666-000000000001', '', null, 'driver', 0, 4),
+  ('11111111-1111-1111-1111-111111111111', 'Team 1', null, 'Omari Selemani', 'DRV-02', 'driver', 0, 5),
+  ('11111111-1111-1111-1111-111111111111', 'Team 1', null, 'Daudi Mrema', 'DRV-03', 'driver', 0, 6),
+  ('11111111-1111-1111-1111-111111111111', 'Team 2', '66666666-6666-6666-6666-000000000002', '', null, 'driver', 3, 7),
+  ('11111111-1111-1111-1111-111111111111', 'Team 2', null, 'Yusuf Bakari', 'DRV-05', 'driver', 3, 8),
+  ('11111111-1111-1111-1111-111111111111', 'Team 2', null, 'Zawadi Mtei', 'DRV-06', 'driver', 3, 9),
+  ('11111111-1111-1111-1111-111111111111', 'Team 3', '66666666-6666-6666-6666-000000000003', '', null, 'driver', 2, 10),
+  ('11111111-1111-1111-1111-111111111111', 'Team 3', null, 'Salim Hamisi', 'DRV-08', 'driver', 2, 11),
+  ('11111111-1111-1111-1111-111111111111', 'Team 3', null, 'Tumaini Njau', 'DRV-09', 'driver', 2, 12),
+  ('11111111-1111-1111-1111-111111111111', 'Team 4', '66666666-6666-6666-6666-000000000004', '', null, 'driver', 1, 13),
+  ('11111111-1111-1111-1111-111111111111', 'Team 4', null, 'Joseph Mwita', 'DRV-11', 'driver', 1, 14),
+  ('11111111-1111-1111-1111-111111111111', 'Team 4', null, 'Rashidi Kombo', 'DRV-12', 'driver', 1, 15);
+-- One change from the cycle: a driver on leave for a day this week.
+insert into public.fleet_rosters (company_id, roster_date, shift, driver_id, member_id, notes)
+select '11111111-1111-1111-1111-111111111111', (date_trunc('week', current_date))::date + 2, 'leave', m.driver_id, m.id, 'Family event'
+from public.roster_members m where m.employment_id = 'DRV-02';
+
 -- Run the reminder job once so the demo has notifications.
 select public.process_due_reminders();
 

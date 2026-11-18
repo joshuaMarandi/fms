@@ -1228,4 +1228,13 @@ begin
   delete from public.travel_movements where travellers = 'David Michael';
 end $m32$;
 
+-- 33: rotating roster.
+do $m33$
+begin
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  perform pg_temp.check('m33: roster people are readable', (select count(*) from public.roster_members) = 16);
+  perform pg_temp.check('m33: a driver on the roster takes the driver name and number', (select person_name from public.roster_members where driver_id = '66666666-6666-6666-6666-000000000001') = 'Juma Hassan');
+  perform pg_temp.check('m33: one change from the cycle', (select count(*) from public.fleet_rosters where member_id is not null and shift = 'leave') = 1);
+end $m33$;
+
 select 'ALL TESTS PASSED' as result;
