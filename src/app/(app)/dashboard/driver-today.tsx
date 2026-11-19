@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ClipboardCheck, Fuel, Route, Wrench } from "lucide-react";
+import { ClipboardCheck, Fuel, Route } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,7 +35,6 @@ export async function DriverToday() {
     { done: !!insp, label: t("inspections.daily.title"), href: insp ? `/inspections/daily/${insp.id}` : "/inspections/daily/new", icon: ClipboardCheck },
     { done: !!log, label: t("daily_use.km_log.title"), href: log ? `/daily-use/km-log/${log.id}` : "/daily-use/km-log/new", icon: Route, sub: log ? `${log.trip_count} ${t("nav.trips").toLowerCase()} · ${formatNumber(log.total_km)} km` : undefined },
     { done: false, label: t("daily_use.fuel.new"), href: "/daily-use/fuel-requests/new", icon: Fuel },
-    { done: false, label: t("expenses.maintenance.new"), href: "/expenses/maintenance/requests/new", icon: Wrench },
   ];
 
   return (

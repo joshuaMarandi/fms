@@ -38,7 +38,6 @@ insert into public.resources (key, parent_key, name, label_prefix, path, icon, s
   ('expenses', null, 'Fleet expenses', '5', '/expenses', 'receipt', 600, true, true),
   ('expenses.fuel', 'expenses', 'Fuel cost', 'a', '/expenses/fuel', 'fuel', 601, false, false),
   ('expenses.maintenance', 'expenses', 'Maintenance and repair', 'b', null, 'wrench', 502, false, true),
-  ('expenses.maintenance.requests', 'daily_use', 'Maintenance and repair requests', null, '/expenses/maintenance/requests', null, 405, false, true),
   ('expenses.maintenance.costs', 'daily_use', 'Maintenance and repair records', null, '/expenses/maintenance/costs', null, 406, false, false),
   ('expenses.maintenance.costs.maintenance', 'expenses', 'Maintenance cost', null, '/expenses/maintenance-cost', 'wrench', 602, false, false),
   ('expenses.maintenance.costs.repairs', 'expenses', 'Repair cost', null, '/expenses/repair-cost', 'wrench', 603, false, false),
@@ -191,7 +190,6 @@ begin
   perform pg_temp.grant_role(drv, 'daily_use.km_log', cru, 'own');
   perform pg_temp.grant_role(drv, 'daily_use.fuel_log', cru, 'own');
   perform pg_temp.grant_role(drv, 'daily_use.trip_requests', v, 'own');
-  perform pg_temp.grant_role(drv, 'expenses.maintenance.requests', cru, 'own');
   perform pg_temp.grant_role(drv, 'expenses.tyres', cru, 'own');
   perform pg_temp.grant_role(drv, 'expenses.washing', cru, 'own');
   perform pg_temp.grant_role(drv, 'expenses.trainings.mandatory', v, 'own');

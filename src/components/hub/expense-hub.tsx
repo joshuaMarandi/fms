@@ -75,17 +75,61 @@ export async function ExpenseHub({ kind, searchParams }: { kind: ExpenseKind; se
       { key: "ratio", label: "hub.col.consumption", align: "right" },
       { key: "amount", label: "expenses.hub.amount", align: "right" },
     ];
+  } else if (kind === "maintenance_records") {
+    // PM (preventive maintenance) and CR (corrective repair) per vehicle, for the chosen dates.
+    let q = supabase.from("maintenance_costs").select("vehicle_id, work_type, cost_date, cost_tzs").is("deleted_at", null);
+    if (range) q = q.gte("cost_date", range.from).lte("cost_date", range.to);
+    const { data: recs } = await q.limit(20000);
+    type Side = { count: number; last: string | null; cost: number };
+    const per = new Map<string, { pm: Side; cr: Side }>();
+    for (const r of (recs ?? []) as { vehicle_id: string; work_type: string; cost_date: string; cost_tzs: number | null }[]) {
+      const p = per.get(r.vehicle_id) ?? { pm: { count: 0, last: null, cost: 0 }, cr: { count: 0, last: null, cost: 0 } };
+      const side = r.work_type === "repairs" ? p.cr : p.pm;
+      side.count++;
+      side.cost += num(r.cost_tzs);
+      if (!side.last || r.cost_date > side.last) side.last = r.cost_date;
+      per.set(r.vehicle_id, p);
+    }
+    const all = [...per.values()];
+    const total = (pick: (x: { pm: Side; cr: Side }) => number) => all.reduce((s, x) => s + pick(x), 0);
+    tiles = [
+      { label: t("maint.pm_records"), value: formatNumber(total((x) => x.pm.count)) },
+      { label: t("maint.cr_records"), value: formatNumber(total((x) => x.cr.count)) },
+      { label: t("maint.pm_cost"), value: formatTzs(total((x) => x.pm.cost)) },
+      { label: t("maint.cr_cost"), value: formatTzs(total((x) => x.cr.cost)) },
+    ];
+    vehicles = rows.map((r) => {
+      const p = per.get(r.id);
+      const last = [p?.pm.last, p?.cr.last].filter((d): d is string => !!d).sort().pop();
+      return {
+        ...base(r),
+        chip: last ? { label: t("expenses.hub.last_record", { date: formatDate(last) }), tone: "info" } : { label: t("expenses.hub.no_records"), tone: "neutral" },
+        detail: t("maint.detail", { pm: p?.pm.count ?? 0, cr: p?.cr.count ?? 0, amount: formatTzs((p?.pm.cost ?? 0) + (p?.cr.cost ?? 0)) }),
+        cells: {
+          pm: formatNumber(p?.pm.count ?? 0),
+          cr: formatNumber(p?.cr.count ?? 0),
+          last_pm: p?.pm.last ? formatDate(p.pm.last) : "—",
+          last_cr: p?.cr.last ? formatDate(p.cr.last) : "—",
+          pm_cost: formatTzs(p?.pm.cost ?? 0),
+          cr_cost: formatTzs(p?.cr.cost ?? 0),
+        },
+      };
+    });
+    columns = [
+      { key: "registration", label: "fleet.reg" },
+      { key: "makeModel", label: "fleet.make_model" },
+      { key: "pm", label: "maint.col.pm", align: "right" },
+      { key: "cr", label: "maint.col.cr", align: "right" },
+      { key: "last_pm", label: "maint.col.last_pm" },
+      { key: "last_cr", label: "maint.col.last_cr" },
+      { key: "pm_cost", label: "maint.col.pm_cost", align: "right" },
+      { key: "cr_cost", label: "maint.col.cr_cost", align: "right" },
+    ];
   } else {
-    const both = kind === "maintenance_records";
     tiles = [
       { label: t("expenses.hub.total_cost"), value: formatTzs(sum("cost")) },
       { label: t("expenses.hub.records"), value: formatNumber(sum("records")) },
-      ...(both
-        ? [
-            { label: t("expenses.hub.maintenance_part"), value: formatTzs(sum("litres")) },
-            { label: t("expenses.hub.repair_part"), value: formatTzs(sum("trips")) },
-          ]
-        : [{ label: t("expenses.hub.vehicles_with"), value: formatNumber([...totals.values()].filter((x) => num(x.records) > 0).length) }]),
+      { label: t("expenses.hub.vehicles_with"), value: formatNumber([...totals.values()].filter((x) => num(x.records) > 0).length) },
     ];
     vehicles = rows.map((r) => {
       const tot = totals.get(r.id);
@@ -96,8 +140,6 @@ export async function ExpenseHub({ kind, searchParams }: { kind: ExpenseKind; se
         cells: {
           last: tot?.last_date ? formatDate(tot.last_date) : t("expenses.hub.no_records"),
           records: formatNumber(num(tot?.records)),
-          maintenance: formatTzs(num(tot?.litres)),
-          repairs: formatTzs(num(tot?.trips)),
           total: formatTzs(num(tot?.cost)),
         },
       };
@@ -107,12 +149,6 @@ export async function ExpenseHub({ kind, searchParams }: { kind: ExpenseKind; se
       { key: "makeModel", label: "fleet.make_model" },
       { key: "last", label: "expenses.hub.last_date" },
       { key: "records", label: "expenses.hub.records", align: "right" },
-      ...(both
-        ? [
-            { key: "maintenance", label: "expenses.hub.maintenance_part", align: "right" as const },
-            { key: "repairs", label: "expenses.hub.repair_part", align: "right" as const },
-          ]
-        : []),
       { key: "total", label: "expenses.hub.total_cost", align: "right" },
     ];
   }

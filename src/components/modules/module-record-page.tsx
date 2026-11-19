@@ -16,7 +16,7 @@ import { DetailExtra } from "@/modules/extras";
 import { DriverConfirmationCard } from "./driver-confirmation";
 import { t } from "@/i18n";
 
-const DOCUMENT_TABLES = new Set(["vehicle_requests", "fuel_requests", "leave_requests", "maintenance_requests"]);
+const DOCUMENT_TABLES = new Set(["vehicle_requests", "fuel_requests", "leave_requests"]);
 
 export async function loadRecordWithChildren(moduleKey: string, id: string) {
   const def = getModule(moduleKey);

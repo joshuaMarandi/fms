@@ -8,7 +8,7 @@ import { t } from "@/i18n";
  * confirmed and signed it (their signature, name and time are the proof), or that it is waiting.
  */
 export async function DriverConfirmationCard({ table, id }: { table: string; id: string }) {
-  if (table !== "fuel_requests" && table !== "maintenance_requests") return null;
+  if (table !== "fuel_requests") return null;
   const supabase = await createClient();
   const { data } = await supabase
     .from("driver_confirmations")

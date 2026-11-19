@@ -37,7 +37,6 @@ insert into public.resources (key, parent_key, name, label_prefix, path, icon, s
   ('expenses', null, 'Fleet expenses', '5', '/expenses', 'receipt', 600, true, true),
   ('expenses.fuel', 'expenses', 'Fuel cost', 'a', '/expenses/fuel', 'fuel', 601, false, false),
   ('expenses.maintenance', 'expenses', 'Maintenance and repair', 'b', null, 'wrench', 502, false, true),
-  ('expenses.maintenance.requests', 'daily_use', 'Maintenance and repair requests', null, '/expenses/maintenance/requests', null, 405, false, true),
   ('expenses.maintenance.costs', 'daily_use', 'Maintenance and repair records', null, '/expenses/maintenance/costs', null, 406, false, false),
   ('expenses.maintenance.costs.maintenance', 'expenses', 'Maintenance cost', null, '/expenses/maintenance-cost', 'wrench', 602, false, false),
   ('expenses.maintenance.costs.repairs', 'expenses', 'Repair cost', null, '/expenses/repair-cost', 'wrench', 603, false, false),
@@ -218,7 +217,6 @@ begin
   perform pg_temp.grant_role(drv, 'daily_use.km_log', cru, 'own');
   perform pg_temp.grant_role(drv, 'daily_use.fuel_log', cru, 'own');
   perform pg_temp.grant_role(drv, 'daily_use.trip_requests', v, 'own');
-  perform pg_temp.grant_role(drv, 'expenses.maintenance.requests', cru, 'own');
   perform pg_temp.grant_role(drv, 'expenses.tyres', cru, 'own');
   perform pg_temp.grant_role(drv, 'expenses.washing', cru, 'own');
   perform pg_temp.grant_role(drv, 'expenses.trainings.mandatory', v, 'own');
@@ -534,18 +532,7 @@ begin
   perform set_config('request.jwt.claim.sub', '', true);
 end $$;
 
--- Maintenance: a submitted request for the Patrol and historical costs.
-insert into public.maintenance_requests (id, company_id, requester_id, driver_id, vehicle_id, request_date, odometer_km, reason, faults, fault_details, status, created_by) values
-  ('88888888-8888-8888-8888-000000000001', '11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-000000000005', '66666666-6666-6666-6666-000000000001', '55555555-5555-5555-5555-000000000003', current_date - 6, 132880, 'corrective', '{gearbox,brakes}', 'Grinding noise in third gear; brake pads worn.', 'draft', '33333333-3333-3333-3333-000000000005'),
-  ('88888888-8888-8888-8888-000000000002', '11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-000000000006', '66666666-6666-6666-6666-000000000002', '55555555-5555-5555-5555-000000000005', current_date - 1, 18230, 'ppm', '{engine_oil,filters}', 'Due for 20,000 km service.', 'draft', '33333333-3333-3333-3333-000000000006');
-update public.maintenance_requests set status = 'submitted' where id in ('88888888-8888-8888-8888-000000000001', '88888888-8888-8888-8888-000000000002');
-do $$
-begin
-  perform set_config('request.jwt.claim.sub', '33333333-3333-3333-3333-000000000002', true);
-  perform public.approve_request('maintenance_requests', '88888888-8888-8888-8888-000000000001', null, '{"approver_name": "Amani Mushi", "approver_position": "Fleet Manager"}'::jsonb);
-  perform set_config('request.jwt.claim.sub', '', true);
-end $$;
-
+-- Maintenance: historical costs.
 insert into public.maintenance_costs (company_id, vehicle_id, cost_date, odometer_km, work_type, service_provider, activities, cost_tzs)
 select '11111111-1111-1111-1111-111111111111', v.id, current_date - (40 * n) + 2, v.odometer_km - 5000 * n + 10, 'maintenance',
   'Toyota Tanzania Service Centre', 'Scheduled service', 180000 + ((n * 3 % 7) * 65000)

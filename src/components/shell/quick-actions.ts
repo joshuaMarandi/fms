@@ -12,7 +12,6 @@ export const QUICK_ACTIONS: { prefix: string; resource: string; href: string; la
   { prefix: "/daily-use/fuel-requests", resource: "daily_use.fuel_log", href: "/daily-use/fuel-requests/new", label: "daily_use.fuel.new" },
   { prefix: "/daily-use/fuel-log", resource: "daily_use.fuel_log", href: "/daily-use/fuel-requests/new", label: "daily_use.fuel.new" },
   { prefix: "/daily-use/trip-requests", resource: "daily_use.trip_requests", href: "/daily-use/trip-requests/new", label: "daily_use.trips.new" },
-  { prefix: "/expenses/maintenance/requests", resource: "expenses.maintenance.requests", href: "/expenses/maintenance/requests/new", label: "expenses.maintenance.new" },
   { prefix: "/expenses/maintenance/costs", resource: "expenses.maintenance.costs", href: "/expenses/maintenance/costs/new", label: "expenses.maintenance.costs.new" },
   { prefix: "/travel/departures", resource: "expenses.travel", href: "/travel/departures/new", label: "travel.departures.new" },
   { prefix: "/travel/arrivals", resource: "expenses.travel", href: "/travel/arrivals/new", label: "travel.arrivals.new" },

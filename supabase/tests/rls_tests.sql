@@ -43,7 +43,7 @@ declare
 begin
   -- permission_scope: own, department, all, parent-child override
   perform pg_temp.check('owner has all on anything', public.permission_scope_for(owner_id, 'expenses.tyres', 'delete') = 'all');
-  perform pg_temp.check('admin has approve on expenses child via parent grant', public.permission_scope_for(admin_id, 'expenses.maintenance.requests', 'approve') = 'all');
+  perform pg_temp.check('admin has approve on expenses child via parent grant', public.permission_scope_for(admin_id, 'expenses.washing', 'approve') = 'all');
   perform pg_temp.check('coordinator has no approve', public.permission_scope_for(coord_id, 'expenses.tyres', 'approve') is null);
   perform pg_temp.check('coordinator can create inspections', public.permission_scope_for(coord_id, 'inspections.daily', 'create') = 'all');
   perform pg_temp.check('HOD view only', public.permission_scope_for(hod_id, 'fleet.details', 'view') = 'all' and public.permission_scope_for(hod_id, 'fleet.details', 'edit') is null);
@@ -1182,15 +1182,18 @@ declare v_req uuid;
 begin
   perform pg_temp.as_admin();
   update public.profiles set job_title = 'Fleet Manager' where id = '33333333-3333-3333-3333-000000000002';
-  insert into public.maintenance_requests (company_id, requester_id, vehicle_id, request_date, odometer_km, reason, faults, status, created_by)
-  values ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-000000000005', '55555555-5555-5555-5555-000000000005', current_date, 20000, 'ppm', '{filters}', 'draft', '33333333-3333-3333-3333-000000000005')
+  insert into public.leave_requests (company_id, employee_id, category_id, date_from, date_to, reason, status, created_by)
+  values ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-000000000005',
+    (select id from public.leave_categories where company_id = '11111111-1111-1111-1111-111111111111' and not counts_against_balance order by name limit 1),
+    current_date + 60, current_date + 61, 'Family event', 'draft', '33333333-3333-3333-3333-000000000005')
   returning id into v_req;
-  update public.maintenance_requests set status = 'submitted' where id = v_req;
+  update public.leave_requests set status = 'submitted' where id = v_req;
   perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
-  perform public.approve_request('maintenance_requests', v_req);
+  perform public.approve_request('leave_requests', v_req);
   perform pg_temp.as_admin();
-  perform pg_temp.check('m31: approver name filled from the profile', (select approver_name from public.maintenance_requests where id = v_req) = (select full_name from public.profiles where id = '33333333-3333-3333-3333-000000000002'));
-  perform pg_temp.check('m31: approver position filled from the job title', (select approver_position from public.maintenance_requests where id = v_req) = 'Fleet Manager');
+  perform pg_temp.check('m31: approver name filled from the profile', (select approver_name from public.leave_requests where id = v_req) = (select full_name from public.profiles where id = '33333333-3333-3333-3333-000000000002'));
+  perform pg_temp.check('m31: approver position filled from the job title', (select approver_position from public.leave_requests where id = v_req) = 'Fleet Manager');
+  delete from public.leave_requests where id = v_req;
 end $m31$;
 
 -- 32: Excel formats.
@@ -1253,16 +1256,6 @@ begin
   perform pg_temp.as_admin();
   perform pg_temp.check('m34: closing it puts the vehicle back in service', (select status from public.vehicles where id = v) = 'in_service');
 
-  insert into public.maintenance_requests (company_id, requester_id, vehicle_id, request_date, odometer_km, reason, faults, takes_out_of_service, status, created_by)
-  values ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-000000000005', v, current_date, 18300, 'breakdown', '{engine}', true, 'draft', '33333333-3333-3333-3333-000000000005') returning id into v_req;
-  perform pg_temp.check('m34: a draft request does not change the status', (select status from public.vehicles where id = v) = 'in_service');
-  update public.maintenance_requests set status = 'submitted' where id = v_req;
-  perform pg_temp.check('m34: a sent repair request takes the vehicle out of service', (select status from public.vehicles where id = v) = 'out_of_service');
-  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
-  perform public.reject_request('maintenance_requests', v_req, 'Not needed');
-  perform pg_temp.as_admin();
-  perform pg_temp.check('m34: rejecting it puts the vehicle back in service', (select status from public.vehicles where id = v) = 'in_service');
-
   update public.vehicles set status = 'out_of_service', status_reason = 'Sold' where id = v;
   insert into public.inspection_anomalies (company_id, daily_inspection_id, vehicle_id, description, action_required, when_to_act, status, date_opened)
   values ('11111111-1111-1111-1111-111111111111', v_insp, v, 'Mirror broken', 'Replace', 'immediately', 'open', current_date) returning id into v_an;
@@ -1277,7 +1270,7 @@ begin
   perform pg_temp.check('m34: totals per vehicle for all time', n > 0);
   perform pg_temp.check('m34: totals follow the dates', (select coalesce(sum(litres), 0) from public.vehicle_totals('fuel_issues', current_date + 1000, current_date + 1001)) = 0);
   perform pg_temp.check('m34: menu order', (select sort_order from public.resources where key = 'daily_use') < (select sort_order from public.resources where key = 'fleet_safety')
-    and (select parent_key from public.resources where key = 'expenses.maintenance.requests') = 'daily_use');
+    and (select parent_key from public.resources where key = 'expenses.maintenance.costs') = 'daily_use');
 end $m34$;
 
 -- 35: driver confirms requests made for them; submission time kept; totals; weekly inspections.
@@ -1336,5 +1329,21 @@ begin
   delete from public.driver_confirmations where record_id = v_fr;
   delete from public.fuel_requests where id = v_fr;
 end $m35$;
+
+-- 36: maintenance and repair requests are gone; the counts and the vehicle status still work.
+do $m36$
+declare v uuid := '55555555-5555-5555-5555-000000000005'; k jsonb;
+begin
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m36: the requests table is gone', to_regclass('public.maintenance_requests') is null);
+  perform pg_temp.check('m36: the menu item is gone', not exists (select 1 from public.resources where key = 'expenses.maintenance.requests'));
+  perform pg_temp.check('m36: records keep no request link', not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'maintenance_costs' and column_name = 'maintenance_request_id'));
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  k := public.dashboard_kpis(current_date - 30, current_date, null);
+  perform pg_temp.check('m36: dashboard counts run', (k ->> 'pending_approvals') is not null);
+  perform pg_temp.check('m36: shell counts run', (public.shell_counts() ->> 'pending_approvals') is not null);
+  perform public.vehicle_problem_sync(v);
+  perform pg_temp.check('m36: vehicle status sync runs', (select status from public.vehicles where id = v) is not null);
+end $m36$;
 
 select 'ALL TESTS PASSED' as result;

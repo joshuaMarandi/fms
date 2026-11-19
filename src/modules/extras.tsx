@@ -117,21 +117,6 @@ export async function DetailExtra({ name, record }: { name: string; record: Reco
         </div>
       );
     }
-    case "works_order": {
-      // Maintenance request: the approver attaches the paperwork (works order, job card, invoice).
-      if (!session.can("expenses.maintenance.requests", "approve")) return null;
-      return (
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle className="text-base">{t("common.documents")}</CardTitle>
-            <CardDescription>{t("common.documents_hint")}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <AttachmentsBox table="maintenance_requests" rowId={record.id as string} resource="expenses.maintenance.requests" bucket="forms" labels={[t("expenses.maintenance.doc.works_order"), t("expenses.maintenance.doc.job_card"), t("expenses.maintenance.doc.invoice")]} />
-          </CardContent>
-        </Card>
-      );
-    }
     case "leave_balance": {
       const year = record.date_from ? new Date(record.date_from as string).getFullYear() : new Date().getFullYear();
       const [{ data: bal }, { data: taken }] = await Promise.all([

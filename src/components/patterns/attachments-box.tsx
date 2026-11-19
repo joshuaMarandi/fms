@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Download, Eye, FileText, Plus, Trash2, Upload } from "lucide-react";
+import { Download, Eye, FileText, Plus, Trash2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -30,6 +30,47 @@ export type AttachmentRow = {
 };
 
 type Pending = { key: string; file: File; label: string; expiry: string };
+
+/** Files chosen on a new record, uploaded once the record is saved and has an id. */
+export type StagedFiles = { table: string; resource: string; bucket: string; sensitive?: boolean; files: Pending[] };
+/** Given by a form for a new record: documents are queued here instead of waiting for the save. */
+export const StagedFilesContext = React.createContext<{ stage: (key: string, entry: StagedFiles | null) => void } | null>(null);
+
+/** Uploads files to a record and records them as its attachments. Returns how many went in. */
+export async function uploadAttachments({ table, rowId, resource, bucket, sensitive, companyId, files }: StagedFiles & { rowId: string; companyId: string }) {
+  const supabase = createClient();
+  let ok = 0;
+  for (const p of files) {
+    const safeName = p.file.name.replace(/[^\w.\-]+/g, "_");
+    const path = `${companyId}/${table}/${rowId}/${Date.now()}_${safeName}`;
+    const { error: upErr } = await supabase.storage.from(bucket).upload(path, p.file, { contentType: p.file.type || undefined, upsert: false });
+    if (upErr) {
+      toast.error(`${p.file.name}: ${upErr.message}`);
+      continue;
+    }
+    const { error } = await supabase.from("attachments").insert({
+      table_name: table,
+      row_id: rowId,
+      resource_key: resource,
+      bucket,
+      path,
+      label: p.label.trim(),
+      file_name: p.file.name,
+      mime_type: p.file.type || null,
+      size_bytes: p.file.size,
+      expiry_date: p.expiry || null,
+      is_sensitive: !!sensitive,
+      company_id: companyId,
+    });
+    if (error) {
+      toast.error(`${p.file.name}: ${error.message}`);
+      await supabase.storage.from(bucket).remove([path]);
+      continue;
+    }
+    ok++;
+  }
+  return ok;
+}
 
 const MAX_MB = 20;
 const OTHER = "__other__";
@@ -83,11 +124,20 @@ export function AttachmentsBox({
   const [dragging, setDragging] = React.useState(false);
   const [preview, setPreview] = React.useState<{ row: AttachmentRow; url: string | null; loading: boolean } | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
+  // A new record (no id yet) inside a form that queues files: pick them now, they upload on save.
+  const staging = React.useContext(StagedFilesContext);
+  const stageKey = React.useId();
+  const queueing = !rowId && !readOnly && !!staging && can(resource, "create");
+  const [queued, setQueued] = React.useState<Pending[]>([]);
+  React.useEffect(() => {
+    staging?.stage(stageKey, queueing && queued.length ? { table, resource, bucket, sensitive, files: queued } : null);
+  }, [staging, stageKey, queueing, queued, table, resource, bucket, sensitive]);
+  React.useEffect(() => () => staging?.stage(stageKey, null), [staging, stageKey]);
 
   const expected = React.useMemo(() => labels ?? [], [labels]);
-  const canUpload = !readOnly && !!rowId && (can(resource, "edit") || can(resource, "create"));
+  const canUpload = queueing || (!readOnly && !!rowId && (can(resource, "edit") || can(resource, "create")));
   const canDelete = !readOnly && can(resource, "delete");
-  const canFill = (!readOnly || !!attachMissing) && !!rowId && (can(resource, "edit") || can(resource, "create"));
+  const canFill = queueing || ((!readOnly || !!attachMissing) && !!rowId && (can(resource, "edit") || can(resource, "create")));
 
   const fetchRows = React.useCallback(async (): Promise<AttachmentRow[]> => {
     if (!rowId) return [];
@@ -124,7 +174,7 @@ export function AttachmentsBox({
     };
   }, [preview?.url]);
 
-  const uploadedLabels = new Set(rows.map((r) => r.label));
+  const uploadedLabels = new Set([...rows.map((r) => r.label), ...queued.map((q) => q.label)]);
 
   function pick(label: string | null) {
     setPresetLabel(label);
@@ -155,43 +205,19 @@ export function AttachmentsBox({
   }
 
   async function uploadAll() {
-    if (!rowId || !session.companyId) return;
     if (pending.some((p) => !p.label.trim())) {
       toast.error(t("attachments.choose_type"));
       return;
     }
-    setBusy(true);
-    const supabase = createClient();
-    let ok = 0;
-    for (const p of pending) {
-      const safeName = p.file.name.replace(/[^\w.\-]+/g, "_");
-      const path = `${session.companyId}/${table}/${rowId}/${Date.now()}_${safeName}`;
-      const { error: upErr } = await supabase.storage.from(bucket).upload(path, p.file, { contentType: p.file.type || undefined, upsert: false });
-      if (upErr) {
-        toast.error(`${p.file.name}: ${upErr.message}`);
-        continue;
-      }
-      const { error } = await supabase.from("attachments").insert({
-        table_name: table,
-        row_id: rowId,
-        resource_key: resource,
-        bucket,
-        path,
-        label: p.label.trim(),
-        file_name: p.file.name,
-        mime_type: p.file.type || null,
-        size_bytes: p.file.size,
-        expiry_date: p.expiry || null,
-        is_sensitive: !!sensitive,
-        company_id: session.companyId,
-      });
-      if (error) {
-        toast.error(`${p.file.name}: ${error.message}`);
-        await supabase.storage.from(bucket).remove([path]);
-        continue;
-      }
-      ok++;
+    if (queueing) {
+      // A listed document type holds one queued file: a new pick for it replaces the old one.
+      setQueued((q) => [...q.filter((x) => !(expected.includes(x.label) && pending.some((p) => p.label === x.label))), ...pending]);
+      setPending([]);
+      return;
     }
+    if (!rowId || !session.companyId) return;
+    setBusy(true);
+    const ok = await uploadAttachments({ table, rowId, resource, bucket, sensitive, companyId: session.companyId, files: pending });
     setBusy(false);
     if (ok) toast.success(t("attachments.uploaded_count", { count: ok }));
     setPending([]);
@@ -262,6 +288,21 @@ export function AttachmentsBox({
         <ul className="grid gap-2 sm:grid-cols-2">
           {expected.map((l) => {
             const own = rows.find((r) => r.label === l);
+            const waiting = own ? undefined : queued.find((q) => q.label === l);
+            if (waiting) {
+              return (
+                <li key={l} className="flex min-h-[48px] items-center gap-2 rounded-lg border px-3 py-2 text-sm">
+                  <span className="min-w-0 flex-1 truncate">
+                    {l}
+                    <span className="block truncate text-xs text-muted-foreground">{waiting.file.name}</span>
+                  </span>
+                  <StatusChip status="ready" tone="info" label={t("attachments.ready")} />
+                  <Button type="button" variant="ghost" size="icon" className="size-9" onClick={() => setQueued((q) => q.filter((x) => x.key !== waiting.key))} aria-label={`${t("attachments.remove")}: ${l}`}>
+                    <X />
+                  </Button>
+                </li>
+              );
+            }
             const other = own ? undefined : fallback.find((d) => d.label.toLowerCase() === l.toLowerCase());
             const row: AttachmentRow | undefined = own ?? (other ? { id: other.id, label: other.label, file_name: other.file_name, mime_type: other.mime_type, size_bytes: null, expiry_date: other.expiry_date ?? null, bucket: other.bucket, path: other.path, created_at: "" } : undefined);
             const expired = row?.expiry_date ? (daysUntil(row.expiry_date) ?? 0) < 0 : false;
@@ -319,8 +360,32 @@ export function AttachmentsBox({
         <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">{t("attachments.save_first")}</p>
       ) : null}
 
+      {/* Files queued on a new record that are not one of the listed document types */}
+      {queued.some((q) => !expected.includes(q.label)) ? (
+        <ul className="divide-y rounded-lg border">
+          {queued
+            .filter((q) => !expected.includes(q.label))
+            .map((q) => (
+              <li key={q.key} className="flex items-center gap-3 p-3 text-sm">
+                <FileText className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-medium">{q.label}</span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {q.file.name} · {formatSize(q.file.size)}
+                  </span>
+                </span>
+                <StatusChip status="ready" tone="info" label={t("attachments.ready")} />
+                <Button type="button" variant="ghost" size="icon" className="size-9" onClick={() => setQueued((all) => all.filter((x) => x.key !== q.key))} aria-label={t("attachments.remove")}>
+                  <X />
+                </Button>
+              </li>
+            ))}
+        </ul>
+      ) : null}
+      {queued.length ? <p className="text-xs text-muted-foreground">{t("attachments.upload_on_save")}</p> : null}
+
       {rows.length === 0 ? (
-        expected.length === 0 ? <p className="text-sm text-muted-foreground">{t("attachments.no_files")}</p> : null
+        expected.length === 0 && !queued.length ? <p className="text-sm text-muted-foreground">{t("attachments.no_files")}</p> : null
       ) : (
         <ul className="divide-y rounded-lg border">
           {rows.map((r) => {
@@ -415,7 +480,7 @@ export function AttachmentsBox({
               {t("common.cancel")}
             </Button>
             <Button type="button" onClick={uploadAll} disabled={busy}>
-              <Upload /> {busy ? t("attachments.uploading") : t("common.upload")}
+              <Upload /> {busy ? t("attachments.uploading") : queueing ? t("attachments.add_files") : t("common.upload")}
             </Button>
           </DialogFooter>
         </DialogContent>

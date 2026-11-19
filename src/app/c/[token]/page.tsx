@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 type Info = {
   state: "open" | "done" | "expired" | "not_found";
-  table?: "fuel_requests" | "maintenance_requests";
+  table?: "fuel_requests";
   record?: Record<string, unknown>;
   driver?: string;
   requested_by?: string | null;

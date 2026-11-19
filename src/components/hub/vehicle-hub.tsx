@@ -406,7 +406,7 @@ function Cell({ value }: { value: HubCell }) {
 /** Summary tiles above the vehicles. */
 export function HubSummary({ tiles }: { tiles: { label: string; value: string; sub?: string; tone?: ChipTone; href?: string }[] }) {
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div className={cn("grid grid-cols-2 gap-3", tiles.length === 5 ? "md:grid-cols-3 xl:grid-cols-5" : "lg:grid-cols-4")}>
       {tiles.map((tile) => {
         const body = (
           <>

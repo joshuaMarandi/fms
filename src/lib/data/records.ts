@@ -180,11 +180,6 @@ export async function loadOptions(sources: OptionSource[]): Promise<LoadedOption
           out.travel_airports = (data ?? []).map((x: Record<string, unknown>) => ({ ...x, value: x.name as string, label: `${x.name} (${x.pickup_lead_hours} h before)` }));
           break;
         }
-        case "maintenance_requests": {
-          const { data } = await supabase.from("maintenance_requests").select("id, request_date, vehicle_id, reason, status").is("deleted_at", null).order("request_date", { ascending: false }).limit(200);
-          out.maintenance_requests = (data ?? []).map((x: Record<string, unknown>) => ({ ...x, value: x.id as string, label: `${x.request_date} ${x.reason}` }));
-          break;
-        }
         case "fuel_requests": {
           const { data } = await supabase.from("fuel_requests").select("id, request_date, vehicle_id, driver_id, fuel_required_l, approved_l, status, previous_odometer, current_odometer").is("deleted_at", null).in("status", ["approved", "submitted"]).order("request_date", { ascending: false }).limit(200);
           out.fuel_requests = (data ?? []).map((x: Record<string, unknown>) => ({ ...x, value: x.id as string, label: `${x.request_date} (${x.fuel_required_l} L)` }));

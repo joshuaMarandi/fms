@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Field as UiField, FieldDescription, FieldError, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { DatePicker } from "./date-picker";
 import { SignatureField, type SignatureValue } from "./signature-field";
-import { AttachmentsBox } from "./attachments-box";
+import { AttachmentsBox, StagedFilesContext, uploadAttachments, type StagedFiles } from "./attachments-box";
 import { SearchSelect, toSearchOptions } from "./search-select";
 import { FormActions } from "./form-actions";
 import { RecordView } from "./record-view";
@@ -161,10 +161,28 @@ function SchemaFormInner({ schemaKey, record, options = {}, afterSavePath, cance
     if (!editing) form.reset(defaults);
   }, [defaults, editing, form]);
 
+  // Documents picked on a new record wait here and upload once the record has an id.
+  const staged = React.useRef(new Map<string, StagedFiles>());
+  const staging = React.useMemo(
+    () => ({
+      stage: (key: string, entry: StagedFiles | null) => {
+        if (entry) staged.current.set(key, entry);
+        else staged.current.delete(key);
+      },
+    }),
+    [],
+  );
+
   async function onSubmit(values: FieldValues) {
     setBusy(true);
     const { payload, children: rows } = toPayload(schema, values);
     const res = await saveRecord({ table: schema.table, id: (record?.id as string) ?? null, values: { ...payload, ...(extra ?? {}) }, children: rows, revalidate });
+    if (res.ok && !saved && staged.current.size && session.companyId) {
+      let count = 0;
+      for (const entry of staged.current.values()) count += await uploadAttachments({ ...entry, rowId: res.data.id, companyId: session.companyId });
+      if (count) toast.success(t("attachments.uploaded_count", { count }));
+      staged.current.clear();
+    }
     setBusy(false);
     if (!res.ok) {
       toast.error(res.error);
@@ -207,6 +225,7 @@ function SchemaFormInner({ schemaKey, record, options = {}, afterSavePath, cance
       : undefined;
 
   return (
+    <StagedFilesContext.Provider value={saved ? null : staging}>
     <form
       id={formId}
       onSubmit={form.handleSubmit(onSubmit, () => toast.error(t("form.fix_errors")))}
@@ -256,6 +275,7 @@ function SchemaFormInner({ schemaKey, record, options = {}, afterSavePath, cance
       {children}
       {canEdit ? <FormActions formId={formId} busy={busy} saveLabel={submitLabel} onCancel={cancel} /> : null}
     </form>
+    </StagedFilesContext.Provider>
   );
 }
 

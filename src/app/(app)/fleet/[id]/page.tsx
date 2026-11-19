@@ -184,8 +184,7 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
                     <tr className="border-b text-left text-muted-foreground">
                       <th className="py-2 pr-3 font-medium">{t("fleet.last_service_date")}</th>
                       <th className="py-2 pr-3 text-right font-medium">{t("fleet.last_service_km")}</th>
-                      <th className="py-2 pr-3 text-right font-medium">{t("fleet.next_service_km")}</th>
-                      <th className="py-2 font-medium">{t("fleet.service.garage")}</th>
+                      <th className="py-2 text-right font-medium">{t("fleet.next_service_km")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -196,8 +195,7 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
                           {i === 0 ? <span className="status-chip status-chip-success ml-2">{t("fleet.service.current")}</span> : null}
                         </td>
                         <td className="py-2 pr-3 text-right tabular-nums">{formatNumber(h.last_service_km as number)}</td>
-                        <td className="py-2 pr-3 text-right tabular-nums">{formatNumber(h.next_service_km as number)}</td>
-                        <td className="py-2">{(h.garage as string) || ""}</td>
+                        <td className="py-2 text-right tabular-nums">{formatNumber(h.next_service_km as number)}</td>
                       </tr>
                     ))}
                   </tbody>

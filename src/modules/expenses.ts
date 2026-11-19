@@ -77,73 +77,6 @@ export const fuelExpenses: ModuleDef = {
   },
 };
 
-const FAULTS: Option[] = ["engine", "engine_oil", "filters", "gearbox", "brakes", "suspension", "electrical", "cooling", "tyres", "body", "ac", "other"].map((k) => ({ value: k, label: `expenses.maintenance.fault.${k}` }));
-
-export const maintenanceRequests: ModuleDef = {
-  key: "expenses.maintenance.requests",
-  path: "/expenses/maintenance/requests",
-  resource: "expenses.maintenance.requests",
-  table: "maintenance_requests",
-  title: "expenses.maintenance.requests.title",
-  description: "expenses.maintenance.requests.description",
-  newLabel: "expenses.maintenance.new",
-  exportName: "maintenance-requests",
-  optionSources: ["vehicles", "drivers"],
-  isRequest: true,
-  editableStatuses: ["draft", "rejected"],
-  detailExtra: "works_order",
-  titleOf: (r) => `${(r.vehicle as { registration?: string } | undefined)?.registration ?? ""} ${r.request_date ?? ""}`.trim(),
-  schema: {
-    table: "maintenance_requests",
-    resource: "expenses.maintenance.requests",
-    isRequest: true,
-    sections: [
-      {
-        fields: [
-          { name: "requester_name", label: "expenses.maintenance.requester", control: "auto", compute: (_v, ctx) => ctx.session.fullName },
-          driverField,
-          vehicleField,
-          { name: "request_date", label: "common.date", control: "date", required: true },
-          { name: "odometer_km", label: "expenses.maintenance.odometer", control: "number", min: 0, unit: "km", required: true },
-          {
-            name: "reason",
-            label: "expenses.maintenance.reason",
-            control: "radio",
-            required: true,
-            options: ["ppm", "corrective", "breakdown", "accident", "other"].map((k) => ({ value: k, label: `expenses.maintenance.reason.${k}` })),
-          },
-          { name: "reason_other", label: "expenses.maintenance.reason_other", control: "textarea", required: true, showWhen: { field: "reason", equals: "other" } },
-          { name: "faults", label: "expenses.maintenance.faults", control: "checkbox_group", options: FAULTS, columns: 3, required: true },
-          { name: "fault_details", label: "expenses.maintenance.fault_details", control: "textarea" },
-          // Ticked: the vehicle goes out of service in Fleet database until the request is closed.
-          { name: "takes_out_of_service", label: "expenses.maintenance.takes_out_of_service", control: "checkbox", description: "expenses.maintenance.takes_out_of_service_hint" },
-          { name: "confirmation", label: "expenses.maintenance.confirmation", control: "signature", required: true },
-        ],
-      },
-      {
-        title: "common.documents",
-        description: "common.documents_hint",
-        fields: [{ name: "documents", label: "common.attachments", control: "file", bucket: "forms", labels: ["expenses.maintenance.doc.fault_photos", "expenses.maintenance.doc.inspection_report"] }],
-      }
-    ],
-  },
-  list: {
-    select: "*, vehicle:vehicles(registration), driver:drivers(full_name)",
-    orderBy: { column: "request_date", ascending: false },
-    searchKeys: ["vehicle.registration", "driver.full_name", "reason", "status"],
-    statusColumn: "status",
-    columns: [
-      { key: "request_date", header: "common.date", type: "date" },
-      { key: "vehicle.registration", header: "inspections.vehicle" },
-      { key: "driver.full_name", header: "inspections.driver_name" },
-      { key: "reason", header: "expenses.maintenance.reason", type: "label", options: ["ppm", "corrective", "breakdown", "accident", "other"].map((k) => ({ value: k, label: `expenses.maintenance.reason.${k}` })) },
-      { key: "faults", header: "expenses.maintenance.faults", type: "tags", options: FAULTS },
-      { key: "odometer_km", header: "expenses.maintenance.odometer", type: "km" },
-      { key: "status", header: "common.status", type: "status" },
-    ],
-  },
-};
-
 export const maintenanceCosts: ModuleDef = {
   key: "expenses.maintenance.costs",
   path: "/expenses/maintenance/costs",
@@ -196,7 +129,7 @@ export const maintenanceCosts: ModuleDef = {
     columns: [
       { key: "cost_date", header: "common.date", type: "date" },
       { key: "vehicle.registration", header: "inspections.vehicle" },
-      { key: "work_type", header: "expenses.maintenance.work_type", type: "label", options: [{ value: "maintenance", label: "expenses.maintenance.work_type.maintenance" }, { value: "repairs", label: "expenses.maintenance.work_type.repairs" }] },
+      { key: "work_type", header: "expenses.maintenance.work_type", type: "label", options: [{ value: "maintenance", label: "maint.short.pm" }, { value: "repairs", label: "maint.short.cr" }] },
       { key: "service_provider", header: "expenses.maintenance.provider" },
       { key: "odometer_km", header: "expenses.maintenance.odometer", type: "km" },
       { key: "cost_tzs", header: "expenses.maintenance.cost", type: "tzs" },

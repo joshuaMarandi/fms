@@ -46,7 +46,6 @@ type Row = Record<string, unknown>;
 const REQUESTS = [
   { table: "fuel_requests", resource: "daily_use.fuel_log", path: "/daily-use/fuel-requests", label: "daily_use.fuel.title", select: "id, request_date, created_at, vehicle:vehicles(registration)" },
   { table: "vehicle_requests", resource: "daily_use.trip_requests", path: "/daily-use/trip-requests", label: "daily_use.trips.title", select: "id, requester_name, destination, created_at" },
-  { table: "maintenance_requests", resource: "expenses.maintenance.requests", path: "/expenses/maintenance/requests", label: "expenses.maintenance.requests.title", select: "id, request_date, created_at, vehicle:vehicles(registration)" },
   { table: "tyre_requests", resource: "expenses.tyres", path: "/expenses/tyres", label: "expenses.tyres.title", select: "id, request_date, created_at, vehicle:vehicles(registration)" },
   { table: "wash_requests", resource: "expenses.washing", path: "/expenses/washing", label: "expenses.washing.title", select: "id, request_date, created_at, vehicle:vehicles(registration)" },
   { table: "leave_requests", resource: "expenses.leave.requests", path: "/expenses/leave/requests", label: "expenses.leave.requests.title", select: "id, date_from, created_at, employee:profiles(full_name)" },

@@ -10,7 +10,7 @@ import { DocumentToolbar } from "./document-toolbar";
 export const metadata: Metadata = { title: "Request document", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
 
-type Table = "vehicle_requests" | "fuel_requests" | "leave_requests" | "maintenance_requests";
+type Table = "vehicle_requests" | "fuel_requests" | "leave_requests";
 type Sig = { name?: string; signed_at?: string; image?: string; method?: string } | null;
 type Field = { label: string; value: React.ReactNode; wide?: boolean };
 type Section = { title: string; fields?: Field[]; body?: React.ReactNode };
@@ -20,7 +20,6 @@ const DOC: Record<Table, { title: string; ref: string; noun: string }> = {
   vehicle_requests: { title: "Vehicle request", ref: "VR", noun: "Vehicle request" },
   fuel_requests: { title: "Fuel request", ref: "FR", noun: "Fuel request" },
   leave_requests: { title: "Leave request", ref: "LR", noun: "Leave request" },
-  maintenance_requests: { title: "Maintenance request", ref: "MR", noun: "Maintenance request" },
 };
 
 const STATUS_TONE: Record<string, { bg: string; fg: string; border: string }> = {
@@ -49,9 +48,7 @@ export default async function RequestDocumentPage({ params }: PageProps<"/docume
       ? "*"
       : table === "fuel_requests"
         ? "*, vehicle:vehicles(registration, make, model, fuel_tank_capacity_l), driver:drivers(full_name)"
-        : table === "leave_requests"
-          ? "*, category:leave_categories(name)"
-          : "*, vehicle:vehicles(registration, make, model), driver:drivers(full_name)";
+        : "*, category:leave_categories(name)";
   const { data: rec } = await supabase.from(table).select(select).eq("id", id).is("deleted_at", null).maybeSingle();
   if (!rec) notFound();
   const r = rec as unknown as Record<string, unknown>;
@@ -102,7 +99,7 @@ export default async function RequestDocumentPage({ params }: PageProps<"/docume
         { label: "Fuel filled last time", value: r.fuel_filled_l != null ? `${formatNumber(Number(r.fuel_filled_l), 1)} L` : "—" },
       ],
     });
-  } else if (table === "leave_requests") {
+  } else {
     sections.push({
       title: "Leave request details",
       fields: [
@@ -112,21 +109,6 @@ export default async function RequestDocumentPage({ params }: PageProps<"/docume
         { label: "To", value: formatDate(r.date_to as string) },
         { label: "Days", value: dash(r.total_days) },
         { label: "Reason", value: dash(r.reason), wide: true },
-      ],
-    });
-  } else {
-    const v = r.vehicle as { registration?: string; make?: string; model?: string } | null;
-    const faults = Array.isArray(r.faults) ? (r.faults as string[]).map((f) => lbl(`expenses.maintenance.fault.${f}`, f)).join(", ") : "—";
-    sections.push({
-      title: "Maintenance request details",
-      fields: [
-        { label: "Vehicle", value: v ? `${v.registration} (${v.make} ${v.model})` : "—" },
-        { label: "Driver", value: dash((r.driver as { full_name?: string } | null)?.full_name) },
-        { label: "Date of request", value: formatDate(r.request_date as string) },
-        { label: "Odometer", value: r.odometer_km != null ? `${formatNumber(Number(r.odometer_km))} km` : "—" },
-        { label: "Reason", value: r.reason === "other" ? dash(r.reason_other) : lbl(`expenses.maintenance.reason.${r.reason}`, dash(r.reason)) },
-        { label: "Faults", value: faults || "—" },
-        { label: "Fault details", value: dash(r.fault_details), wide: true },
       ],
     });
   }
@@ -362,9 +344,7 @@ function backHref(table: Table, id: string) {
     ? `/daily-use/trip-requests/${id}`
     : table === "fuel_requests"
       ? `/daily-use/fuel-requests/${id}`
-      : table === "leave_requests"
-        ? `/expenses/leave/requests/${id}`
-        : `/expenses/maintenance/requests/${id}`;
+      : `/expenses/leave/requests/${id}`;
 }
 
 function StatusPill({ status }: { status: string }) {

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shell/page-header";
 import { RecordTitle } from "@/components/modules/record-title";
 import { ModuleTable } from "@/components/modules/module-table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RecordsFilter } from "./records-filter";
 import { HubSummary } from "./vehicle-hub";
 import { isPeriod, monthRange, periodRange, yearRange } from "./periods";
@@ -68,7 +69,17 @@ function summaryFor(moduleKey: string, rows: Row[]): Tile[] | null {
         { label: t("hub.tile.consumption"), value: used ? `${formatNumber(km / used, 2)} km/L` : "—", sub: t("records.tile.in_period") },
       ];
     }
-    case "expenses.maintenance.costs":
+    case "expenses.maintenance.costs": {
+      // Maintenance and repair records of one vehicle and month: work orders, job cards, spare parts, PM and CR cost.
+      const cost = (w: string) => rows.filter((r) => r.work_type === w).reduce((s, r) => s + n(r.cost_tzs), 0);
+      return [
+        { label: t("maint.work_orders"), value: formatNumber(rows.length), sub: t("records.tile.in_period") },
+        { label: t("maint.job_cards"), value: "—", sub: t("maint.not_set_up") },
+        { label: t("maint.spare_parts"), value: "—", sub: t("maint.not_set_up") },
+        { label: t("maint.pm_cost"), value: formatTzs(cost("maintenance")), sub: t("records.tile.in_period") },
+        { label: t("maint.cr_cost"), value: formatTzs(cost("repairs")), sub: t("records.tile.in_period") },
+      ];
+    }
     case "expenses.maintenance.costs.maintenance":
     case "expenses.maintenance.costs.repairs": {
       const total = rows.reduce((s, r) => s + n(r.cost_tzs), 0);
@@ -184,6 +195,7 @@ export async function VehicleRecordsPage({
   const title = current ? `${current.registration} · ${t(def.title)}` : t(def.title);
   const description = [current ? `${current.make} ${current.model}` : t("hub.all_vehicles"), whenLabel].filter(Boolean).join(" · ");
   const tiles = details ? null : summaryFor(def.key, rows);
+  const table = <ModuleTable moduleKey={def.key} rows={rows} variant={details ? "details" : "list"} hiddenColumns={vehicle && !def.list.keepVehicleColumn ? ["vehicle.registration"] : []} dateFilter={false} />;
 
   return (
     <>
@@ -219,7 +231,24 @@ export async function VehicleRecordsPage({
       />
       {tiles ? <HubSummary tiles={tiles} /> : null}
       {error ? <p className="rounded-lg bg-danger-bg p-3 text-sm text-danger">{error.message}</p> : null}
-      <ModuleTable moduleKey={def.key} rows={rows} variant={details ? "details" : "list"} hiddenColumns={vehicle && !def.list.keepVehicleColumn ? ["vehicle.registration"] : []} dateFilter={false} />
+      {def.key === "expenses.maintenance.costs" ? (
+        <Tabs defaultValue="work_orders" className="space-y-4">
+          <TabsList className="flex w-full flex-wrap justify-start overflow-x-auto">
+            <TabsTrigger value="work_orders">{t("maint.tab.work_orders")}</TabsTrigger>
+            <TabsTrigger value="job_cards">{t("maint.tab.job_cards")}</TabsTrigger>
+            <TabsTrigger value="spare_parts">{t("maint.tab.spare_parts")}</TabsTrigger>
+          </TabsList>
+          <TabsContent value="work_orders">{table}</TabsContent>
+          <TabsContent value="job_cards">
+            <p className="page-card p-6 text-sm text-muted-foreground">{t("maint.job_cards_empty")}</p>
+          </TabsContent>
+          <TabsContent value="spare_parts">
+            <p className="page-card p-6 text-sm text-muted-foreground">{t("maint.spare_parts_empty")}</p>
+          </TabsContent>
+        </Tabs>
+      ) : (
+        table
+      )}
     </>
   );
 }

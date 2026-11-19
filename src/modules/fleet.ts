@@ -130,7 +130,6 @@ export const serviceScheduleSchema: FormSchema = {
           digits: 0,
           compute: (v) => (v.last_service_km !== "" && v.interval_km !== "" && v.last_service_km != null && v.interval_km != null ? Number(v.last_service_km) + Number(v.interval_km) : null),
         },
-        { name: "garage", label: "fleet.service.garage", control: "text" },
         { name: "notes", label: "fleet.service.work_done", control: "textarea" },
       ],
     },
