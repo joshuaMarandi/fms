@@ -4,10 +4,15 @@ import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { SearchSelect } from "@/components/patterns/search-select";
 import { HeaderDates } from "@/components/shell/header-tools";
+import { InHeader } from "@/components/shell/header-tools";
 import { t } from "@/i18n";
 
 /** The dashboard's dates come from the top bar's picker (last 30 days by default); the vehicle stays here. */
-export function DashboardFilters({ vehicles }: { vehicles: { id: string; registration: string }[] }) {
+export function DashboardFilters({
+  vehicles,
+}: {
+  vehicles: { id: string; registration: string }[];
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
@@ -23,16 +28,21 @@ export function DashboardFilters({ vehicles }: { vehicles: { id: string; registr
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <>
       <HeaderDates defaultPeriod="last_30_days" allowAll={false} />
-      <div className="w-[200px]">
-        <SearchSelect
-          value={vehicle === "all" ? "" : vehicle}
-          onChange={(v) => update({ vehicle: v || "all" })}
-          options={vehicles.map((v) => ({ value: v.id, label: v.registration }))}
-          placeholder={t("common.all_vehicles")}
-        />
-      </div>
-    </div>
+      <InHeader>
+        <div className="w-[140px] md:w-[180px]">
+          <SearchSelect
+            value={vehicle === "all" ? "" : vehicle}
+            onChange={(v) => update({ vehicle: v || "all" })}
+            options={vehicles.map((v) => ({
+              value: v.id,
+              label: v.registration,
+            }))}
+            placeholder={t("common.all_vehicles")}
+          />
+        </div>
+      </InHeader>
+    </>
   );
 }

@@ -389,7 +389,8 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
 
   return (
     <>
-      <PageHeader title={t("dashboard.title")} description={t("dashboard.description")} actions={<DashboardFilters vehicles={((vehicles ?? []) as Row[]).map((v) => ({ id: v.id as string, registration: v.registration as string }))} />} />
+      <PageHeader title={t("dashboard.title")} description={t("dashboard.description")} />
+      <DashboardFilters vehicles={((vehicles ?? []) as Row[]).map((v) => ({ id: v.id as string, registration: v.registration as string }))} />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         {kpiCards.map((c) => (

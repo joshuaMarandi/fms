@@ -1,8 +1,7 @@
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shell/page-header";
 import { HubSummary, VehicleHub, type HubColumn, type HubKind, type HubVehicle } from "./vehicle-hub";
-import { SummaryDates } from "./daily-use-hub";
+import { ViewAllMenu } from "./view-all-menu";
+import { HeaderDates } from "@/components/shell/header-tools";
 import { loadHubVehicles, num } from "./hub-data";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
@@ -29,7 +28,6 @@ export async function ExpenseHub({ kind, searchParams }: { kind: ExpenseKind; se
   const k = KINDS[kind];
   await requirePermission(k.resource, "view");
   const range = rangeFromParams(searchParams);
-  const when = range?.label ?? t("hub.all_time");
   const supabase = await createClient();
   const [rows, { data: totalRows }] = await Promise.all([loadHubVehicles(), supabase.rpc("vehicle_totals", { p_kind: k.rpc, p_from: range?.from ?? null, p_to: range?.to ?? null })]);
   const totals = new Map(((totalRows ?? []) as Totals[]).map((r) => [r.vehicle_id, r]));
@@ -46,10 +44,10 @@ export async function ExpenseHub({ kind, searchParams }: { kind: ExpenseKind; se
     const km = sum("km");
     const litres = sum("litres");
     tiles = [
-      { label: t("expenses.hub.fuel_amount"), value: formatTzs(sum("cost")), sub: when },
-      { label: t("expenses.hub.fuel_consumed"), value: `${formatNumber(litres, 1)} L`, sub: t("expenses.hub.records_in", { count: sum("records"), when }) },
-      { label: t("hub.tile.km_run"), value: `${formatNumber(km)} km`, sub: when },
-      { label: t("hub.tile.consumption"), value: litres > 0 ? `${formatNumber(km / litres, 2)} km/L` : "—", sub: when },
+      { label: t("expenses.hub.fuel_amount"), value: formatTzs(sum("cost")) },
+      { label: t("expenses.hub.fuel_consumed"), value: `${formatNumber(litres, 1)} L`, sub: t("expenses.hub.records_count", { count: sum("records") }) },
+      { label: t("hub.tile.km_run"), value: `${formatNumber(km)} km` },
+      { label: t("hub.tile.consumption"), value: litres > 0 ? `${formatNumber(km / litres, 2)} km/L` : "—" },
     ];
     vehicles = rows.map((r) => {
       const tot = totals.get(r.id);
@@ -80,14 +78,14 @@ export async function ExpenseHub({ kind, searchParams }: { kind: ExpenseKind; se
   } else {
     const both = kind === "maintenance_records";
     tiles = [
-      { label: t("expenses.hub.total_cost"), value: formatTzs(sum("cost")), sub: when },
-      { label: t("expenses.hub.records"), value: formatNumber(sum("records")), sub: when },
+      { label: t("expenses.hub.total_cost"), value: formatTzs(sum("cost")) },
+      { label: t("expenses.hub.records"), value: formatNumber(sum("records")) },
       ...(both
         ? [
-            { label: t("expenses.hub.maintenance_part"), value: formatTzs(sum("litres")), sub: when },
-            { label: t("expenses.hub.repair_part"), value: formatTzs(sum("trips")), sub: when },
+            { label: t("expenses.hub.maintenance_part"), value: formatTzs(sum("litres")) },
+            { label: t("expenses.hub.repair_part"), value: formatTzs(sum("trips")) },
           ]
-        : [{ label: t("expenses.hub.vehicles_with"), value: formatNumber([...totals.values()].filter((x) => num(x.records) > 0).length), sub: when }]),
+        : [{ label: t("expenses.hub.vehicles_with"), value: formatNumber([...totals.values()].filter((x) => num(x.records) > 0).length) }]),
     ];
     vehicles = rows.map((r) => {
       const tot = totals.get(r.id);
@@ -126,17 +124,11 @@ export async function ExpenseHub({ kind, searchParams }: { kind: ExpenseKind; se
       <PageHeader
         title={t(k.title)}
         description={t(k.description)}
-        actions={
-          <>
-            <Button asChild variant="outline" className="h-10">
-              <Link href={`${k.path}?vehicle=all`}>{t("hub.all_records")}</Link>
-            </Button>
-          </>
-        }
       />
-      <SummaryDates label={when} />
+      <ViewAllMenu items={[{ href: `${k.path}?vehicle=all`, label: t(k.title) }]} />
+      <HeaderDates />
       <HubSummary tiles={tiles} />
-      <VehicleHub vehicles={vehicles} kinds={[hubKind]} currentYear={cy} currentMonth={cm} columns={columns} listNote={t("hub.list_note_totals", { when })} />
+      <VehicleHub vehicles={vehicles} kinds={[hubKind]} currentYear={cy} currentMonth={cm} columns={columns} />
     </>
   );
 }

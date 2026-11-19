@@ -1,7 +1,4 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AlertTriangle, ArrowLeft } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shell/page-header";
 import { HubSummary, VehicleHub, type HubCell, type HubColumn, type HubKind, type HubVehicle } from "./vehicle-hub";
 import { ViewAllMenu } from "./view-all-menu";
@@ -75,15 +72,6 @@ function base(r: HubRow) {
   };
 }
 
-function BackToInspections() {
-  return (
-    <Button asChild variant="outline" className="h-10">
-      <Link href="/inspections">
-        <ArrowLeft /> {t("inspections.title")}
-      </Link>
-    </Button>
-  );
-}
 
 const DAILY_COLUMNS: HubColumn[] = [
   { key: "registration", label: "fleet.reg" },
@@ -152,20 +140,8 @@ export async function DailyInspectionHub({ searchParams }: { searchParams?: Reco
     <>
       <PageHeader
         title={t("inspections.daily.short_title")}
-        actions={
-          <>
-            <BackToInspections />
-            {session.can("inspections", "view") ? (
-              <Button asChild variant="outline" className="h-10">
-                <Link href="/inspections/anomalies">
-                  <AlertTriangle /> {t("hub.open_actions_title")}
-                </Link>
-              </Button>
-            ) : null}
-            <ViewAllMenu items={[{ href: "/inspections/daily?vehicle=all&details=1", label: t("inspections.daily.short_title") }]} />
-          </>
-        }
       />
+      <ViewAllMenu items={[{ href: "/inspections/daily?vehicle=all&details=1", label: t("inspections.daily.short_title") }]} />
       <SummaryDates label={when} />
       <HubSummary
         tiles={[
@@ -239,13 +215,8 @@ export async function YearlyInspectionHub({ kind }: { kind: keyof typeof YEARLY 
     <>
       <PageHeader
         title={t(cfg.title)}
-        actions={
-          <>
-            <BackToInspections />
-            <ViewAllMenu items={[{ href: `${cfg.path}?vehicle=all${kind === "third_party" ? "&details=1" : ""}`, label: t(cfg.title) }]} />
-          </>
-        }
       />
+      <ViewAllMenu items={[{ href: `${cfg.path}?vehicle=all${kind === "third_party" ? "&details=1" : ""}`, label: t(cfg.title) }]} />
       <HubSummary
         tiles={[
           { label: t("hub.tile.vehicles_inspected"), value: `${formatNumber(inspected)} / ${formatNumber(rows.length)}` },
@@ -394,20 +365,8 @@ export async function WeeklyInspectionHub({ searchParams }: { searchParams?: Rec
       <PageHeader
         title={t("inspections.weekly.title")}
         description={t("inspections.weekly.description")}
-        actions={
-          <>
-            <BackToInspections />
-            {session.can("inspections", "view") ? (
-              <Button asChild variant="outline" className="h-10">
-                <Link href="/inspections/anomalies">
-                  <AlertTriangle /> {t("hub.open_actions_title")}
-                </Link>
-              </Button>
-            ) : null}
-            <ViewAllMenu items={[{ href: "/inspections/weekly?vehicle=all&details=1", label: t("inspections.weekly.title") }]} />
-          </>
-        }
       />
+      <ViewAllMenu items={[{ href: "/inspections/weekly?vehicle=all&details=1", label: t("inspections.weekly.title") }]} />
       <SummaryDates label={when} />
       <HubSummary
         tiles={[
