@@ -74,7 +74,7 @@ export function Breadcrumbs() {
 
   return (
     <Breadcrumb>
-      <BreadcrumbList>
+      <BreadcrumbList className="flex-nowrap gap-1 text-[11px] leading-4 sm:gap-1 [&_svg]:size-3">
         <BreadcrumbItem className="hidden md:block">
           <BreadcrumbLink asChild>
             <Link href="/dashboard">{t("nav.home")}</Link>
@@ -87,9 +87,9 @@ export function Breadcrumbs() {
               <BreadcrumbSeparator className={i === 0 ? "hidden md:block" : undefined} />
               <BreadcrumbItem>
                 {last || !c.href ? (
-                  <BreadcrumbPage className="max-w-[220px] truncate">{c.label}</BreadcrumbPage>
+                  <BreadcrumbPage className="max-w-[180px] truncate text-muted-foreground">{c.label}</BreadcrumbPage>
                 ) : (
-                  <BreadcrumbLink asChild className="max-w-[160px] truncate">
+                  <BreadcrumbLink asChild className="max-w-[140px] truncate">
                     <Link href={c.href}>{c.label}</Link>
                   </BreadcrumbLink>
                 )}

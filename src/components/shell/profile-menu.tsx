@@ -107,15 +107,11 @@ export function ProfileBlock({ variant }: { variant: "sidebar" | "topbar" }) {
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="h-10 gap-2 px-2" aria-label={t("nav.my_profile")}>
-            <Avatar className="size-8">
+          <Button variant="ghost" className="size-10 p-1" aria-label={`${t("nav.my_profile")}: ${session.fullName}`} title={`${session.fullName} · ${session.primaryRole}`}>
+            <Avatar className="size-8 rounded-lg">
               <AvatarImage src={session.avatarUrl ?? undefined} alt="" />
-              <AvatarFallback>{initials(session.fullName)}</AvatarFallback>
+              <AvatarFallback className="rounded-lg bg-primary text-xs font-semibold text-primary-foreground">{initials(session.fullName)}</AvatarFallback>
             </Avatar>
-            <span className="hidden text-left lg:block">
-              <span className="block max-w-[160px] truncate text-sm font-medium leading-tight">{session.fullName}</span>
-              <span className="block text-xs text-muted-foreground">{session.primaryRole}</span>
-            </span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64">

@@ -19,10 +19,10 @@ export function QuickAction() {
   const vehicle = params.get("vehicle");
   const href = vehicle && /^[0-9a-f-]{36}$/i.test(vehicle) && !match.href.includes("?") ? `${match.href}?vehicle=${vehicle}` : match.href;
   return (
-    <Button asChild className="h-10">
+    <Button asChild className="h-10 px-3" title={t(match.label)}>
       <Link href={href}>
-        <Plus /> <span className="hidden sm:inline">{t(match.label)}</span>
-        <span className="sm:hidden">{t("nav.quick_action")}</span>
+        <Plus /> <span className="hidden 2xl:inline">{t(match.label)}</span>
+        <span className="2xl:hidden">{t("nav.quick_action")}</span>
       </Link>
     </Button>
   );
