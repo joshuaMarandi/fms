@@ -2057,5 +2057,7 @@
   "theme.dark": "Dark",
   "theme.system": "Device setting",
   "hub.period.last_30_days": "Last 30 days",
-  "expenses.hub.records_count": "{count} records"
+  "expenses.hub.records_count": "{count} records",
+  "hub.tile.logs_count": "{count} logs",
+  "hub.tile.refills_count": "{count} refills"
 }

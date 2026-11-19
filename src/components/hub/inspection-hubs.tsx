@@ -145,7 +145,7 @@ export async function DailyInspectionHub({ searchParams }: { searchParams?: Reco
       <SummaryDates label={when} />
       <HubSummary
         tiles={[
-          { label: t("hub.tile.inspections"), value: formatNumber([...inspections.values()].reduce((a, b) => a + b, 0)), sub: when },
+          { label: t("hub.tile.inspections"), value: formatNumber([...inspections.values()].reduce((a, b) => a + b, 0)) },
           { label: t("hub.tile.inspected_today"), value: `${formatNumber(inspectedToday)} / ${formatNumber(inService.length)}`, sub: t("hub.tile.in_service_vehicles") },
           { label: t("hub.tile.skipped"), value: formatNumber(skippedVehicles), sub: skippedVehicles ? t("hub.tile.vehicles_skipped", { count: skippedVehicles }) : t("hub.tile.none_skipped"), tone: skippedVehicles ? "danger" : undefined },
           { label: t("hub.open_actions_title"), value: formatNumber(openActions), sub: t("hub.tile.daily_inspections"), tone: openActions ? "warning" : undefined, href: "/inspections/anomalies" },
@@ -370,7 +370,7 @@ export async function WeeklyInspectionHub({ searchParams }: { searchParams?: Rec
       <SummaryDates label={when} />
       <HubSummary
         tiles={[
-          { label: t("hub.tile.inspections"), value: formatNumber([...inspections.values()].reduce((a, b) => a + b, 0)), sub: when },
+          { label: t("hub.tile.inspections"), value: formatNumber([...inspections.values()].reduce((a, b) => a + b, 0)) },
           { label: t("hub.tile.inspected_this_week"), value: `${formatNumber(doneThisWeek)} / ${formatNumber(inService.length)}`, sub: t("hub.tile.in_service_vehicles") },
           { label: t("hub.tile.skipped_weeks"), value: formatNumber(skippedVehicles), sub: skippedVehicles ? t("hub.tile.vehicles_skipped_week", { count: skippedVehicles }) : t("hub.tile.none_skipped_week"), tone: skippedVehicles ? "danger" : undefined },
           { label: t("hub.open_actions_title"), value: formatNumber(openActions), sub: t("hub.tile.weekly_inspections"), tone: openActions ? "warning" : undefined, href: "/inspections/anomalies" },

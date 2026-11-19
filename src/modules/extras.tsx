@@ -203,9 +203,9 @@ export async function ListExtra({ name, searchParams }: { name: string; searchPa
           <HubSummary
             tiles={[
               { label: t("trips.summary.total"), value: formatNumber(rows.length), sub: t("trips.summary.split", { short: count((r) => r.trip_type === "short"), long: count((r) => r.trip_type === "long") }) },
-              { label: t("trips.summary.waiting"), value: formatNumber(waiting), sub: when, tone: waiting ? "warning" : undefined },
-              { label: t("trips.summary.approved"), value: formatNumber(count((r) => r.status === "approved" || r.status === "completed")), sub: when },
-              { label: t("trips.summary.rejected"), value: formatNumber(rejected), sub: when, tone: rejected ? "danger" : undefined },
+              { label: t("trips.summary.waiting"), value: formatNumber(waiting), tone: waiting ? "warning" : undefined },
+              { label: t("trips.summary.approved"), value: formatNumber(count((r) => r.status === "approved" || r.status === "completed")) },
+              { label: t("trips.summary.rejected"), value: formatNumber(rejected), tone: rejected ? "danger" : undefined },
             ]}
           />
         </>
@@ -225,9 +225,9 @@ export async function ListExtra({ name, searchParams }: { name: string; searchPa
         <SummaryDates label={when} />
         <HubSummary
           tiles={[
-            { label: t("admin.petty_cash.total_requested"), value: formatTzs(sum("amount_requested_tzs")), sub: when },
-            { label: t("admin.petty_cash.total_received"), value: formatTzs(received), sub: when },
-            { label: t("admin.petty_cash.total_spent"), value: formatTzs(spent), sub: when },
+            { label: t("admin.petty_cash.total_requested"), value: formatTzs(sum("amount_requested_tzs")) },
+            { label: t("admin.petty_cash.total_received"), value: formatTzs(received) },
+            { label: t("admin.petty_cash.total_spent"), value: formatTzs(spent) },
             { label: t("admin.petty_cash.balance"), value: formatTzs(received - spent), sub: t("admin.petty_cash.balance_hint"), tone: received - spent < 0 ? "danger" : undefined },
           ]}
         />

@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { ViewAllMenu } from "./view-all-menu";
 import { PageHeader } from "@/components/shell/page-header";
 import { HeaderDates } from "@/components/shell/header-tools";
 import { HubSummary, VehicleHub, type HubColumn, type HubKind, type HubVehicle } from "./vehicle-hub";
@@ -60,8 +59,8 @@ export async function DailyUseHub({ kind, searchParams }: { kind: "km_log" | "fu
     const missed = (r: (typeof rows)[number]) => r.status === "in_service" && (!r.a.last_km_log_date || (r.a.last_km_log_date as string) < yesterday);
     const missedCount = inService.filter(missed).length;
     tiles = [
-      { label: t("hub.tile.km_run"), value: `${formatNumber(sumOf("km"))} km`, sub: when },
-      { label: t("hub.tile.trips"), value: formatNumber(sumOf("trips")), sub: t("hub.tile.logs_in", { count: sumOf("records"), when }) },
+      { label: t("hub.tile.km_run"), value: `${formatNumber(sumOf("km"))} km` },
+      { label: t("hub.tile.trips"), value: formatNumber(sumOf("trips")), sub: t("hub.tile.logs_count", { count: sumOf("records") }) },
       { label: t("hub.tile.logged_today"), value: `${formatNumber(loggedToday)} / ${formatNumber(inService.length)}`, sub: t("hub.tile.in_service_vehicles") },
       { label: t("hub.tile.no_log_yesterday"), value: formatNumber(missedCount), sub: t("hub.tile.in_service_vehicles"), tone: missedCount ? "danger" : undefined },
     ];
@@ -91,9 +90,9 @@ export async function DailyUseHub({ kind, searchParams }: { kind: "km_log" | "fu
   } else if (kind === "fuel_log") {
     const pending = sumOf("pending");
     tiles = [
-      { label: t("hub.tile.fuel_requests"), value: formatNumber(sumOf("records")), sub: when },
-      { label: t("hub.tile.litres_requested"), value: `${formatNumber(sumOf("litres"), 1)} L`, sub: when },
-      { label: t("hub.tile.km_run"), value: `${formatNumber(sumOf("km"))} km`, sub: when },
+      { label: t("hub.tile.fuel_requests"), value: formatNumber(sumOf("records")) },
+      { label: t("hub.tile.litres_requested"), value: `${formatNumber(sumOf("litres"), 1)} L` },
+      { label: t("hub.tile.km_run"), value: `${formatNumber(sumOf("km"))} km` },
       { label: t("hub.tile.awaiting_approval"), value: formatNumber(pending), sub: t("hub.tile.fuel_requests"), tone: pending ? "warning" : undefined },
     ];
     vehicles = rows.map((r) => {
@@ -125,9 +124,9 @@ export async function DailyUseHub({ kind, searchParams }: { kind: "km_log" | "fu
     const litres = sumOf("litres");
     const km = sumOf("km");
     tiles = [
-      { label: t("hub.tile.fuel_filled"), value: `${formatNumber(litres, 1)} L`, sub: t("hub.tile.refills_in", { count: sumOf("records"), when }) },
-      { label: t("hub.tile.fuel_cost"), value: formatTzs(sumOf("cost")), sub: when },
-      { label: t("hub.tile.km_run"), value: `${formatNumber(km)} km`, sub: when },
+      { label: t("hub.tile.fuel_filled"), value: `${formatNumber(litres, 1)} L`, sub: t("hub.tile.refills_count", { count: sumOf("records") }) },
+      { label: t("hub.tile.fuel_cost"), value: formatTzs(sumOf("cost")) },
+      { label: t("hub.tile.km_run"), value: `${formatNumber(km)} km` },
       { label: t("hub.tile.consumption"), value: sumOf("trips") > 0 ? `${formatNumber(km / sumOf("trips"), 2)} km/L` : "—", sub: t("hub.tile.on_fuel_consumed", { litres: formatNumber(sumOf("trips"), 1) }) },
     ];
     vehicles = rows.map((r) => {
@@ -169,27 +168,18 @@ export async function DailyUseHub({ kind, searchParams }: { kind: "km_log" | "fu
       <PageHeader
         title={hubKind.label}
         description={t(kind === "km_log" ? "hub.km_description" : kind === "fuel_log" ? "hub.fuel_requests_description" : "hub.fuel_description")}
-        actions={
-          <>
-            <Button asChild variant="outline" className="h-10">
-              <Link href={`${path}?vehicle=all`}>{t("hub.all_records")}</Link>
-            </Button>
-          </>
-        }
       />
+      <ViewAllMenu items={[{ href: `${path}?vehicle=all`, label: hubKind.label }]} />
       <SummaryDates label={when} />
       <HubSummary tiles={tiles} />
-      <VehicleHub vehicles={vehicles} kinds={[hubKind]} currentYear={cy} currentMonth={cm} columns={columns} listNote={t("hub.list_note_totals", { when })} />
+      <VehicleHub vehicles={vehicles} kinds={[hubKind]} currentYear={cy} currentMonth={cm} columns={columns} />
     </>
   );
 }
 
 /** The date filter of a page's summary cards and totals, with what it is showing. */
-export function SummaryDates({ label }: { label: string }) {
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <HeaderDates />
-      <span className="text-sm text-muted-foreground">{label}</span>
-    </div>
-  );
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function SummaryDates({ label }: { label?: string } = {}) {
+  // The chosen dates show in the top bar picker; the page itself stays clean.
+  return <HeaderDates />;
 }
