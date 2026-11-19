@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shell/page-header";
 import { RecordTitle } from "@/components/modules/record-title";
@@ -108,7 +108,7 @@ export async function VehicleRecordsPage({
   hubLabel: string;
 }) {
   const def = getModule(moduleKey);
-  const session = await requirePermission(def.resource, "view");
+  await requirePermission(def.resource, "view");
   const supabase = await createClient();
   const today = todayISO();
 
@@ -198,13 +198,6 @@ export async function VehicleRecordsPage({
                 <ArrowLeft /> {hubLabel}
               </Link>
             </Button>
-            {session.can(def.resource, "create") ? (
-              <Button asChild className="h-10">
-                <Link href={`${def.path}/new${vehicle ? `?vehicle=${vehicle}` : ""}`}>
-                  <Plus /> {t(def.newLabel)}
-                </Link>
-              </Button>
-            ) : null}
           </>
         }
       />

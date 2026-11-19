@@ -1,6 +1,7 @@
-import { ModuleRecordPage } from "@/components/modules/module-record-page";
+import { redirect } from "next/navigation";
 
+/** Records open (and are edited) in Maintenance and repair cost. */
 export default async function Page({ params }: PageProps<"/expenses/maintenance-cost/[id]">) {
   const { id } = await params;
-  return <ModuleRecordPage moduleKey="expenses.maintenance.costs.maintenance" id={id} />;
+  redirect(`/expenses/maintenance/costs/${id}`);
 }

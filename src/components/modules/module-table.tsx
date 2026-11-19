@@ -128,7 +128,7 @@ export function ModuleTable({ moduleKey, rows, pathPrefix, hiddenColumns, varian
   const router = useRouter();
   const { can } = usePermissions();
   const [pendingDelete, setPendingDelete] = React.useState<Row | null>(null);
-  const base = pathPrefix ?? def.path;
+  const base = pathPrefix ?? def.recordPath ?? def.path;
   const hiddenKey = (hiddenColumns ?? []).join(",");
   const fileField = moduleFileField(def);
   const mayAttach = can(def.resource, "edit") || can(def.resource, "create");

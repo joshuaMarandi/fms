@@ -42,7 +42,13 @@ export function DateRangeFilter({
   onChange,
   picks,
   className,
+  compact,
+  allowAll = true,
 }: {
+  /** In the top bar: just the icon on phones, the dates on wider screens. */
+  compact?: boolean;
+  /** Offer "Any date" (and the clear button). */
+  allowAll?: boolean;
   value: DateValue;
   onChange: (v: DateValue) => void;
   /** Extra choices such as months or years, shown under the quick periods. */
@@ -53,6 +59,7 @@ export function DateRangeFilter({
   const [from, setFrom] = React.useState(value.kind === "range" ? value.from : "");
   const [to, setTo] = React.useState(value.kind === "range" ? value.to : "");
   const active = value.kind !== "all";
+  const clearable = active && allowAll;
 
   const choose = (v: DateValue) => {
     onChange(v);
@@ -75,22 +82,24 @@ export function DateRangeFilter({
           <Button
             type="button"
             variant="outline"
-            className={cn("h-10 max-w-[260px] justify-start gap-2", active && "border-primary bg-primary/5 text-primary hover:bg-primary/10", active && "rounded-r-none")}
+            className={cn("h-10 justify-start gap-2", compact ? "max-w-[220px] px-2.5 md:px-3" : "max-w-[260px]", active && "border-primary bg-primary/5 text-primary hover:bg-primary/10", clearable && "rounded-r-none")}
             aria-label={`${t("filter.date")}: ${dateValueLabel(value)}`}
           >
             <CalendarRange className="size-4 shrink-0" aria-hidden="true" />
-            <span className="text-muted-foreground">{t("filter.date")}:</span>
-            <span className="truncate font-medium">{dateValueLabel(value)}</span>
-            <ChevronDown className="ml-auto size-4 shrink-0 opacity-60" aria-hidden="true" />
+            {compact ? null : <span className="text-muted-foreground">{t("filter.date")}:</span>}
+            <span className={cn("truncate font-medium", compact && "hidden md:inline")}>{dateValueLabel(value)}</span>
+            <ChevronDown className={cn("ml-auto size-4 shrink-0 opacity-60", compact && "hidden md:block")} aria-hidden="true" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-[min(92vw,340px)] space-y-3 p-3">
+        <PopoverContent align={compact ? "end" : "start"} className="w-[min(92vw,340px)] space-y-3 p-3">
           <div>
             <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{t("filter.quick")}</p>
             <div className="grid grid-cols-2 gap-1.5">
-              <PresetButton on={value.kind === "all"} onClick={() => choose(ANY_DATE)}>
-                {t("filter.any_date")}
-              </PresetButton>
+              {allowAll ? (
+                <PresetButton on={value.kind === "all"} onClick={() => choose(ANY_DATE)}>
+                  {t("filter.any_date")}
+                </PresetButton>
+              ) : null}
               {PERIODS.map((p) => (
                 <PresetButton key={p} on={value.kind === "period" && value.period === p} onClick={() => choose({ kind: "period", period: p })}>
                   {t(`hub.period.${p}`)}
@@ -133,7 +142,7 @@ export function DateRangeFilter({
           </div>
         </PopoverContent>
       </Popover>
-      {active ? (
+      {clearable ? (
         <Button type="button" variant="outline" size="icon" className="h-10 w-9 rounded-l-none border-l-0 border-primary text-primary" onClick={() => onChange(ANY_DATE)} aria-label={t("filter.clear_date")}>
           <X className="size-4" />
         </Button>

@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { SearchSelect } from "@/components/patterns/search-select";
 import { DateRangeFilter, type DateValue } from "@/components/patterns/date-range-filter";
+import { InHeader } from "@/components/shell/header-tools";
 import { startNavigationProgress } from "@/components/shell/navigation-progress";
 import { cn } from "@/lib/utils";
 import type { PeriodKey } from "./periods";
@@ -103,7 +104,9 @@ export function RecordsFilter({
       <div className="min-w-[240px] flex-1 md:max-w-sm">
         <SearchSelect id="records-vehicle" value={vehicle && vehicle !== "all" ? vehicle : ""} options={vehicles} placeholder={t("hub.all_vehicles")} onChange={(v) => go({ vehicle: v || null })} />
       </div>
-      <DateRangeFilter value={value} onChange={(date) => go({ date })} picks={picks} />
+      <InHeader>
+        <DateRangeFilter value={value} onChange={(date) => go({ date })} picks={picks} compact />
+      </InHeader>
       {hasDetails ? (
         <div className="ml-auto flex items-center rounded-lg border bg-card p-0.5" role="group" aria-label={t("hub.view")}>
           {[false, true].map((d) => (

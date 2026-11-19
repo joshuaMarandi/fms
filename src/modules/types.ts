@@ -53,6 +53,10 @@ export type ModuleDef = {
   optionSources: OptionSource[];
   titleOf: (row: Record<string, unknown>) => string;
   isRequest?: boolean;
+  /** Records are written elsewhere (for example fuel cost from the fuel log): no Add button here. */
+  viewOnly?: boolean;
+  /** Where a record opens and is edited, when that is another page (defaults to path). */
+  recordPath?: string;
   approvalExtra?: (options: LoadedOptions, record: Record<string, unknown>) => ApprovalExtraField[];
   /** Name of a custom detail block rendered under the form (see modules/extras.tsx) */
   detailExtra?: string;

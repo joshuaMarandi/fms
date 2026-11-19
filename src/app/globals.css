@@ -91,6 +91,8 @@
   --danger-bg: #f9e1de;
   --neutral: #3f4a46;
   --neutral-bg: #e8e7e1;
+  --info: #1f567a;
+  --info-bg: #dfeaf2;
 
   --chart-1: #0f5c4d;
   --chart-2: #2e7da6;
@@ -112,10 +114,56 @@
   --sidebar-ring: #7fc3b2;
 }
 
-/* Dark mode is not part of the approved design; keep the same palette so nothing breaks if the class appears. */
+/* Dark mode: the same greens on a deep green-grey, chips as dark tints with light text. */
 .dark {
-  --background: #f4f3ee;
-  --foreground: #17211e;
+  color-scheme: dark;
+  --background: #0f1513;
+  --foreground: #e4ebe8;
+  --card: #161e1b;
+  --card-foreground: #e4ebe8;
+  --popover: #1a2420;
+  --popover-foreground: #e4ebe8;
+  --primary: #3fa58d;
+  --primary-foreground: #06120f;
+  --secondary: #222d29;
+  --secondary-foreground: #e4ebe8;
+  --muted: #1f2925;
+  --muted-foreground: #9aaaa4;
+  --accent: #24302c;
+  --accent-foreground: #e4ebe8;
+  --destructive: #e0675b;
+  --destructive-foreground: #1a0604;
+  --border: #2a3632;
+  --input: #34423d;
+  --ring: #3fa58d;
+
+  --success: #8fd8bf;
+  --success-bg: #123b30;
+  --warning: #f2c879;
+  --warning-bg: #3d2d0c;
+  --danger: #f3a097;
+  --danger-bg: #431a15;
+  --neutral: #c3ceca;
+  --neutral-bg: #26302c;
+  --info: #a9cfe8;
+  --info-bg: #15303f;
+
+  --chart-1: #3fa58d;
+  --chart-2: #5aa9d1;
+  --chart-3: #e3a24a;
+  --chart-4: #e0675b;
+  --chart-5: #9a8bc4;
+  --chart-6: #8fa39b;
+
+  --sidebar: #0b1714;
+  --sidebar-foreground: #d9e5e1;
+  --sidebar-primary: #3fa58d;
+  --sidebar-primary-foreground: #06120f;
+  --sidebar-accent: #17302a;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-active: #1d3d35;
+  --sidebar-border: #1a2e29;
+  --sidebar-ring: #7fc3b2;
 }
 
 @layer base {
@@ -185,8 +233,8 @@
     color: var(--neutral);
   }
   .status-chip-info {
-    background: #dfeaf2;
-    color: #1f567a;
+    background: var(--info-bg);
+    color: var(--info);
   }
 }
 

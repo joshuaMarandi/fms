@@ -3,21 +3,30 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { DateRangeFilter, type DateValue } from "./date-range-filter";
 import { startNavigationProgress } from "@/components/shell/navigation-progress";
-import { isPeriod } from "@/components/hub/periods";
+import { isPeriod, type PeriodKey } from "@/components/hub/periods";
 
-/**
- * The date filter for a page's summary cards and vehicle totals. The choice lives in the address
- * (period, or from and to), so the server works out the numbers for exactly those dates. Other
- * parts of the address are kept.
- */
-export function UrlDateFilter({ className }: { className?: string }) {
-  const router = useRouter();
-  const pathname = usePathname();
+/** The dates in the address: a quick period, or from and to; else the page's default (or all time). */
+export function useUrlDateValue(defaultPeriod?: PeriodKey): DateValue {
   const params = useSearchParams();
   const period = params.get("period");
   const from = params.get("from") ?? "";
   const to = params.get("to") ?? "";
-  const value: DateValue = isPeriod(period) ? { kind: "period", period } : from || to ? { kind: "range", from, to } : { kind: "all" };
+  if (isPeriod(period)) return { kind: "period", period };
+  if (from || to) return { kind: "range", from, to };
+  if (period === "all") return { kind: "all" };
+  return defaultPeriod ? { kind: "period", period: defaultPeriod } : { kind: "all" };
+}
+
+/**
+ * The date filter for a page's summary cards, totals and tables. The choice lives in the address
+ * (period, or from and to), so the server works out the numbers for exactly those dates. Other
+ * parts of the address are kept.
+ */
+export function UrlDateFilter({ className, inHeader, defaultPeriod, allowAll = true }: { className?: string; inHeader?: boolean; defaultPeriod?: PeriodKey; allowAll?: boolean }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const value = useUrlDateValue(defaultPeriod);
 
   function onChange(v: DateValue) {
     const q = new URLSearchParams(params.toString());
@@ -28,10 +37,10 @@ export function UrlDateFilter({ className }: { className?: string }) {
     else if (v.kind === "range") {
       if (v.from) q.set("from", v.from);
       if (v.to) q.set("to", v.to);
-    }
+    } else if (defaultPeriod) q.set("period", "all");
     startNavigationProgress();
     router.push(`${pathname}${q.size ? `?${q.toString()}` : ""}`);
   }
 
-  return <DateRangeFilter value={value} onChange={onChange} className={className} />;
+  return <DateRangeFilter value={value} onChange={onChange} className={className} compact={inHeader} allowAll={allowAll} />;
 }

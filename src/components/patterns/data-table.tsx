@@ -31,6 +31,8 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusChip } from "./status-chip";
 import { ANY_DATE, DateRangeFilter, dateValueRange, type DateValue } from "./date-range-filter";
+import { useUrlDateValue } from "./url-date-filter";
+import { useHeaderDateOptions, useHeaderDates } from "@/components/shell/header-tools";
 import { useSession } from "@/components/permissions/provider";
 import { exportCsv, exportExcel, exportPdf, type ExportColumn } from "@/lib/export";
 import { startNavigationProgress } from "@/components/shell/navigation-progress";
@@ -99,7 +101,7 @@ export function DataTable<T extends Record<string, unknown>>({
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [globalFilter, setGlobalFilter] = React.useState("");
-  const [dateValue, setDateValue] = React.useState<DateValue>(ANY_DATE);
+  const [ownDate, setDateValue] = React.useState<DateValue>(ANY_DATE);
 
   // Date filter: the first column that says how to read its date (meta.dateOf), else the first
   // plain column whose values are dates. Every table with a date gets a From and To filter.
@@ -124,6 +126,11 @@ export function DataTable<T extends Record<string, unknown>>({
     }
     return null;
   }, [columns, data]);
+  // The page's date picker is in the top bar; this table follows it.
+  const inHeader = useHeaderDates(dateFilter && !!dateOf);
+  const headerOptions = useHeaderDateOptions();
+  const urlDate = useUrlDateValue(headerOptions.defaultPeriod);
+  const dateValue = inHeader ? urlDate : ownDate;
   const rowsInRange = React.useMemo(() => {
     const range = dateFilter && dateOf ? dateValueRange(dateValue) : null;
     if (!range || !dateOf) return data;
@@ -245,7 +252,7 @@ export function DataTable<T extends Record<string, unknown>>({
             ) : null}
           </div>
         ) : null}
-        {dateFilter && dateOf ? <DateRangeFilter value={dateValue} onChange={setDateValue} /> : null}
+        {dateFilter && dateOf && !inHeader ? <DateRangeFilter value={dateValue} onChange={setDateValue} /> : null}
         <div className="ml-auto flex items-center gap-2">
           {toolbar}
           <DropdownMenu>

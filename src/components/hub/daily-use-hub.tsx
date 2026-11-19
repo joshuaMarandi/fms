@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shell/page-header";
-import { UrlDateFilter } from "@/components/patterns/url-date-filter";
+import { HeaderDates } from "@/components/shell/header-tools";
 import { HubSummary, VehicleHub, type HubColumn, type HubKind, type HubVehicle } from "./vehicle-hub";
 import { loadHubVehicles, num } from "./hub-data";
 import { after } from "next/server";
@@ -22,7 +21,7 @@ type Totals = { vehicle_id: string; records: number; trips: number; km: number; 
  */
 export async function DailyUseHub({ kind, searchParams }: { kind: "km_log" | "fuel_log" | "fuel_issues"; searchParams?: Record<string, string | string[] | undefined> }) {
   const resource = kind === "km_log" ? "daily_use.km_log" : "daily_use.fuel_log";
-  const session = await requirePermission(resource, "view");
+  await requirePermission(resource, "view");
   const range = rangeFromParams(searchParams);
   const supabase = await createClient();
   const [rows, { data: totalRows }] = await Promise.all([
@@ -175,13 +174,6 @@ export async function DailyUseHub({ kind, searchParams }: { kind: "km_log" | "fu
             <Button asChild variant="outline" className="h-10">
               <Link href={`${path}?vehicle=all`}>{t("hub.all_records")}</Link>
             </Button>
-            {session.can(resource, "create") ? (
-              <Button asChild className="h-10">
-                <Link href={kind === "km_log" ? `${path}/new` : "/daily-use/fuel-requests/new"}>
-                  <Plus /> {t(kind === "km_log" ? "daily_use.km_log.new" : "daily_use.fuel.new")}
-                </Link>
-              </Button>
-            ) : null}
           </>
         }
       />
@@ -196,7 +188,7 @@ export async function DailyUseHub({ kind, searchParams }: { kind: "km_log" | "fu
 export function SummaryDates({ label }: { label: string }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <UrlDateFilter />
+      <HeaderDates />
       <span className="text-sm text-muted-foreground">{label}</span>
     </div>
   );

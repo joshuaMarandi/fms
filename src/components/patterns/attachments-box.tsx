@@ -56,6 +56,7 @@ export function AttachmentsBox({
   multiple = true,
   sensitive,
   readOnly,
+  attachMissing,
   className,
   fallback = [],
 }: {
@@ -68,6 +69,8 @@ export function AttachmentsBox({
   multiple?: boolean;
   sensitive?: boolean;
   readOnly?: boolean;
+  /** In view mode: still offer Upload on a missing document type (to people who may write). */
+  attachMissing?: boolean;
   className?: string;
   /** Files kept elsewhere (for example the Documents tab), shown for a document type this record has no file for. */
   fallback?: DocRef[];
@@ -84,6 +87,7 @@ export function AttachmentsBox({
   const expected = React.useMemo(() => labels ?? [], [labels]);
   const canUpload = !readOnly && !!rowId && (can(resource, "edit") || can(resource, "create"));
   const canDelete = !readOnly && can(resource, "delete");
+  const canFill = (!readOnly || !!attachMissing) && !!rowId && (can(resource, "edit") || can(resource, "create"));
 
   const fetchRows = React.useCallback(async (): Promise<AttachmentRow[]> => {
     if (!rowId) return [];
@@ -272,7 +276,7 @@ export function AttachmentsBox({
                   <Button type="button" variant="ghost" size="icon" className="size-9" onClick={() => open(row)} aria-label={`${t("attachments.preview")}: ${l}`}>
                     <Eye />
                   </Button>
-                ) : canUpload ? (
+                ) : canFill ? (
                   <Button type="button" variant="outline" size="sm" onClick={() => pick(l)}>
                     <Plus /> {t("common.upload")}
                   </Button>

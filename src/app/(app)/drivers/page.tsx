@@ -1,6 +1,3 @@
-import Link from "next/link";
-import { Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shell/page-header";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
@@ -52,15 +49,6 @@ export default async function DriversPage({ searchParams }: PageProps<"/drivers"
       <PageHeader
         title={t("drivers.title")}
         description={t("drivers.description")}
-        actions={
-          session.can("drivers.personal", "create") ? (
-            <Button asChild className="h-10">
-              <Link href="/drivers/new">
-                <Plus /> {t("drivers.add_driver")}
-              </Link>
-            </Button>
-          ) : null
-        }
       />
       <SummaryDates label={range ? t("drivers.summary.expiring_in", { when: range.label }) : t("drivers.summary.default")} />
       <HubSummary tiles={summaryTiles(rows, range)} />

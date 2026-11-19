@@ -23,6 +23,8 @@ const driverField: Field = { name: "driver_id", label: "inspections.driver_name"
 export const fuelExpenses: ModuleDef = {
   key: "expenses.fuel",
   path: "/expenses/fuel",
+  // Filled from the fuel log (each fuel issued); nothing is added here.
+  viewOnly: true,
   resource: "expenses.fuel",
   table: "fuel_expenses",
   title: "expenses.fuel.title",
@@ -846,6 +848,9 @@ const costsOf = (kind: "maintenance" | "repairs"): ModuleDef => ({
   ...maintenanceCosts,
   key: kind === "maintenance" ? "expenses.maintenance.costs.maintenance" : "expenses.maintenance.costs.repairs",
   path: kind === "maintenance" ? "/expenses/maintenance-cost" : "/expenses/repair-cost",
+  // Recorded in Maintenance and repair cost; this page only shows its part.
+  viewOnly: true,
+  recordPath: "/expenses/maintenance/costs",
   title: kind === "maintenance" ? "expenses.maintenance_cost.title" : "expenses.repair_cost.title",
   description: kind === "maintenance" ? "expenses.maintenance_cost.description" : "expenses.repair_cost.description",
   exportName: kind === "maintenance" ? "maintenance-cost" : "repair-cost",

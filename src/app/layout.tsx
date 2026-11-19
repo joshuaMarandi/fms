@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { RegisterServiceWorker } from "@/components/pwa/register-sw";
 import { VersionWatcher } from "@/components/pwa/version-watcher";
 import { NavigationProgress } from "@/components/shell/navigation-progress";
+import { ThemeProvider } from "@/components/shell/theme-provider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -36,7 +37,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0f3d34",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#0f3d34" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b1714" },
+  ],
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -44,11 +48,13 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    <html lang="en" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
-        <NavigationProgress />
-        <TooltipProvider delayDuration={300}>{children}</TooltipProvider>
-        <Toaster position="top-right" richColors={false} closeButton />
+        <ThemeProvider>
+          <NavigationProgress />
+          <TooltipProvider delayDuration={300}>{children}</TooltipProvider>
+          <Toaster position="top-right" richColors={false} closeButton />
+        </ThemeProvider>
         <RegisterServiceWorker />
         <VersionWatcher />
       </body>

@@ -4,7 +4,7 @@ import { AlertTriangle, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shell/page-header";
 import { HubSummary, VehicleHub, type HubCell, type HubColumn, type HubKind, type HubVehicle } from "./vehicle-hub";
-import { AddMenu, ViewAllMenu } from "./view-all-menu";
+import { ViewAllMenu } from "./view-all-menu";
 import { loadHubVehicles, num, type HubRow } from "./hub-data";
 import { requirePermission, requireSession } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
@@ -163,7 +163,6 @@ export async function DailyInspectionHub({ searchParams }: { searchParams?: Reco
               </Button>
             ) : null}
             <ViewAllMenu items={[{ href: "/inspections/daily?vehicle=all&details=1", label: t("inspections.daily.short_title") }]} />
-            <AddMenu items={session.can("inspections.daily", "create") ? [{ href: "/inspections/daily/new", label: t("inspections.daily.short_title") }] : []} label={t("inspections.add")} />
           </>
         }
       />
@@ -244,7 +243,6 @@ export async function YearlyInspectionHub({ kind }: { kind: keyof typeof YEARLY 
           <>
             <BackToInspections />
             <ViewAllMenu items={[{ href: `${cfg.path}?vehicle=all${kind === "third_party" ? "&details=1" : ""}`, label: t(cfg.title) }]} />
-            <AddMenu items={session.can(cfg.resource, "create") ? [{ href: `${cfg.path}/new`, label: t(cfg.title) }] : []} label={t("inspections.add")} />
           </>
         }
       />
@@ -407,7 +405,6 @@ export async function WeeklyInspectionHub({ searchParams }: { searchParams?: Rec
               </Button>
             ) : null}
             <ViewAllMenu items={[{ href: "/inspections/weekly?vehicle=all&details=1", label: t("inspections.weekly.title") }]} />
-            <AddMenu items={session.can("inspections.daily", "create") ? [{ href: "/inspections/weekly/new", label: t("inspections.weekly.title") }] : []} label={t("inspections.add")} />
           </>
         }
       />

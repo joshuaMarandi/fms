@@ -1,9 +1,7 @@
-import Link from "next/link";
-import { BadgeCheck, Gauge, HardHat, Plus, ShieldCheck } from "lucide-react";
+import { BadgeCheck, Gauge, HardHat, ShieldCheck } from "lucide-react";
 import { StatCard } from "@/components/patterns/stat-card";
 import type { Tone } from "@/components/patterns/tone";
 import { daysFromNowISO, formatNumber, todayISO } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shell/page-header";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
@@ -89,24 +87,9 @@ export default async function FleetPage() {
       <PageHeader
         title={t("fleet.title")}
         description={t("fleet.description")}
-        actions={
-          session.can("fleet.details", "create") && !atLimit ? (
-            <Button asChild className="h-10">
-              <Link href="/fleet/new">
-                <Plus /> {t("fleet.add_vehicle")}
-              </Link>
-            </Button>
-          ) : null
-        }
       />
-      {max !== null ? (
-        <div className={`flex flex-wrap items-center gap-3 rounded-xl border p-3 text-sm ${atLimit ? "border-warning/50 bg-warning-bg text-warning" : "bg-card"}`}>
-          <span className="font-medium">{atLimit ? t("subscription.vehicle_limit_reached", { max }) : t("subscription.vehicle_limit", { count: rows.length, max })}</span>
-          <div className="h-2 min-w-[120px] flex-1 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuemin={0} aria-valuemax={max} aria-valuenow={rows.length} aria-label={t("subscription.vehicles")}>
-            <div className={`h-full ${atLimit ? "bg-warning" : "bg-primary"}`} style={{ width: `${Math.min(100, Math.round((rows.length / max) * 100))}%` }} />
-          </div>
-        </div>
-      ) : null}
+      {/* Only when the package is full (the Add vehicle button is in the top bar). */}
+      {atLimit ? <div className="rounded-xl border border-warning/50 bg-warning-bg p-3 text-sm font-medium text-warning">{t("subscription.vehicle_limit_reached", { max })}</div> : null}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard title={t("fleet.summary.insurance")} value={`${formatNumber(rows.length - ins.expired - ins.missing)} / ${formatNumber(rows.length)}`} href="#vehicle-list" icon={ShieldCheck} tone={tone(ins, "green")}>
           {breakdown(ins)}

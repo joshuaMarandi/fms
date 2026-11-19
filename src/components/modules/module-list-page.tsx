@@ -1,6 +1,3 @@
-import Link from "next/link";
-import { Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shell/page-header";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
@@ -12,7 +9,7 @@ import { t } from "@/i18n";
 
 export async function ModuleListPage({ moduleKey, searchParams }: { moduleKey: string; searchParams?: Record<string, string | string[] | undefined> }) {
   const def = getModule(moduleKey);
-  const session = await requirePermission(def.resource, "view");
+  await requirePermission(def.resource, "view");
   const supabase = await createClient();
 
   let query = supabase.from(def.table).select(def.list.select).is("deleted_at", null);
@@ -33,15 +30,6 @@ export async function ModuleListPage({ moduleKey, searchParams }: { moduleKey: s
       <PageHeader
         title={t(def.title)}
         description={t(def.description)}
-        actions={
-          session.can(def.resource, "create") ? (
-            <Button asChild className="h-10">
-              <Link href={`${def.path}/new`}>
-                <Plus /> {t(def.newLabel)}
-              </Link>
-            </Button>
-          ) : null
-        }
       />
       {def.listExtra ? <ListExtra name={def.listExtra} searchParams={searchParams} /> : null}
       {error ? <p className="rounded-lg bg-danger-bg p-3 text-sm text-danger">{error.message}</p> : null}

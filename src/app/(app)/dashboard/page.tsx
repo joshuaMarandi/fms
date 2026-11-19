@@ -34,7 +34,8 @@ import { ReminderChip, StatusChip } from "@/components/patterns/status-chip";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardFilters } from "./filters";
-import { rangeFor, type RangeKey } from "./range";
+import { rangeFromParams } from "@/lib/date-range";
+import { periodRange } from "@/components/hub/periods";
 import { DonutChart, MonthlyBarChart, MonthlyLineChart, SimpleAreaChart, Sparkline, TargetBarChart, Widget } from "./charts";
 import { DriverToday } from "./driver-today";
 import { cn, daysFromNowISO, formatDate, formatNumber, formatTzs, nowMs, todayISO } from "@/lib/utils";
@@ -81,8 +82,8 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
     return <DriverToday />;
   }
 
-  const range = (typeof sp.range === "string" ? sp.range : "30d") as RangeKey;
-  const { from, to } = rangeFor(range, typeof sp.from === "string" ? sp.from : null, typeof sp.to === "string" ? sp.to : null);
+  // Dates from the top bar picker: last 30 days unless another period or From and To is chosen.
+  const { from, to } = rangeFromParams(sp) ?? periodRange("last_30_days", todayISO());
   const vehicleId = typeof sp.vehicle === "string" ? sp.vehicle : null;
   const can = session.can;
   const mk = months(from, to);
@@ -267,7 +268,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
                       {(r.vehicle as { registration?: string } | null)?.registration ?? (r.employee as { full_name?: string } | null)?.full_name ?? (r.employee_name as string) ?? (r.requester_name as string) ?? ""} · {formatDate((r.request_date as string) ?? (r.date_from as string) ?? (r.period_month as string) ?? (r.created_at as string))}
                     </span>
                   </span>
-                  <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#deedf5] px-2 py-1 text-xs font-medium text-[#1f5f80] group-hover:bg-[#2e7da6] group-hover:text-white">
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#deedf5] px-2 py-1 text-xs font-medium text-[#1f5f80] dark:bg-[#15303f] dark:text-[#a9cfe8] group-hover:bg-[#2e7da6] group-hover:text-white">
                     {t("approval.review")} <ArrowRight className="size-3.5" aria-hidden="true" />
                   </span>
                 </Link>

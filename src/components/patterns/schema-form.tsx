@@ -490,7 +490,7 @@ function FieldRenderer({ field: f, form, ctx, disabled, recordId, schema, prefix
       return (
         <div className={cn(span)}>
           <p className="mb-2 text-sm font-medium">{label}</p>
-          <AttachmentsBox table={schema.table} rowId={recordId} resource={schema.resource} bucket={f.bucket} labels={f.labels?.map(tl)} multiple={f.multiple} sensitive={f.sensitive} readOnly={isDisabled} fallback={fallback} />
+          <AttachmentsBox table={schema.table} rowId={recordId} resource={schema.resource} bucket={f.bucket} labels={f.labels?.map(tl)} multiple={f.multiple} sensitive={f.sensitive} readOnly={isDisabled} attachMissing fallback={fallback} />
         </div>
       );
     case "rows":

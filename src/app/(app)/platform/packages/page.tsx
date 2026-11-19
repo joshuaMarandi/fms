@@ -1,7 +1,6 @@
 import Link from "next/link";
-import { Check, Plus, Truck } from "lucide-react";
+import { Check, Truck } from "lucide-react";
 import { PageHeader } from "@/components/shell/page-header";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
@@ -26,13 +25,6 @@ export default async function PackagesPage() {
       <PageHeader
         title={t("platform.packages.title")}
         description={t("platform.packages.description")}
-        actions={
-          <Button asChild className="h-10">
-            <Link href="/platform/packages/new">
-              <Plus /> {t("platform.packages.new")}
-            </Link>
-          </Button>
-        }
       />
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         {((packages ?? []) as Record<string, unknown>[]).map((p) => {

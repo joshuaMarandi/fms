@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shell/page-header";
 import { HubSummary, VehicleHub, type HubColumn, type HubKind, type HubVehicle } from "./vehicle-hub";
@@ -28,7 +27,7 @@ const KINDS: Record<ExpenseKind, { rpc: string; resource: string; path: string; 
  */
 export async function ExpenseHub({ kind, searchParams }: { kind: ExpenseKind; searchParams?: Record<string, string | string[] | undefined> }) {
   const k = KINDS[kind];
-  const session = await requirePermission(k.resource, "view");
+  await requirePermission(k.resource, "view");
   const range = rangeFromParams(searchParams);
   const when = range?.label ?? t("hub.all_time");
   const supabase = await createClient();
@@ -132,13 +131,6 @@ export async function ExpenseHub({ kind, searchParams }: { kind: ExpenseKind; se
             <Button asChild variant="outline" className="h-10">
               <Link href={`${k.path}?vehicle=all`}>{t("hub.all_records")}</Link>
             </Button>
-            {session.can(k.resource, "create") ? (
-              <Button asChild className="h-10">
-                <Link href={`${k.path}/new`}>
-                  <Plus /> {t(k.newLabel)}
-                </Link>
-              </Button>
-            ) : null}
           </>
         }
       />

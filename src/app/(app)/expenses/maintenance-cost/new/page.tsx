@@ -1,5 +1,6 @@
-import { ModuleRecordPage } from "@/components/modules/module-record-page";
+import { redirect } from "next/navigation";
 
+/** Maintenance and repairs are both recorded in Maintenance and repair cost. */
 export default function Page() {
-  return <ModuleRecordPage moduleKey="expenses.maintenance.costs.maintenance" />;
+  redirect("/expenses/maintenance/costs/new");
 }

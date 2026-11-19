@@ -1,5 +1,6 @@
-import { ModuleRecordPage } from "@/components/modules/module-record-page";
+import { redirect } from "next/navigation";
 
+/** Fuel cost is filled from the fuel log; new fuel is recorded there. */
 export default function Page() {
-  return <ModuleRecordPage moduleKey="expenses.fuel" />;
+  redirect("/daily-use/fuel-log");
 }

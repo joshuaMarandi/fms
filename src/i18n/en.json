@@ -2051,5 +2051,10 @@
   "hub.tile.weekly_inspections": "Weekly inspections",
   "hub.list_note.skipped_weeks": "Status counts the weeks (Monday to Sunday) in the last 8 with no weekly inspection; this week is not counted until it ends.",
   "hub.kind.weekly_db": "Every vehicle with its weekly checks, skipped weeks and open actions.",
-  "inspections.card.weekly": "{done} of {total} in-service vehicles inspected this week"
+  "inspections.card.weekly": "{done} of {total} in-service vehicles inspected this week",
+  "theme.toggle": "Light or dark",
+  "theme.light": "Light",
+  "theme.dark": "Dark",
+  "theme.system": "Device setting",
+  "hub.period.last_30_days": "Last 30 days"
 }

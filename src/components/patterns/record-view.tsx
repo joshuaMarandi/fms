@@ -128,7 +128,7 @@ function FieldItem({ f, values, ctx, recordId, schema }: { f: Field; values: Val
       <div className="sm:col-span-2 lg:col-span-3">
         <dt className="mb-1 text-xs font-medium text-muted-foreground">{shortLabel(f.label)}</dt>
         <dd>
-          <AttachmentsBox table={schema.table} rowId={recordId} resource={schema.resource} bucket={f.bucket} labels={f.labels?.map(tl)} multiple={f.multiple} sensitive={f.sensitive} readOnly fallback={fallback} />
+          <AttachmentsBox table={schema.table} rowId={recordId} resource={schema.resource} bucket={f.bucket} labels={f.labels?.map(tl)} multiple={f.multiple} sensitive={f.sensitive} readOnly attachMissing fallback={fallback} />
         </dd>
       </div>
     );

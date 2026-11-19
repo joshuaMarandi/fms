@@ -9,6 +9,7 @@ import { SubscriptionBlocked } from "@/components/shell/subscription-blocked";
 import { OwnerWorkspaceBar } from "@/components/shell/owner-workspace-bar";
 import { PrintFrame } from "@/components/shell/print-frame";
 import { PageTitleProvider } from "@/components/shell/page-title";
+import { HeaderToolsProvider } from "@/components/shell/header-tools";
 import { WaitingRequestsGate } from "@/components/shell/waiting-requests-gate";
 import { requireSession } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
@@ -44,6 +45,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     <PermissionProvider session={sessionLite} permissions={session.permissions}>
       <RecordTitleProvider>
         <PageTitleProvider>
+        <HeaderToolsProvider>
         <SidebarProvider>
           <AppSidebar
             counts={{
@@ -65,6 +67,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
             {session.isDriverOnly ? <DriverBottomNav /> : null}
           </SidebarInset>
         </SidebarProvider>
+        </HeaderToolsProvider>
         </PageTitleProvider>
       </RecordTitleProvider>
     </PermissionProvider>
