@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getModule } from "@/modules/registry";
 import { ModuleTable } from "./module-table";
 import { ListExtra } from "@/modules/extras";
+import { loadDocs } from "@/lib/data/docs";
 import { t } from "@/i18n";
 
 export async function ModuleListPage({ moduleKey, searchParams }: { moduleKey: string; searchParams?: Record<string, string | string[] | undefined> }) {
@@ -21,6 +22,11 @@ export async function ModuleListPage({ moduleKey, searchParams }: { moduleKey: s
   const { data, error } = await query;
 
   const rows = ((data ?? []) as unknown as Array<Record<string, unknown> & { id: string }>).map((r) => (def.list.derive ? { ...r, ...def.list.derive(r) } : r));
+  const docsCol = def.list.columns.find((c) => c.type === "docs");
+  if (docsCol && rows.length) {
+    const docs = await loadDocs(def.table, rows.map((r) => r.id));
+    for (const r of rows) r[docsCol.key] = docs.get(r.id) ?? [];
+  }
 
   return (
     <>

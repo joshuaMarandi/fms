@@ -16,7 +16,7 @@ import { t } from "@/i18n";
 export type DocRef = { id: string; label: string; file_name: string; mime_type: string | null; bucket: string; path: string; expiry_date?: string | null; created_at?: string | null };
 
 /** Where a new document for this row is uploaded, when the viewer may add one. */
-export type DocUpload = { table: string; rowId: string; resource: string; bucket: string; label: string; sensitive?: boolean };
+export type DocUpload = { table: string; rowId: string; resource: string; bucket: string; label: string; sensitive?: boolean; /** File types to offer (defaults to the label). */ labels?: string[] };
 
 const isImage = (m: string | null) => !!m && m.startsWith("image/");
 const isPdf = (m: string | null) => m === "application/pdf";
@@ -94,7 +94,7 @@ export function DocButton({ docs, upload, compact, label }: { docs: DocRef[]; up
               <DialogTitle>{upload.label}</DialogTitle>
               <DialogDescription>{t("docs.attach_hint")}</DialogDescription>
             </DialogHeader>
-            <AttachmentsBox table={upload.table} rowId={upload.rowId} resource={upload.resource} bucket={upload.bucket} labels={[upload.label]} multiple={false} sensitive={upload.sensitive} />
+            <AttachmentsBox table={upload.table} rowId={upload.rowId} resource={upload.resource} bucket={upload.bucket} labels={upload.labels ?? [upload.label]} multiple={(upload.labels?.length ?? 1) > 1} sensitive={upload.sensitive} />
             <DialogFooter>
               <Button type="button" onClick={() => setAdding(false)}>
                 {t("common.done")}

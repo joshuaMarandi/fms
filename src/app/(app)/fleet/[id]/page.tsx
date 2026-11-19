@@ -48,6 +48,7 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
   const paths = [`/fleet/${id}`, "/fleet"];
 
   // Inspection status: every mobilization and third-party inspection, newest first, with documents.
+  const mayAttach = (resource: string) => session.can(resource, "edit") || session.can(resource, "create");
   const byDate = (a: { date: string | null }, b: { date: string | null }) => String(b.date ?? "").localeCompare(String(a.date ?? ""));
   const statusRows = (inspections ?? []) as Record<string, unknown>[];
   const mobRows = statusRows.filter((i) => i.kind === "internal");
@@ -69,14 +70,14 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
   };
   const mobilizationHistory: HistoryRow[] = withMatched(
     mobRows
-      .map((r) => ({ id: r.id as string, date: (r.inspection_date as string) ?? null, next: (r.renewal_date as string) ?? null, note: (r.notes as string) ?? null, href: `/inspections/mobilization/${r.id}`, docs: mobDocs.get(r.id as string) ?? [] }))
+      .map((r) => ({ id: r.id as string, date: (r.inspection_date as string) ?? null, next: (r.renewal_date as string) ?? null, note: (r.notes as string) ?? null, href: `/inspections/mobilization/${r.id}`, docs: mobDocs.get(r.id as string) ?? [], upload: mayAttach("fleet.inspection_status") ? { table: "vehicle_inspections", rowId: r.id as string, resource: "fleet.inspection_status", bucket: "inspection-scans", label: t("fleet.doc.internal_report") } : null }))
       .sort(byDate),
     "fleet.doc.internal_report",
   );
   const thirdHistory: HistoryRow[] = withMatched(
     [
-      ...tpList.map((r) => ({ id: r.id as string, date: (r.inspection_date as string) ?? null, next: (r.renewal_date as string) ?? null, note: (r.inspector as string) ?? null, href: `/inspections/third-party/${r.id}`, docs: tpDocs.get(r.id as string) ?? [] })),
-      ...legacyThird.map((r) => ({ id: r.id as string, date: (r.inspection_date as string) ?? null, next: (r.renewal_date as string) ?? null, note: (r.notes as string) ?? null, href: null, docs: legacyDocs.get(r.id as string) ?? [] })),
+      ...tpList.map((r) => ({ id: r.id as string, date: (r.inspection_date as string) ?? null, next: (r.renewal_date as string) ?? null, note: (r.inspector as string) ?? null, href: `/inspections/third-party/${r.id}`, docs: tpDocs.get(r.id as string) ?? [], upload: mayAttach("inspections.third_party") ? { table: "third_party_inspections", rowId: r.id as string, resource: "inspections.third_party", bucket: "inspection-scans", label: t("fleet.doc.third_party_report") } : null })),
+      ...legacyThird.map((r) => ({ id: r.id as string, date: (r.inspection_date as string) ?? null, next: (r.renewal_date as string) ?? null, note: (r.notes as string) ?? null, href: null, docs: legacyDocs.get(r.id as string) ?? [], upload: mayAttach("fleet.inspection_status") ? { table: "vehicle_inspections", rowId: r.id as string, resource: "fleet.inspection_status", bucket: "inspection-scans", label: t("fleet.doc.third_party_report") } : null })),
     ].sort(byDate),
     "fleet.doc.third_party_report",
   );
@@ -184,8 +185,7 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
                       <th className="py-2 pr-3 font-medium">{t("fleet.last_service_date")}</th>
                       <th className="py-2 pr-3 text-right font-medium">{t("fleet.last_service_km")}</th>
                       <th className="py-2 pr-3 text-right font-medium">{t("fleet.next_service_km")}</th>
-                      <th className="py-2 pr-3 font-medium">{t("fleet.service.garage")}</th>
-                      <th className="py-2 font-medium">{t("fleet.service.work_done")}</th>
+                      <th className="py-2 font-medium">{t("fleet.service.garage")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -197,8 +197,7 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
                         </td>
                         <td className="py-2 pr-3 text-right tabular-nums">{formatNumber(h.last_service_km as number)}</td>
                         <td className="py-2 pr-3 text-right tabular-nums">{formatNumber(h.next_service_km as number)}</td>
-                        <td className="py-2 pr-3">{(h.garage as string) || ""}</td>
-                        <td className="py-2 whitespace-pre-line">{(h.notes as string) || ""}</td>
+                        <td className="py-2">{(h.garage as string) || ""}</td>
                       </tr>
                     ))}
                   </tbody>

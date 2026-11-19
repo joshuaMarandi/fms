@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ReminderChip } from "@/components/patterns/status-chip";
-import { DocButton, type DocRef } from "@/components/patterns/doc-button";
+import { DocButton, type DocRef, type DocUpload } from "@/components/patterns/doc-button";
 import { formatDate } from "@/lib/utils";
 import { t } from "@/i18n";
 
@@ -14,6 +14,8 @@ export type HistoryRow = {
   /** Record page, when the row has one. */
   href: string | null;
   docs: DocRef[];
+  /** Where a report is attached from the row when it has none. */
+  upload?: DocUpload | null;
 };
 
 /**
@@ -85,7 +87,7 @@ export function InspectionHistory({
                   <td className="py-2 pr-3">{r.next ? formatDate(r.next) : <span className="text-muted-foreground">—</span>}</td>
                   {noteLabel ? <td className="max-w-[280px] py-2 pr-3 whitespace-pre-line">{r.note || <span className="text-muted-foreground">—</span>}</td> : null}
                   <td className="py-2">
-                    <DocButton docs={r.docs} compact />
+                    <DocButton docs={r.docs} compact upload={r.upload} />
                   </td>
                 </tr>
               ))}

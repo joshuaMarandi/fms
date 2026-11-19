@@ -10,7 +10,7 @@ import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
 import { DocButton, type DocRef } from "@/components/patterns/doc-button";
 import { usePermissions } from "@/components/permissions/provider";
 import { deleteRecord } from "@/lib/data/records";
-import { getModule } from "@/modules/registry";
+import { getModule, moduleFileField } from "@/modules/registry";
 import type { ColumnSpec } from "@/modules/types";
 import { formatDate, formatNumber, formatTzs } from "@/lib/utils";
 import { hasKey, t } from "@/i18n";
@@ -130,6 +130,8 @@ export function ModuleTable({ moduleKey, rows, pathPrefix, hiddenColumns, varian
   const [pendingDelete, setPendingDelete] = React.useState<Row | null>(null);
   const base = pathPrefix ?? def.path;
   const hiddenKey = (hiddenColumns ?? []).join(",");
+  const fileField = moduleFileField(def);
+  const mayAttach = can(def.resource, "edit") || can(def.resource, "create");
 
   const columns = React.useMemo<ColumnDef<Row, unknown>[]>(
     () =>
@@ -137,7 +139,16 @@ export function ModuleTable({ moduleKey, rows, pathPrefix, hiddenColumns, varian
         id: spec.key,
         header: tl(spec.header),
         accessorFn: (row) => exportValue(spec, getPath(row, spec.key)),
-        cell: ({ row }) => renderCell(spec, getPath(row.original, spec.key)),
+        cell: ({ row }) =>
+          spec.type === "docs" && fileField && mayAttach ? (
+            <DocButton
+              docs={(getPath(row.original, spec.key) as DocRef[] | undefined) ?? []}
+              compact
+              upload={{ table: def.table, rowId: row.original.id, resource: def.resource, bucket: fileField.bucket ?? "forms", label: tl(fileField.label), labels: (fileField.labels ?? [fileField.label]).map((l) => tl(l)), sensitive: fileField.sensitive }}
+            />
+          ) : (
+            renderCell(spec, getPath(row.original, spec.key))
+          ),
         enableSorting: spec.sortable !== false,
         // The status filter chips hold the stored value (for example "anomalies"), not the label.
         ...(spec.key === def.list.statusColumn ? { filterFn: (row: { original: Row }, _id: string, value: unknown) => value === undefined || String(getPath(row.original, spec.key) ?? "") === value } : {}),
@@ -145,7 +156,7 @@ export function ModuleTable({ moduleKey, rows, pathPrefix, hiddenColumns, varian
         // Date columns feed the table's From and To filter.
         meta: { hidden: spec.hidden, ...(spec.type === "date" || spec.type === "datetime" || spec.type === "reminder_date" ? { dateOf: (row: Row) => getPath(row, spec.key) } : {}) },
       })),
-    [def, hiddenKey, variant],
+    [def, hiddenKey, variant, fileField, mayAttach],
   );
 
   const canEdit = can(def.resource, "edit");
