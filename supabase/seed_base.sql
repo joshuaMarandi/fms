@@ -48,7 +48,7 @@ insert into public.resources (key, parent_key, name, label_prefix, path, icon, s
   ('expenses.trainings.mandatory', 'fleet_safety', 'Mandatory training records', null, '/expenses/trainings/mandatory', null, 305, true, false),
   ('expenses.admin', null, 'Fleet administration', '6', '/administration', 'building', 500, false, true),
   ('expenses.admin.roster', 'expenses.admin', 'Fleet roster', null, '/administration/roster', null, 551, false, false),
-  ('expenses.timesheet', 'expenses.admin', 'Timesheet', null, '/expenses/timesheet', 'clock', 552, false, false),
+  ('expenses.timesheet', 'expenses.admin', 'Timesheet', null, '/expenses/timesheet', 'clock', 552, false, true),
   ('expenses.leave', 'expenses.admin', 'Annual leave', 'h', null, 'calendar-days', 559, false, true),
   ('expenses.leave.plan', 'expenses.admin', 'Leave plan', null, '/expenses/leave/plan', null, 553, false, false),
   ('expenses.leave.requests', 'expenses.admin', 'Leave requests and records', null, '/expenses/leave/requests', null, 554, false, true),
@@ -182,6 +182,8 @@ begin
   perform pg_temp.grant_role(hod, 'expenses.leave.requests.hod', array['view', 'approve']);
   perform pg_temp.grant_role(hod, 'expenses.admin.outstation.hod', array['view', 'approve']);
   perform pg_temp.grant_role(hod, 'expenses.admin.petty_cash.hod', array['view', 'approve']);
+  perform pg_temp.grant_role(hod, 'expenses.timesheet.hod', array['view', 'approve']);
+  perform pg_temp.grant_role(hod, 'expenses.maintenance.costs.hod', array['view', 'approve']);
   perform pg_temp.grant_role(hod, 'expenses.reports', array['view', 'export']);
 
   -- Driver: own data only.

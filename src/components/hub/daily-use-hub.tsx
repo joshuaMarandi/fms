@@ -33,7 +33,8 @@ type Totals = { vehicle_id: string; records: number; trips: number; km: number; 
 export async function DailyUseHub({ kind, searchParams }: { kind: "km_log" | "fuel_log" | "fuel_issues"; searchParams?: Record<string, string | string[] | undefined> }) {
   const resource = kind === "km_log" ? "daily_use.km_log" : "daily_use.fuel_log";
   await requirePermission(resource, "view");
-  const range = rangeFromParams(searchParams);
+  // Lands on the current month; other dates (or any date) from the filter.
+  const range = rangeFromParams(searchParams, { defaultMonth: true });
   const supabase = await createClient();
   const [rows, { data: totalRows }, { data: schedules }] = await Promise.all([
     loadHubVehicles(),
@@ -56,7 +57,6 @@ export async function DailyUseHub({ kind, searchParams }: { kind: "km_log" | "fu
   const yesterday = daysFromNowISO(-1);
   const [cy, cm] = today.split("-").map(Number) as [number, number];
   const path = kind === "km_log" ? "/daily-use/km-log" : kind === "fuel_log" ? "/daily-use/fuel-requests" : "/daily-use/fuel-log";
-  const when = range?.label ?? t("hub.all_time");
 
   const hubKind: HubKind =
     kind === "km_log"
@@ -161,8 +161,8 @@ export async function DailyUseHub({ kind, searchParams }: { kind: "km_log" | "fu
         detail: t("hub.fuel_total_detail", { litres: formatNumber(l, 1), count: num(tot?.records) }),
         cells: {
           last: last ? { chip: { label: formatDate(last), tone: last === today ? "success" : "neutral" } } : t("hub.no_refuel"),
+          refills: formatNumber(num(tot?.records)),
           filled: `${formatNumber(l, 1)} L`,
-          balance: r.a.last_issue_balance_l !== null && r.a.last_issue_balance_l !== undefined ? `${formatNumber(num(r.a.last_issue_balance_l), 1)} L` : null,
           km: `${formatNumber(k)} km`,
           consumed: `${formatNumber(used, 1)} L`,
           ratio: used > 0 ? `${formatNumber(k / used, 2)} km/L` : null,
@@ -173,9 +173,9 @@ export async function DailyUseHub({ kind, searchParams }: { kind: "km_log" | "fu
     columns = [
       { key: "registration", label: "fleet.reg" },
       { key: "makeModel", label: "fleet.make_model" },
+      { key: "refills", label: "hub.col.refills", align: "right" },
       { key: "last", label: "hub.col.last_refill" },
       { key: "filled", label: "hub.col.fuel_filled_total", align: "right" },
-      { key: "balance", label: "hub.col.fuel_balance", align: "right" },
       { key: "km", label: "hub.col.km_run", align: "right" },
       { key: "consumed", label: "hub.col.fuel_consumed", align: "right" },
       { key: "ratio", label: "hub.col.consumption", align: "right" },
@@ -190,7 +190,7 @@ export async function DailyUseHub({ kind, searchParams }: { kind: "km_log" | "fu
         description={t(kind === "km_log" ? "hub.km_description" : kind === "fuel_log" ? "hub.fuel_requests_description" : "hub.fuel_description")}
       />
       <ViewAllMenu items={[{ href: `${path}?vehicle=all`, label: hubKind.label }]} />
-      <SummaryDates label={when} />
+      <HeaderDates first="month" defaultMonth />
       <HubSummary tiles={tiles} />
       <VehicleHub vehicles={vehicles} kinds={[hubKind]} currentYear={cy} currentMonth={cm} columns={columns} />
     </>

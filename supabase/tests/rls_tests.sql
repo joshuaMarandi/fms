@@ -1355,24 +1355,22 @@ begin
   perform pg_temp.check('m36: vehicle status sync runs', (select status from public.vehicles where id = v) is not null);
 end $m36$;
 
--- 37: timesheets are recorded without approval; noon shift, absent days and allowance.
+-- 37: noon shift, absent days and allowance (approval: see 40).
 do $m37$
 declare v_ts uuid;
 begin
   perform pg_temp.as_admin();
-  perform pg_temp.check('m37: timesheets are not requests', not (select is_request from public.table_resources where table_name = 'timesheets'));
-  perform pg_temp.check('m37: existing timesheets are records', not exists (select 1 from public.timesheets where status <> 'completed'));
   insert into public.timesheets (company_id, employee_id, period_month)
   values ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-000000000006', date_trunc('month', current_date + interval '3 months')::date)
   returning id into v_ts;
-  perform pg_temp.check('m37: a new timesheet is recorded straight away', (select status from public.timesheets where id = v_ts) = 'completed');
+  perform pg_temp.check('m37: a new timesheet starts as a draft', (select status from public.timesheets where id = v_ts) = 'draft');
   insert into public.timesheet_days (company_id, timesheet_id, work_date, shift, time_in, break_from, break_to, time_out, day_type, allowance_tzs)
   values ('11111111-1111-1111-1111-111111111111', v_ts, (select period_month from public.timesheets where id = v_ts), 'noon', '14:00', '18:00', '19:00', '22:00', 'work', 15000),
          ('11111111-1111-1111-1111-111111111111', v_ts, (select period_month from public.timesheets where id = v_ts) + 1, 'day', null, null, null, null, 'absent', 0);
   perform pg_temp.check('m37: a noon shift is 7 hours', (select total_hours from public.timesheet_days where timesheet_id = v_ts and shift = 'noon') = 7);
   perform pg_temp.check('m37: allowance is kept', (select allowance_tzs from public.timesheet_days where timesheet_id = v_ts and shift = 'noon') = 15000);
   update public.timesheets set coordinator_name = 'Changed later' where id = v_ts;
-  perform pg_temp.check('m37: a timesheet can be changed at any time', (select coordinator_name from public.timesheets where id = v_ts) = 'Changed later');
+  perform pg_temp.check('m37: a draft timesheet can be changed', (select coordinator_name from public.timesheets where id = v_ts) = 'Changed later');
   perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
   perform pg_temp.check('m37: shell counts run', (public.shell_counts() ->> 'pending_approvals') is not null);
   perform pg_temp.as_admin();
@@ -1541,5 +1539,120 @@ begin
   delete from public.leave_requests where id = v_lr;
   update public.profiles set signature_image = null where id = '33333333-3333-3333-3333-000000000002';
 end $m39$;
+
+-- 40: timesheets approved by the fleet manager then the HOD (the fleet manager's own: HOD only);
+-- maintenance work orders, job cards, spare parts, invoices (two steps) and purchase orders.
+do $m40$
+declare
+  v_ts uuid;
+  v_ts2 uuid;
+  v_wo uuid;
+  v_wo2 uuid;
+  v_jc uuid;
+  v_sp uuid;
+  v_inv uuid;
+  v_po uuid;
+  ok boolean := false;
+  veh uuid := '55555555-5555-5555-5555-000000000001';
+begin
+  perform pg_temp.check('m40: timesheets are requests', (select is_request from public.table_resources where table_name = 'timesheets'));
+  -- Recorded and sent by the coordinator.
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000003');
+  insert into public.timesheets (company_id, employee_id, period_month, status)
+  values ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-000000000006', date_trunc('month', current_date + interval '14 months')::date, 'submitted')
+  returning id into v_ts;
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m40: the coordinator is the one who recorded it', (select coordinator_name from public.timesheets where id = v_ts) = (select full_name from public.profiles where id = '33333333-3333-3333-3333-000000000003'));
+  perform pg_temp.check('m40: a coordinator''s timesheet waits for the fleet manager', (select coalesce(approval_step, 'approval') from public.timesheets where id = v_ts) = 'approval');
+  begin
+    perform pg_temp.as_user('33333333-3333-3333-3333-000000000004');
+    perform public.approve_request('timesheets', v_ts);
+  exception when insufficient_privilege then ok := true;
+  end;
+  perform pg_temp.check('m40: the HOD cannot take the fleet manager''s step', ok);
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  perform public.approve_request('timesheets', v_ts);
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m40: after the fleet manager it goes to the HOD', (select approval_step from public.timesheets where id = v_ts) = 'hod_approval' and (select status from public.timesheets where id = v_ts) = 'submitted');
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000004');
+  perform public.approve_request('timesheets', v_ts);
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m40: the HOD approves the timesheet', (select status from public.timesheets where id = v_ts) = 'approved');
+  -- Recorded and sent by the fleet manager: already approved by them, the HOD still decides.
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  insert into public.timesheets (company_id, employee_id, period_month, status)
+  values ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-000000000006', date_trunc('month', current_date + interval '15 months')::date, 'draft')
+  returning id into v_ts2;
+  update public.timesheets set status = 'submitted' where id = v_ts2;
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m40: the fleet manager''s own timesheet goes straight to the HOD', (select approval_step from public.timesheets where id = v_ts2) = 'hod_approval' and (select status from public.timesheets where id = v_ts2) = 'submitted');
+  perform pg_temp.check('m40: and it shows the fleet manager''s approval', exists (select 1 from public.approval_signoffs where record_id = v_ts2 and step = 'approval' and signed_by = '33333333-3333-3333-3333-000000000002'));
+  perform pg_temp.check('m40: the HOD is asked by email', exists (select 1 from public.approval_links where record_id = v_ts2 and step = 'hod_approval'));
+  delete from public.timesheets where id in (v_ts, v_ts2);
+  -- A driver without a user account: the timesheet stays theirs when the coordinator saves and changes it.
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000003');
+  insert into public.timesheets (company_id, driver_id, employee_name, period_month, status)
+  values ('11111111-1111-1111-1111-111111111111', '66666666-6666-6666-6666-000000000003', 'Driver Without Login', date_trunc('month', current_date + interval '16 months')::date, 'draft')
+  returning id into v_ts;
+  update public.timesheets set status = 'submitted' where id = v_ts;
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m40: a driver without an account keeps the timesheet (not the coordinator)', (select employee_id is null and employee_name = 'Driver Without Login' from public.timesheets where id = v_ts));
+  delete from public.timesheets where id = v_ts;
+
+  -- Work orders: numbered, emailed to the service provider.
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000003');
+  insert into public.maintenance_work_orders (company_id, vehicle_id, order_date, description, service_provider)
+  values ('11111111-1111-1111-1111-111111111111', veh, current_date, 'Front brakes squeal', 'Mwanza Auto Garage') returning id into v_wo;
+  insert into public.maintenance_work_orders (company_id, vehicle_id, order_date, description, service_provider)
+  values ('11111111-1111-1111-1111-111111111111', veh, current_date, 'Service', 'Mwanza Auto Garage') returning id into v_wo2;
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m40: work orders are numbered', (select order_number from public.maintenance_work_orders where id = v_wo) = 'WO-' || to_char(current_date, 'YYYY') || '-0001'
+    and (select order_number from public.maintenance_work_orders where id = v_wo2) = 'WO-' || to_char(current_date, 'YYYY') || '-0002');
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000003');
+  ok := false;
+  begin
+    perform public.send_work_order(v_wo, null);
+  exception when check_violation then ok := true;
+  end;
+  perform pg_temp.check('m40: a work order needs the provider''s email', ok);
+  perform public.send_work_order(v_wo, 'Garage@Example.com');
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m40: the work order is emailed', exists (select 1 from public.message_outbox where template = 'work_order' and recipient = 'garage@example.com' and data ->> 'record_id' = v_wo::text)
+    and (select emailed_at from public.maintenance_work_orders where id = v_wo) is not null);
+  update public.message_outbox set status = 'skipped' where template = 'work_order' and status = 'pending';
+
+  -- Job card: days in the garage and km run there.
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000003');
+  insert into public.maintenance_costs (company_id, vehicle_id, cost_date, work_type, activities, cost_tzs, date_in, date_out, km_in, km_out)
+  values ('11111111-1111-1111-1111-111111111111', veh, current_date, 'repairs', 'Replaced pads', 120000, current_date - 3, current_date, 80000, 80012) returning id into v_jc;
+  insert into public.maintenance_spare_parts (company_id, vehicle_id, part_date, description, quantity, unit_price_tzs)
+  values ('11111111-1111-1111-1111-111111111111', veh, current_date, 'Brake pads', 2, 45000) returning id into v_sp;
+  insert into public.maintenance_purchase_orders (company_id, vehicle_id, po_date, service_provider, amount_tzs)
+  values ('11111111-1111-1111-1111-111111111111', veh, current_date, 'Mwanza Auto Garage', 210000) returning id into v_po;
+  -- Invoice: labour plus parts, approved by the fleet manager then the HOD.
+  insert into public.maintenance_invoices (company_id, vehicle_id, invoice_number, invoice_date, service_provider, labour_tzs, parts_tzs, status)
+  values ('11111111-1111-1111-1111-111111111111', veh, 'INV-778', current_date, 'Mwanza Auto Garage', 120000, 90000, 'submitted') returning id into v_inv;
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m40: job card days and km in the garage', (select days_in_garage from public.maintenance_costs where id = v_jc) = 3 and (select km_in_garage from public.maintenance_costs where id = v_jc) = 12);
+  perform pg_temp.check('m40: spare part cost is parts times unit price', (select cost_tzs from public.maintenance_spare_parts where id = v_sp) = 90000);
+  perform pg_temp.check('m40: purchase orders are numbered and unpaid at first', (select po_number like 'PO-%-0001' and payment_status = 'unpaid' from public.maintenance_purchase_orders where id = v_po));
+  perform pg_temp.check('m40: invoice amount is labour plus parts', (select amount_tzs from public.maintenance_invoices where id = v_inv) = 210000);
+  perform pg_temp.check('m40: a coordinator''s invoice waits for the fleet manager', (select coalesce(approval_step, 'approval') from public.maintenance_invoices where id = v_inv) = 'approval');
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  perform public.approve_request('maintenance_invoices', v_inv);
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m40: the invoice goes to the HOD', (select approval_step from public.maintenance_invoices where id = v_inv) = 'hod_approval');
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000004');
+  perform public.approve_request('maintenance_invoices', v_inv);
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m40: the HOD approves the invoice', (select status from public.maintenance_invoices where id = v_inv) = 'approved');
+  perform pg_temp.check('m40: invoice summary for messages', public.workflow_request_summary('maintenance_invoices', v_inv) ->> 'path' = '/expenses/maintenance/costs/invoices/' || v_inv);
+
+  delete from public.maintenance_invoices where id = v_inv;
+  delete from public.maintenance_purchase_orders where id = v_po;
+  delete from public.maintenance_spare_parts where id = v_sp;
+  delete from public.maintenance_costs where id = v_jc;
+  delete from public.maintenance_work_orders where id in (v_wo, v_wo2);
+end $m40$;
 
 select 'ALL TESTS PASSED' as result;

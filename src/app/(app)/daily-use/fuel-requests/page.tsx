@@ -8,5 +8,5 @@ export default async function Page({ searchParams }: PageProps<"/daily-use/fuel-
   const sp = await searchParams;
   if (!sp.vehicle) return <DailyUseHub kind="fuel_log" searchParams={sp} />;
   const def = getModule("daily_use.fuel_log");
-  return <VehicleRecordsPage moduleKey="daily_use.fuel_log" searchParams={sp} dateColumn="request_date" monthly hubHref="/daily-use/fuel-requests" hubLabel={t(def.title)} />;
+  return <VehicleRecordsPage moduleKey="daily_use.fuel_log" searchParams={sp} dateColumn="request_date" monthly landOnMonth hubHref="/daily-use/fuel-requests" hubLabel={t(def.title)} />;
 }

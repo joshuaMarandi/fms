@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shell/page-header";
 import { RecordTitle } from "@/components/modules/record-title";
 import { ModuleTable } from "@/components/modules/module-table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { UrlTabs } from "./url-tabs";
 import { RecordsFilter } from "./records-filter";
 import { HubSummary } from "./vehicle-hub";
 import { isPeriod, monthRange, periodRange, yearRange } from "./periods";
@@ -22,8 +23,36 @@ const n = (v: unknown) => (v === null || v === undefined || v === "" ? 0 : Numbe
 type Row = Record<string, unknown> & { id: string };
 type Tile = { label: string; value: string; sub?: string; tone?: "danger" | "warning" };
 
+/** Maintenance and repair: the tabs of a vehicle's month, in order, with the date each is filed by. */
+const MAINT_TABS = [
+  { tab: "work_orders", module: "expenses.maintenance.work_orders", date: "order_date", label: "maint.tab.work_orders" },
+  { tab: "job_cards", module: "expenses.maintenance.costs", date: "cost_date", label: "maint.tab.job_cards" },
+  { tab: "spare_parts", module: "expenses.maintenance.spare_parts", date: "part_date", label: "maint.tab.spare_parts" },
+  { tab: "invoices", module: "expenses.maintenance.invoices", date: "invoice_date", label: "maint.tab.invoices" },
+  { tab: "purchase_orders", module: "expenses.maintenance.purchase_orders", date: "po_date", label: "maint.tab.purchase_orders" },
+] as const;
+
+type Supa = Awaited<ReturnType<typeof createClient>>;
+
+/** Rows of another module for the same vehicle and dates (with their attached documents). */
+async function loadModuleRows(supabase: Supa, moduleKey: string, vehicle: string | null, range: { from: string; to: string } | null, dateColumn: string) {
+  const m = getModule(moduleKey);
+  let q = supabase.from(m.table).select(m.list.select).is("deleted_at", null);
+  if (vehicle) q = q.eq("vehicle_id", vehicle);
+  if (range) q = q.gte(dateColumn, range.from).lte(dateColumn, range.to);
+  if (m.list.orderBy) q = q.order(m.list.orderBy.column, { ascending: m.list.orderBy.ascending ?? true });
+  const { data, error } = await q.limit(1000);
+  const rows = ((data ?? []) as unknown as Row[]).map((r) => (m.list.derive ? { ...r, ...m.list.derive(r) } : r));
+  const docsCol = m.list.columns.find((c) => c.type === "docs");
+  if (docsCol && rows.length) {
+    const docs = await loadDocs(m.table, rows.map((r) => r.id));
+    for (const r of rows) r[docsCol.key] = docs.get(r.id) ?? [];
+  }
+  return { rows, error: error?.message ?? null };
+}
+
 /** Summary cards above the records, for the kinds that have them. */
-function summaryFor(moduleKey: string, rows: Row[]): Tile[] | null {
+function summaryFor(moduleKey: string, rows: Row[], extra: Record<string, Row[]> = {}): Tile[] | null {
   switch (moduleKey) {
     case "inspections.daily":
     case "inspections.weekly": {
@@ -70,14 +99,15 @@ function summaryFor(moduleKey: string, rows: Row[]): Tile[] | null {
       ];
     }
     case "expenses.maintenance.costs": {
-      // Maintenance and repair records of one vehicle and month: work orders, job cards, spare parts, PM and CR cost.
+      // One vehicle and month: work orders, job cards, spare parts, and the labour cost of PM and CR job cards.
       const cost = (w: string) => rows.filter((r) => r.work_type === w).reduce((s, r) => s + n(r.cost_tzs), 0);
+      const parts = extra.spare_parts ?? [];
       return [
-        { label: t("maint.work_orders"), value: formatNumber(rows.length), sub: t("records.tile.in_period") },
-        { label: t("maint.job_cards"), value: "—", sub: t("maint.not_set_up") },
-        { label: t("maint.spare_parts"), value: "—", sub: t("maint.not_set_up") },
-        { label: t("maint.pm_cost"), value: formatTzs(cost("maintenance")), sub: t("records.tile.in_period") },
-        { label: t("maint.cr_cost"), value: formatTzs(cost("repairs")), sub: t("records.tile.in_period") },
+        { label: t("maint.work_orders"), value: formatNumber((extra.work_orders ?? []).length), sub: t("records.tile.in_period") },
+        { label: t("maint.job_cards"), value: formatNumber(rows.length), sub: t("maint.pm_cr_count", { pm: rows.filter((r) => r.work_type === "maintenance").length, cr: rows.filter((r) => r.work_type === "repairs").length }) },
+        { label: t("maint.spare_parts"), value: formatTzs(parts.reduce((s, r) => s + n(r.cost_tzs), 0)), sub: t("maint.parts_count", { count: parts.length }) },
+        { label: t("maint.pm_cost"), value: formatTzs(cost("maintenance")), sub: t("maint.labour_in_period") },
+        { label: t("maint.cr_cost"), value: formatTzs(cost("repairs")), sub: t("maint.labour_in_period") },
       ];
     }
     case "expenses.maintenance.costs.maintenance":
@@ -108,7 +138,10 @@ export async function VehicleRecordsPage({
   yearly = false,
   hubHref,
   hubLabel,
+  landOnMonth = false,
 }: {
+  /** With no dates in the address, show the current month (months first in the filter). */
+  landOnMonth?: boolean;
   moduleKey: string;
   searchParams: Record<string, string | string[] | undefined>;
   dateColumn: string;
@@ -119,7 +152,7 @@ export async function VehicleRecordsPage({
   hubLabel: string;
 }) {
   const def = getModule(moduleKey);
-  await requirePermission(def.resource, "view");
+  const session = await requirePermission(def.resource, "view");
   const supabase = await createClient();
   const today = todayISO();
 
@@ -130,7 +163,10 @@ export async function VehicleRecordsPage({
   const periodParam = one(searchParams.period);
   const period = isPeriod(periodParam) ? periodParam : null;
   const monthParam = one(searchParams.month);
-  const month = monthly && !period && monthParam && /^\d{4}-\d{2}$/.test(monthParam) ? monthParam : null;
+  const fromParam0 = one(searchParams.from);
+  const toParam0 = one(searchParams.to);
+  const noDates = !period && !monthParam && !fromParam0 && !toParam0 && periodParam !== "all";
+  const month = monthly && !period && monthParam && /^\d{4}-\d{2}$/.test(monthParam) ? monthParam : monthly && landOnMonth && noDates ? today.slice(0, 7) : null;
   const yearParam = one(searchParams.year);
   const year = yearly && !period && yearParam && /^\d{4}$/.test(yearParam) ? Number(yearParam) : null;
   const fromParam = one(searchParams.from);
@@ -152,6 +188,17 @@ export async function VehicleRecordsPage({
     supabase.from("vehicles").select("id, registration, make, model").is("deleted_at", null).order("registration"),
   ]);
   const rows = ((data ?? []) as unknown as Row[]).map((r) => (def.list.derive ? { ...r, ...def.list.derive(r) } : r));
+  // Maintenance and repair: the other tabs of the same vehicle and dates.
+  const isMaint = def.key === "expenses.maintenance.costs";
+  const extra: Record<string, Row[]> = {};
+  const extraErrors: string[] = [];
+  if (isMaint) {
+    const loaded = await Promise.all(MAINT_TABS.filter((x) => x.module !== def.key).map(async (x) => [x.tab, await loadModuleRows(supabase, x.module, vehicle, range, x.date)] as const));
+    for (const [tab, res] of loaded) {
+      extra[tab] = res.rows;
+      if (res.error) extraErrors.push(res.error);
+    }
+  }
 
   // Attached documents, for a "docs" column (viewed in a dialog from the table).
   const shownColumns = details && def.list.detailColumns ? def.list.detailColumns : def.list.columns;
@@ -194,7 +241,7 @@ export async function VehicleRecordsPage({
           : t("hub.all_time");
   const title = current ? `${current.registration} · ${t(def.title)}` : t(def.title);
   const description = [current ? `${current.make} ${current.model}` : t("hub.all_vehicles"), whenLabel].filter(Boolean).join(" · ");
-  const tiles = details ? null : summaryFor(def.key, rows);
+  const tiles = details ? null : summaryFor(def.key, rows, extra);
   const table = <ModuleTable moduleKey={def.key} rows={rows} variant={details ? "details" : "list"} hiddenColumns={vehicle && !def.list.keepVehicleColumn ? ["vehicle.registration"] : []} dateFilter={false} />;
 
   return (
@@ -228,24 +275,42 @@ export async function VehicleRecordsPage({
         hasDetails={!!def.list.detailColumns}
         currentYear={cy}
         currentMonth={cm}
+        landOnMonth={landOnMonth}
       />
       {tiles ? <HubSummary tiles={tiles} /> : null}
       {error ? <p className="rounded-lg bg-danger-bg p-3 text-sm text-danger">{error.message}</p> : null}
-      {def.key === "expenses.maintenance.costs" ? (
-        <Tabs defaultValue="work_orders" className="space-y-4">
+      {isMaint ? (
+        <UrlTabs tabs={MAINT_TABS.map((x) => x.tab)} defaultTab="work_orders" className="space-y-4">
           <TabsList className="flex w-full flex-wrap justify-start overflow-x-auto">
-            <TabsTrigger value="work_orders">{t("maint.tab.work_orders")}</TabsTrigger>
-            <TabsTrigger value="job_cards">{t("maint.tab.job_cards")}</TabsTrigger>
-            <TabsTrigger value="spare_parts">{t("maint.tab.spare_parts")}</TabsTrigger>
+            {MAINT_TABS.map((x) => (
+              <TabsTrigger key={x.tab} value={x.tab}>
+                {t(x.label)} <span className="ml-1 text-xs text-muted-foreground tabular-nums">{x.module === def.key ? rows.length : (extra[x.tab] ?? []).length}</span>
+              </TabsTrigger>
+            ))}
           </TabsList>
-          <TabsContent value="work_orders">{table}</TabsContent>
-          <TabsContent value="job_cards">
-            <p className="page-card p-6 text-sm text-muted-foreground">{t("maint.job_cards_empty")}</p>
-          </TabsContent>
-          <TabsContent value="spare_parts">
-            <p className="page-card p-6 text-sm text-muted-foreground">{t("maint.spare_parts_empty")}</p>
-          </TabsContent>
-        </Tabs>
+          {extraErrors.length ? <p className="rounded-lg bg-danger-bg p-3 text-sm text-danger">{extraErrors[0]}</p> : null}
+          {MAINT_TABS.map((x) => {
+            const m = getModule(x.module);
+            const tabRows = x.module === def.key ? rows : (extra[x.tab] ?? []);
+            // New records for this vehicle (dated in the chosen month when it is not this month).
+            const dateHint = month && month !== today.slice(0, 7) ? `&date=${month}-01` : "";
+            const newHref = vehicle ? `${m.path}/new?vehicle=${vehicle}${dateHint}` : `${m.path}/new`;
+            return (
+              <TabsContent key={x.tab} value={x.tab} className="space-y-3">
+                {session.can(m.resource, "create") ? (
+                  <div className="flex justify-end">
+                    <Button asChild className="h-10">
+                      <Link href={newHref}>
+                        <Plus /> {t(m.newLabel)}
+                      </Link>
+                    </Button>
+                  </div>
+                ) : null}
+                <ModuleTable moduleKey={m.key} rows={tabRows} variant="list" hiddenColumns={vehicle ? ["vehicle.registration"] : []} dateFilter={false} />
+              </TabsContent>
+            );
+          })}
+        </UrlTabs>
       ) : (
         table
       )}

@@ -501,7 +501,10 @@ function FieldRenderer({ field: f, form, ctx, disabled, recordId, schema, prefix
       );
     case "signature":
       return wrap(
-        <Controller control={form.control} name={name} render={({ field }) => <SignatureField id={id} value={field.value as SignatureValue | null} onChange={field.onChange} disabled={isDisabled} />} />,
+        <Controller control={form.control} name={name} render={({ field }) => (
+              <SignatureField id={id} value={field.value as SignatureValue | null} onChange={field.onChange} disabled={isDisabled} signer={f.signer ? { name: f.signer(scopeValues, ctx) } : undefined} />
+            )}
+          />,
         { noLabel: false },
       );
     case "auto": {

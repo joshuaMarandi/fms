@@ -6,6 +6,7 @@ import { StatusChip } from "@/components/patterns/status-chip";
 import { SignatureSummary, type SignatureValue } from "@/components/patterns/signature-field";
 import { JmpReviewPanel, type JmpReview } from "@/components/modules/jmp-review-panel";
 import { AttachmentsBox } from "@/components/patterns/attachments-box";
+import { WorkOrderEmail } from "@/components/modules/work-order-email";
 import { HubSummary } from "@/components/hub/vehicle-hub";
 import { loadDocs } from "@/lib/data/docs";
 import { SummaryDates } from "@/components/hub/daily-use-hub";
@@ -270,6 +271,19 @@ export async function DetailExtra({ name, record }: { name: string; record: Reco
             />
           ) : null}
         </div>
+      );
+    }
+    case "work_order_email": {
+      // Send the work order to the service provider by email.
+      if (!record.id) return null;
+      return (
+        <WorkOrderEmail
+          id={record.id as string}
+          email={(record.provider_email as string | null) ?? null}
+          emailedAt={(record.emailed_at as string | null) ?? null}
+          emailedTo={(record.emailed_to as string | null) ?? null}
+          canSend={session.can("expenses.maintenance.costs", "edit") || session.can("expenses.maintenance.costs", "create")}
+        />
       );
     }
     case "leave_balance": {

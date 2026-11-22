@@ -48,7 +48,14 @@ export type Field =
   | (Base & { control: "checkbox" })
   | (Base & { control: "switch" })
   | (Base & { control: "checkbox_group"; options: Option[]; columns?: 1 | 2 | 3 })
-  | (Base & { control: "signature" })
+  | (Base & {
+      control: "signature";
+      /**
+       * Someone else signs here (not the person filling in the form): the box is not signed with the
+       * user's kept signature, a drawing is not kept as theirs, and the name is this person's.
+       */
+      signer?: (values: Record<string, unknown>, ctx: FormComputeContext) => string | null;
+    })
   | (Base & { control: "auto"; compute?: (values: Record<string, unknown>, ctx: FormComputeContext) => unknown; format?: "number" | "tzs" | "date" | "text" | "km" | "litres" | "hours"; digits?: number })
   | (Base & { control: "file"; bucket: string; multiple?: boolean; labels?: string[]; sensitive?: boolean })
   | (Base & {

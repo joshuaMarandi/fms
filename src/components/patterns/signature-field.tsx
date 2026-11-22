@@ -52,7 +52,10 @@ export function SignatureField({
   disabled,
   label,
   id,
+  signer,
 }: {
+  /** Someone else signs here: no kept signature, and the drawing is not kept as the user's. */
+  signer?: { name: string | null };
   value: SignatureValue | null | undefined;
   onChange: (v: SignatureValue | null) => void;
   disabled?: boolean;
@@ -67,11 +70,16 @@ export function SignatureField({
   const [redraw, setRedraw] = React.useState(false);
   const filled = React.useRef(false);
 
-  const base = React.useCallback(() => ({ name: session.fullName, user_id: session.userId, signed_at: new Date().toISOString() }), [session.fullName, session.userId]);
+  const other = !!signer;
+  const signerName = signer?.name ?? "";
+  const base = React.useCallback(
+    () => (other ? { name: signerName, user_id: "", signed_at: new Date().toISOString() } : { name: session.fullName, user_id: session.userId, signed_at: new Date().toISOString() }),
+    [other, signerName, session.fullName, session.userId],
+  );
 
   // Sign with the kept signature when the box is empty.
   React.useEffect(() => {
-    if (!session.userId) return;
+    if (!session.userId || other) return;
     let active = true;
     keptSignature(session.userId).then((image) => {
       if (!active) return;
@@ -86,7 +94,7 @@ export function SignatureField({
     };
     // Only when the person or the box changes, not on every value change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session.userId, disabled]);
+  }, [session.userId, disabled, other]);
 
   function pos(e: React.PointerEvent<HTMLCanvasElement>) {
     const canvas = canvasRef.current!;
@@ -120,8 +128,8 @@ export function SignatureField({
     if (canvasRef.current) {
       const image = canvasRef.current.toDataURL("image/png");
       onChange({ method: "draw", ...base(), image });
-      // Kept for next time (the first drawing, or a new one that replaces it).
-      if (session.userId) {
+      // Kept for next time (the first drawing, or a new one that replaces it); not someone else's.
+      if (session.userId && !other) {
         setSaved(image);
         keepSignature(session.userId, image);
       }
@@ -197,7 +205,7 @@ export function SignatureField({
             <span>
               {t("signature.tick")}
               <span className="block text-xs text-muted-foreground">
-                {session.fullName} · {formatDate(value?.signed_at ?? new Date(), true)}
+                {other ? signerName || t("signature.the_person") : session.fullName} · {formatDate(value?.signed_at ?? new Date(), true)}
               </span>
             </span>
           </label>

@@ -47,7 +47,7 @@ insert into public.resources (key, parent_key, name, label_prefix, path, icon, s
   ('expenses.trainings.mandatory', 'fleet_safety', 'Mandatory training records', null, '/expenses/trainings/mandatory', null, 305, true, false),
   ('expenses.admin', null, 'Fleet administration', '6', '/administration', 'building', 500, false, true),
   ('expenses.admin.roster', 'expenses.admin', 'Fleet roster', null, '/administration/roster', null, 551, false, false),
-  ('expenses.timesheet', 'expenses.admin', 'Timesheet', null, '/expenses/timesheet', 'clock', 552, false, false),
+  ('expenses.timesheet', 'expenses.admin', 'Timesheet', null, '/expenses/timesheet', 'clock', 552, false, true),
   ('expenses.leave', 'expenses.admin', 'Annual leave', 'h', null, 'calendar-days', 559, false, true),
   ('expenses.leave.plan', 'expenses.admin', 'Leave plan', null, '/expenses/leave/plan', null, 553, false, false),
   ('expenses.leave.requests', 'expenses.admin', 'Leave requests and records', null, '/expenses/leave/requests', null, 554, false, true),
@@ -209,6 +209,8 @@ begin
   perform pg_temp.grant_role(hod, 'expenses.leave.requests.hod', array['view', 'approve']);
   perform pg_temp.grant_role(hod, 'expenses.admin.outstation.hod', array['view', 'approve']);
   perform pg_temp.grant_role(hod, 'expenses.admin.petty_cash.hod', array['view', 'approve']);
+  perform pg_temp.grant_role(hod, 'expenses.timesheet.hod', array['view', 'approve']);
+  perform pg_temp.grant_role(hod, 'expenses.maintenance.costs.hod', array['view', 'approve']);
   perform pg_temp.grant_role(hod, 'expenses.reports', array['view', 'export']);
 
   -- Driver: own data only.
@@ -581,7 +583,7 @@ end $$;
 -- Timesheets for the last two months for the two driver users
 insert into public.timesheets (id, company_id, driver_id, employee_id, employee_name, employer, employment_number, job_title, department, period_month, status, created_by)
 select gen_random_uuid(), '11111111-1111-1111-1111-111111111111', d.id, d.profile_id, d.full_name, d.employer, d.employment_number, d.job_title, d.department,
-  (date_trunc('month', current_date) - (interval '1 month' * n))::date, 'completed', d.profile_id
+  (date_trunc('month', current_date) - (interval '1 month' * n))::date, 'draft', '33333333-3333-3333-3333-000000000003'
 from public.drivers d cross join generate_series(1, 2) n where d.profile_id is not null;
 
 -- Day, noon and night shifts in turn (each 8 h with a one-hour rest), Sundays off, one absent day.
@@ -596,6 +598,24 @@ select t.company_id, t.id, dd::date,
 from public.timesheets t
 cross join lateral generate_series(t.period_month, (t.period_month + interval '1 month' - interval '1 day')::date, interval '1 day') dd
 where extract(dow from dd) <> 0;
+
+-- Timesheets: sent by the coordinator; last month approved by the fleet manager and the HOD,
+-- the month before waits for the HOD.
+do $$
+declare r record;
+begin
+  perform set_config('request.jwt.claim.sub', '33333333-3333-3333-3333-000000000003', true);
+  update public.timesheets set status = 'submitted';
+  for r in select id, period_month from public.timesheets loop
+    perform set_config('request.jwt.claim.sub', '33333333-3333-3333-3333-000000000002', true);
+    perform public.approve_request('timesheets', r.id);
+    if r.period_month = (date_trunc('month', current_date) - interval '1 month')::date then
+      perform set_config('request.jwt.claim.sub', '33333333-3333-3333-3333-000000000004', true);
+      perform public.approve_request('timesheets', r.id);
+    end if;
+  end loop;
+  perform set_config('request.jwt.claim.sub', '', true);
+end $$;
 
 -- Leave
 insert into public.leave_balances (company_id, driver_id, employee_id, balance_year, entitled_days, carried_over_days)

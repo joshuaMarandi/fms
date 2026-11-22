@@ -22,6 +22,14 @@ export const STAGED_STEPS: Record<string, ApprovalStep[]> = {
     { step: "approval", label: "approval.step.fleet_manager", resource: "expenses.admin.petty_cash" },
     { step: "hod_verify", label: "approval.step.hod_verify", resource: "expenses.admin.petty_cash.hod" },
   ],
+  timesheets: [
+    { step: "approval", label: "approval.step.fleet_manager", resource: "expenses.timesheet" },
+    { step: "hod_approval", label: "approval.step.hod_approval", resource: "expenses.timesheet.hod" },
+  ],
+  maintenance_invoices: [
+    { step: "approval", label: "approval.step.fleet_manager", resource: "expenses.maintenance.costs" },
+    { step: "hod_approval", label: "approval.step.hod_approval", resource: "expenses.maintenance.costs.hod" },
+  ],
 };
 
 /** Tables whose approval sends email and SMS links. */

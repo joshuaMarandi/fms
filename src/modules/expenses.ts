@@ -78,6 +78,44 @@ export const fuelExpenses: ModuleDef = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Maintenance and repair, per vehicle and month: work orders, job cards, spare parts, invoices and
+// purchase orders. Every record shows the vehicle's make and model and its latest odometer.
+// ---------------------------------------------------------------------------
+type VehicleCtx = { options: { vehicles?: Record<string, unknown>[] } };
+const maintVehicle = (v: Record<string, unknown>, ctx: VehicleCtx) => (ctx.options.vehicles ?? []).find((o) => o.value === v.vehicle_id);
+const maintVehicleFields: Field[] = [
+  { ...vehicleField, label: "fleet.reg" },
+  {
+    name: "vehicle_make_model",
+    label: "fleet.make_model",
+    control: "auto",
+    format: "text",
+    compute: (v, ctx) => {
+      const x = maintVehicle(v, ctx);
+      return x ? `${x.make ?? ""} ${x.model ?? ""}`.trim() : null;
+    },
+  },
+  { name: "vehicle_odometer", label: "maint.latest_odometer", control: "auto", format: "km", compute: (v, ctx) => (maintVehicle(v, ctx)?.odometer_km as number | null | undefined) ?? null },
+];
+const MAINT_TYPES: Option[] = [
+  { value: "maintenance", label: "expenses.maintenance.work_type.maintenance" },
+  { value: "repairs", label: "expenses.maintenance.work_type.repairs" },
+];
+const PAYMENT_STATUS: Option[] = [
+  { value: "unpaid", label: "maint.payment.unpaid" },
+  { value: "partly_paid", label: "maint.payment.partly_paid" },
+  { value: "paid", label: "maint.payment.paid" },
+];
+const daysBetween = (a: unknown, b: unknown) => {
+  if (!a || !b) return null;
+  const d = Math.round((new Date(`${b}T00:00:00`).getTime() - new Date(`${a}T00:00:00`).getTime()) / 86400000);
+  return Number.isNaN(d) || d < 0 ? null : d;
+};
+const vehicleTitle = (r: Record<string, unknown>, date: unknown, ref?: unknown) =>
+  [ref, (r.vehicle as { registration?: string } | undefined)?.registration, date].filter((x) => x !== null && x !== undefined && x !== "").join(" ");
+
+/** Job card: the work carried out on a vehicle (preventive or corrective) and its labour cost. */
 export const maintenanceCosts: ModuleDef = {
   key: "expenses.maintenance.costs",
   path: "/expenses/maintenance/costs",
@@ -85,39 +123,44 @@ export const maintenanceCosts: ModuleDef = {
   table: "maintenance_costs",
   title: "expenses.maintenance.costs.title",
   description: "expenses.maintenance.costs.description",
-  newLabel: "expenses.maintenance.costs.new",
-  exportName: "maintenance-costs",
+  newLabel: "maint.job_cards.new",
+  exportName: "job-cards",
   optionSources: ["vehicles"],
-  titleOf: (r) => `${(r.vehicle as { registration?: string } | undefined)?.registration ?? ""} ${r.cost_date ?? ""}`.trim(),
+  titleOf: (r) => vehicleTitle(r, r.cost_date),
   schema: {
     table: "maintenance_costs",
     resource: "expenses.maintenance.costs",
     sections: [
       {
         fields: [
-          vehicleField,
+          ...maintVehicleFields,
           { name: "cost_date", label: "common.date", control: "date", required: true },
-          { name: "odometer_km", label: "expenses.maintenance.odometer", control: "number", min: 0, unit: "km" },
-          {
-            name: "work_type",
-            label: "expenses.maintenance.work_type",
-            control: "radio",
-            required: true,
-            inline: true,
-            options: [
-              { value: "maintenance", label: "expenses.maintenance.work_type.maintenance" },
-              { value: "repairs", label: "expenses.maintenance.work_type.repairs" },
-            ],
-          },
-          { name: "service_provider", label: "expenses.maintenance.provider", control: "text", required: true },
-          { name: "activities", label: "expenses.maintenance.activities", control: "textarea", required: true },
-          { name: "cost_tzs", label: "expenses.maintenance.cost", control: "number", min: 0, unit: "TZS", required: true },
+          { name: "work_type", label: "maint.maintenance_type", control: "radio", required: true, inline: true, options: MAINT_TYPES },
+          { name: "activities", label: "maint.work_carried_out", control: "textarea", required: true },
+          { name: "cost_tzs", label: "maint.labour_cost", control: "number", min: 0, unit: "TZS", required: true },
+          { name: "service_provider", label: "expenses.maintenance.provider", control: "text" },
+        ],
+      },
+      {
+        title: "maint.garage_stay",
+        fields: [
+          { name: "date_in", label: "maint.date_in", control: "date" },
+          { name: "date_out", label: "maint.date_out", control: "date" },
+          { name: "days_in_garage", label: "maint.days_in_garage", control: "auto", format: "number", digits: 0, compute: (v) => daysBetween(v.date_in, v.date_out) },
+          { name: "km_in", label: "maint.km_in", control: "number", min: 0, unit: "km" },
+          { name: "km_out", label: "maint.km_out", control: "number", min: 0, unit: "km" },
+          { name: "km_in_garage", label: "maint.km_in_garage", control: "auto", format: "km", compute: (v) => safe(num(v.km_out) - num(v.km_in)) },
+        ],
+      },
+      {
+        title: "common.attachments",
+        fields: [
           {
             name: "docs",
             label: "common.attachments",
             control: "file",
             bucket: "forms",
-            labels: ["expenses.maintenance.doc.ppm_checklist", "expenses.maintenance.doc.works_order", "expenses.maintenance.doc.repair_estimate", "expenses.maintenance.doc.purchase_order"],
+            labels: ["expenses.maintenance.doc.job_card", "expenses.maintenance.doc.ppm_checklist", "expenses.maintenance.doc.repair_estimate"],
           },
         ],
       },
@@ -129,11 +172,199 @@ export const maintenanceCosts: ModuleDef = {
     searchKeys: ["vehicle.registration", "service_provider", "activities"],
     columns: [
       { key: "cost_date", header: "common.date", type: "date" },
-      { key: "vehicle.registration", header: "inspections.vehicle" },
-      { key: "work_type", header: "expenses.maintenance.work_type", type: "label", options: [{ value: "maintenance", label: "maint.short.pm" }, { value: "repairs", label: "maint.short.cr" }] },
+      { key: "vehicle.registration", header: "fleet.reg" },
+      { key: "work_type", header: "maint.maintenance_type", type: "label", options: MAINT_TYPES },
+      { key: "activities", header: "maint.work_carried_out", type: "multiline" },
+      { key: "cost_tzs", header: "maint.labour_cost", type: "tzs" },
+    ],
+  },
+};
+
+/** Work order: the job asked of a service provider, sent to them by email. */
+export const maintenanceWorkOrders: ModuleDef = {
+  key: "expenses.maintenance.work_orders",
+  path: "/expenses/maintenance/costs/work-orders",
+  resource: "expenses.maintenance.costs",
+  table: "maintenance_work_orders",
+  title: "maint.work_orders.title",
+  description: "maint.work_orders.description",
+  newLabel: "maint.work_orders.new",
+  exportName: "work-orders",
+  optionSources: ["vehicles"],
+  detailExtra: "work_order_email",
+  titleOf: (r) => vehicleTitle(r, r.order_date, r.order_number),
+  schema: {
+    table: "maintenance_work_orders",
+    resource: "expenses.maintenance.costs",
+    omitOnSave: ["emailed_at", "emailed_to"],
+    sections: [
+      {
+        fields: [
+          ...maintVehicleFields,
+          { name: "order_number", label: "maint.order_id", control: "text", description: "maint.order_id_hint" },
+          { name: "order_date", label: "maint.order_date", control: "date", required: true },
+          { name: "description", label: "maint.description", control: "textarea", required: true },
+          { name: "service_provider", label: "expenses.maintenance.provider", control: "text", required: true },
+          { name: "provider_email", label: "maint.work_orders.provider_email", control: "email", description: "maint.work_orders.provider_email_hint" },
+        ],
+      },
+    ],
+  },
+  list: {
+    select: "*, vehicle:vehicles(registration)",
+    orderBy: { column: "order_date", ascending: false },
+    searchKeys: ["order_number", "vehicle.registration", "service_provider", "description"],
+    columns: [
+      { key: "order_number", header: "maint.order_id" },
+      { key: "order_date", header: "maint.order_date", type: "date" },
+      { key: "vehicle.registration", header: "fleet.reg" },
+      { key: "description", header: "maint.description", type: "multiline" },
       { key: "service_provider", header: "expenses.maintenance.provider" },
-      { key: "odometer_km", header: "expenses.maintenance.odometer", type: "km" },
-      { key: "cost_tzs", header: "expenses.maintenance.cost", type: "tzs" },
+      { key: "emailed_at", header: "maint.work_orders.emailed", type: "datetime" },
+    ],
+  },
+};
+
+/** Spare parts bought for a vehicle: parts times unit price. */
+export const maintenanceSpareParts: ModuleDef = {
+  key: "expenses.maintenance.spare_parts",
+  path: "/expenses/maintenance/costs/spare-parts",
+  resource: "expenses.maintenance.costs",
+  table: "maintenance_spare_parts",
+  title: "maint.spare_parts.title",
+  description: "maint.spare_parts.description",
+  newLabel: "maint.spare_parts.new",
+  exportName: "spare-parts",
+  optionSources: ["vehicles"],
+  titleOf: (r) => vehicleTitle(r, r.part_date, r.description),
+  schema: {
+    table: "maintenance_spare_parts",
+    resource: "expenses.maintenance.costs",
+    sections: [
+      {
+        fields: [
+          ...maintVehicleFields,
+          { name: "part_date", label: "common.date", control: "date", required: true },
+          { name: "description", label: "maint.description", control: "text", required: true },
+          { name: "quantity", label: "maint.parts", control: "number", min: 0.01, step: 0.01, required: true },
+          { name: "unit_price_tzs", label: "maint.unit_price", control: "number", min: 0, unit: "TZS", required: true },
+          { name: "cost_tzs", label: "maint.cost", control: "auto", format: "tzs", compute: (v) => safe(num(v.quantity) * num(v.unit_price_tzs)) },
+        ],
+      },
+    ],
+  },
+  list: {
+    select: "*, vehicle:vehicles(registration)",
+    orderBy: { column: "part_date", ascending: false },
+    searchKeys: ["description", "vehicle.registration"],
+    columns: [
+      { key: "part_date", header: "common.date", type: "date" },
+      { key: "vehicle.registration", header: "fleet.reg" },
+      { key: "description", header: "maint.description" },
+      { key: "quantity", header: "maint.parts", type: "number" },
+      { key: "unit_price_tzs", header: "maint.unit_price", type: "tzs" },
+      { key: "cost_tzs", header: "maint.cost", type: "tzs" },
+    ],
+  },
+};
+
+/** Invoice from the service provider: labour plus spare parts; approved by the fleet manager, then the HOD. */
+export const maintenanceInvoices: ModuleDef = {
+  key: "expenses.maintenance.invoices",
+  path: "/expenses/maintenance/costs/invoices",
+  resource: "expenses.maintenance.costs",
+  table: "maintenance_invoices",
+  title: "maint.invoices.title",
+  description: "maint.invoices.description",
+  newLabel: "maint.invoices.new",
+  exportName: "maintenance-invoices",
+  optionSources: ["vehicles"],
+  isRequest: true,
+  editableStatuses: ["draft", "rejected"],
+  titleOf: (r) => vehicleTitle(r, r.invoice_date, r.invoice_number),
+  schema: {
+    table: "maintenance_invoices",
+    resource: "expenses.maintenance.costs",
+    isRequest: true,
+    sections: [
+      {
+        fields: [
+          ...maintVehicleFields,
+          { name: "invoice_number", label: "maint.invoice_id", control: "text", required: true },
+          { name: "invoice_date", label: "common.date", control: "date", required: true },
+          { name: "service_provider", label: "expenses.maintenance.provider", control: "text", required: true },
+          { name: "labour_tzs", label: "maint.labour_charge", control: "number", min: 0, unit: "TZS", required: true },
+          { name: "parts_tzs", label: "maint.parts_cost", control: "number", min: 0, unit: "TZS", required: true },
+          { name: "amount_tzs", label: "maint.amount", control: "auto", format: "tzs", compute: (v) => safe((Number.isNaN(num(v.labour_tzs)) ? 0 : num(v.labour_tzs)) + (Number.isNaN(num(v.parts_tzs)) ? 0 : num(v.parts_tzs))) },
+        ],
+      },
+      {
+        title: "maint.doc.invoice",
+        fields: [{ name: "invoice_doc", label: "maint.doc.invoice", control: "file", bucket: "forms", labels: ["maint.doc.invoice"] }],
+      },
+    ],
+  },
+  list: {
+    select: "*, vehicle:vehicles(registration)",
+    orderBy: { column: "invoice_date", ascending: false },
+    searchKeys: ["invoice_number", "vehicle.registration", "service_provider", "status"],
+    statusColumn: "status",
+    columns: [
+      { key: "invoice_number", header: "maint.invoice_id" },
+      { key: "invoice_date", header: "common.date", type: "date" },
+      { key: "vehicle.registration", header: "fleet.reg" },
+      { key: "service_provider", header: "expenses.maintenance.provider" },
+      { key: "labour_tzs", header: "maint.labour_charge", type: "tzs" },
+      { key: "parts_tzs", header: "maint.parts_cost", type: "tzs" },
+      { key: "amount_tzs", header: "maint.amount", type: "tzs" },
+      { key: "status", header: "maint.approval_status", type: "status" },
+    ],
+  },
+};
+
+/** Purchase order to a service provider, with its payment status. */
+export const maintenancePurchaseOrders: ModuleDef = {
+  key: "expenses.maintenance.purchase_orders",
+  path: "/expenses/maintenance/costs/purchase-orders",
+  resource: "expenses.maintenance.costs",
+  table: "maintenance_purchase_orders",
+  title: "maint.purchase_orders.title",
+  description: "maint.purchase_orders.description",
+  newLabel: "maint.purchase_orders.new",
+  exportName: "purchase-orders",
+  optionSources: ["vehicles"],
+  titleOf: (r) => vehicleTitle(r, r.po_date, r.po_number),
+  schema: {
+    table: "maintenance_purchase_orders",
+    resource: "expenses.maintenance.costs",
+    sections: [
+      {
+        fields: [
+          ...maintVehicleFields,
+          { name: "po_number", label: "maint.po_id", control: "text", description: "maint.po_id_hint" },
+          { name: "service_provider", label: "expenses.maintenance.provider", control: "text", required: true },
+          { name: "po_date", label: "maint.po_date", control: "date", required: true },
+          { name: "amount_tzs", label: "maint.po_amount", control: "number", min: 0, unit: "TZS", required: true },
+          { name: "payment_status", label: "maint.payment_status", control: "select", options: PAYMENT_STATUS, required: true },
+        ],
+      },
+      {
+        title: "maint.doc.purchase_order",
+        fields: [{ name: "po_doc", label: "maint.doc.purchase_order", control: "file", bucket: "forms", labels: ["maint.doc.purchase_order"] }],
+      },
+    ],
+  },
+  list: {
+    select: "*, vehicle:vehicles(registration)",
+    orderBy: { column: "po_date", ascending: false },
+    searchKeys: ["po_number", "vehicle.registration", "service_provider", "payment_status"],
+    columns: [
+      { key: "po_number", header: "maint.po_id" },
+      { key: "vehicle.registration", header: "fleet.reg" },
+      { key: "service_provider", header: "expenses.maintenance.provider" },
+      { key: "po_date", header: "maint.po_date", type: "date" },
+      { key: "amount_tzs", header: "maint.po_amount", type: "tzs" },
+      { key: "payment_status", header: "maint.payment_status", type: "label", options: PAYMENT_STATUS },
     ],
   },
 };
@@ -363,15 +594,19 @@ export const timesheets: ModuleDef = {
   newLabel: "expenses.timesheet.new",
   exportName: "timesheets",
   optionSources: ["drivers", "profiles"],
-  // Recorded, not approved: a timesheet can be changed at any time.
+  // Recorded by the coordinator, approved by the fleet manager, then by the HOD. Sent by the fleet
+  // manager, it is already approved by them and goes to the HOD.
+  isRequest: true,
+  editableStatuses: ["draft", "rejected"],
   titleOf: (r) => `${r.employee_name ?? ""} ${r.period_month ? String(r.period_month).slice(0, 7) : ""}`.trim(),
   schema: {
     table: "timesheets",
     resource: "expenses.timesheet",
+    isRequest: true,
     sections: [
       {
         fields: [
-          { name: "employee_id", label: "expenses.timesheet.employee", control: "select", source: "profiles", description: "expenses.employee_hint" },
+          { name: "employee_id", label: "expenses.timesheet.employee", control: "select", source: "profiles", required: true, description: "expenses.timesheet.employee_hint" },
           { name: "employment_number", label: "expenses.timesheet.employment_number", control: "auto", compute: fromEmployee("employment_number") },
           { name: "employer", label: "expenses.timesheet.employer", control: "auto", compute: fromEmployee("employer") },
           { name: "job_title", label: "expenses.timesheet.job_title", control: "auto", compute: fromEmployee("job_title") },
@@ -432,9 +667,17 @@ export const timesheets: ModuleDef = {
       {
         title: "expenses.timesheet.signatures",
         fields: [
-          { name: "employee_signature", label: "expenses.timesheet.driver_signature", control: "signature", required: true },
-          { name: "coordinator_name", label: "expenses.timesheet.coordinator_name", control: "text" },
-          { name: "coordinator_signature", label: "expenses.timesheet.coordinator_signature", control: "signature" },
+          // The employee signs on the coordinator's device: their own signature, not the coordinator's.
+          {
+            name: "employee_signature",
+            label: "expenses.timesheet.driver_signature",
+            control: "signature",
+            required: true,
+            signer: (v, ctx) => ((ctx.options.profiles ?? []).find((o) => o.value === v.employee_id)?.label as string | undefined) ?? null,
+          },
+          // The person who records the timesheet (the coordinator), filled in by the system.
+          { name: "coordinator_name", label: "expenses.timesheet.recorded_by", control: "auto", format: "text", compute: (v, ctx) => (v.coordinator_name as string) || ctx.session.fullName },
+          { name: "coordinator_signature", label: "expenses.timesheet.coordinator_signature", control: "signature", required: true },
         ],
       },
     ],
@@ -442,7 +685,8 @@ export const timesheets: ModuleDef = {
   list: {
     select: "*, days:timesheet_days(day_type, shift, time_in, time_out, break_from, break_to, total_hours, overtime_hours, special_overtime_hours, deleted_at)",
     orderBy: { column: "period_month", ascending: false },
-    searchKeys: ["employee_name", "employment_number", "job_title"],
+    searchKeys: ["employee_name", "employment_number", "job_title", "status"],
+    statusColumn: "status",
     // The Excel summary: days and hours of the month for each employee.
     derive: (r) => {
       const days = ((r.days as { day_type: string; shift: string; time_in: string | null; time_out: string | null; break_from: string | null; break_to: string | null; total_hours: number; overtime_hours: number; special_overtime_hours: number; deleted_at: string | null }[] | null) ?? []).filter((d) => !d.deleted_at);
@@ -468,6 +712,7 @@ export const timesheets: ModuleDef = {
       { key: "holiday_ot", header: "expenses.timesheet.holiday_ot", type: "hours" },
       { key: "night_hours", header: "expenses.timesheet.night_hours", type: "hours" },
       { key: "off_day_hours", header: "expenses.timesheet.off_day_hours", type: "hours" },
+      { key: "status", header: "common.status", type: "status" },
     ],
   },
 };
@@ -602,7 +847,6 @@ export const leaveRequests: ModuleDef = {
           { name: "date_from", label: "expenses.leave.date_from", control: "date", required: true },
           { name: "date_to", label: "expenses.leave.date_to", control: "date", required: true },
           { name: "total_days", label: "expenses.leave.total_days", control: "auto", format: "number", digits: 0, compute: (v) => (v.date_from && v.date_to ? Math.round((new Date(v.date_to as string).getTime() - new Date(v.date_from as string).getTime()) / 86400000) + 1 : null) },
-          { name: "reason", label: "expenses.leave.reason", control: "textarea" },
         ],
       },
     ],

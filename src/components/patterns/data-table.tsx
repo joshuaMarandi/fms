@@ -129,7 +129,7 @@ export function DataTable<T extends Record<string, unknown>>({
   // The page's date picker is in the top bar; this table follows it.
   const inHeader = useHeaderDates(dateFilter && !!dateOf);
   const headerOptions = useHeaderDateOptions();
-  const urlDate = useUrlDateValue(headerOptions.defaultPeriod);
+  const urlDate = useUrlDateValue(headerOptions.defaultPeriod, headerOptions.defaultMonth);
   const dateValue = inHeader ? urlDate : ownDate;
   const rowsInRange = React.useMemo(() => {
     const range = dateFilter && dateOf ? dateValueRange(dateValue) : null;

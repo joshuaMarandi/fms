@@ -31,7 +31,10 @@ export function RecordsFilter({
   hasDetails,
   currentYear,
   currentMonth,
+  landOnMonth = false,
 }: {
+  /** The page lands on the current month: months come first, and "any date" is kept in the address. */
+  landOnMonth?: boolean;
   basePath: string;
   vehicles: { value: string; label: string; keywords?: string[] }[];
   vehicle: string | null;
@@ -93,7 +96,7 @@ export function RecordsFilter({
     else if (date.kind === "range") {
       if (date.from) q.set("from", date.from);
       if (date.to) q.set("to", date.to);
-    }
+    } else if (date.kind === "all" && landOnMonth) q.set("period", "all");
     if (d) q.set("details", "1");
     startNavigationProgress();
     router.push(`${basePath}?${q.toString()}`);
@@ -105,7 +108,7 @@ export function RecordsFilter({
         <SearchSelect id="records-vehicle" value={vehicle && vehicle !== "all" ? vehicle : ""} options={vehicles} placeholder={t("hub.all_vehicles")} onChange={(v) => go({ vehicle: v || null })} />
       </div>
       <InHeader>
-        <DateRangeFilter value={value} onChange={(date) => go({ date })} picks={picks} compact />
+        <DateRangeFilter value={value} onChange={(date) => go({ date })} picks={picks} compact first={landOnMonth && monthly ? "month" : undefined} />
       </InHeader>
       {hasDetails ? (
         <div className="ml-auto flex items-center rounded-lg border bg-card p-0.5" role="group" aria-label={t("hub.view")}>

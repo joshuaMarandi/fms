@@ -8,6 +8,8 @@
 #
 # Applied files are recorded in public.fms_migrations, so running it again only applies new ones.
 # Add --seed-base to also load the production base data (modules, roles, packages).
+# Add --new-seed to also load sample records for the newer features (supabase/new_seed.sql);
+# --remove-new-seed removes that sample again.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -33,8 +35,11 @@ for f in supabase/migrations/*.sql; do
   { echo "begin;"; cat "$f"; echo; echo "insert into public.fms_migrations (name) values ('$name');"; echo "commit;"; } | sql
 done
 
-if [ "${1:-}" = "--seed-base" ]; then
-  echo "load  supabase/seed_base.sql"
-  sql < supabase/seed_base.sql
-fi
+for arg in "$@"; do
+  case "$arg" in
+    --seed-base) echo "load  supabase/seed_base.sql"; sql < supabase/seed_base.sql ;;
+    --new-seed) echo "load  supabase/new_seed.sql"; sql < supabase/new_seed.sql ;;
+    --remove-new-seed) echo "load  supabase/new_seed_remove.sql"; sql < supabase/new_seed_remove.sql ;;
+  esac
+done
 echo "Database up to date."

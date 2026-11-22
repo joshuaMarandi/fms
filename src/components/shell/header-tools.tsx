@@ -10,7 +10,14 @@ import type { PeriodKey } from "@/components/hub/periods";
  * tables) ask for it; the choice lives in the address (period, or from and to), so every part of
  * the page follows the same dates. A page may also put its own control in the top bar (InHeader).
  */
-export type HeaderDateOptions = { defaultPeriod?: PeriodKey; allowAll?: boolean };
+export type HeaderDateOptions = {
+  defaultPeriod?: PeriodKey;
+  allowAll?: boolean;
+  /** Offer one exact date, or one month, first. */
+  first?: "day" | "month";
+  /** With no dates in the address, show the current month. */
+  defaultMonth?: boolean;
+};
 
 type Ctx = {
   requests: Map<number, HeaderDateOptions>;
@@ -47,20 +54,22 @@ export function useHeaderDates(enabled: boolean, options?: HeaderDateOptions): b
   const [id] = React.useState(() => nextId++);
   const defaultPeriod = options?.defaultPeriod;
   const allowAll = options?.allowAll;
+  const first = options?.first;
+  const defaultMonth = options?.defaultMonth;
   const request = ctx?.request;
   const release = ctx?.release;
   React.useEffect(() => {
     if (!enabled || !request || !release) return;
-    request(id, { defaultPeriod, allowAll });
+    request(id, { defaultPeriod, allowAll, first, defaultMonth });
     return () => release(id);
-  }, [enabled, id, request, release, defaultPeriod, allowAll]);
+  }, [enabled, id, request, release, defaultPeriod, allowAll, first, defaultMonth]);
   return enabled && !!ctx;
 }
 
 /** The defaults the page asked for (used to read the dates when the address has none). */
 export function useHeaderDateOptions(): HeaderDateOptions {
   const ctx = React.useContext(HeaderToolsContext);
-  return ctx ? ([...ctx.requests.values()].find((o) => o.defaultPeriod || o.allowAll === false) ?? {}) : {};
+  return ctx ? ([...ctx.requests.values()].find((o) => o.defaultPeriod || o.allowAll === false || o.first || o.defaultMonth) ?? {}) : {};
 }
 
 /** Placed by a page (or its summary): this page is filtered by the date picker in the top bar. */
@@ -86,7 +95,7 @@ export function HeaderToolsSlot() {
     <div className="flex items-center gap-2">
       {ctx && ctx.requests.size > 0 ? (
         <React.Suspense fallback={null}>
-          <UrlDateFilter inHeader defaultPeriod={options.defaultPeriod} allowAll={options.allowAll !== false} />
+          <UrlDateFilter inHeader defaultPeriod={options.defaultPeriod} allowAll={options.allowAll !== false} first={options.first} defaultMonth={options.defaultMonth} />
         </React.Suspense>
       ) : null}
       <div ref={ref} className="flex items-center gap-2 empty:hidden" />

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PERIODS, periodRange, type PeriodKey } from "@/components/hub/periods";
+import { PERIODS, monthRange, periodRange, type PeriodKey } from "@/components/hub/periods";
 import { cn, formatDate, todayISO } from "@/lib/utils";
 import { t } from "@/i18n";
 
@@ -29,10 +29,35 @@ export function dateValueRange(v: DateValue, today = todayISO()): { from: string
   return null;
 }
 
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/** The month (YYYY-MM) a range covers exactly, else null. */
+export function rangeMonth(from: string, to: string): string | null {
+  if (!/^\d{4}-\d{2}-01$/.test(from)) return null;
+  const m = from.slice(0, 7);
+  return monthRange(m).to === to ? m : null;
+}
+
+export function monthLabel(month: string) {
+  return `${MONTH_NAMES[Number(month.slice(5, 7)) - 1]} ${month.slice(0, 4)}`;
+}
+
+/** The last 36 months, newest first, as picks (m:YYYY-MM). */
+export function monthPicks(today = todayISO()): { value: string; label: string }[] {
+  const [y, m] = today.split("-").map(Number) as [number, number];
+  return Array.from({ length: 36 }, (_, i) => {
+    const idx = y * 12 + (m - 1) - i;
+    const month = `${Math.floor(idx / 12)}-${String((idx % 12) + 1).padStart(2, "0")}`;
+    return { value: `m:${month}`, label: monthLabel(month) };
+  });
+}
+
 export function dateValueLabel(v: DateValue) {
   if (v.kind === "all") return t("filter.any_date");
   if (v.kind === "period") return t(`hub.period.${v.period}`);
   if (v.kind === "pick") return v.label;
+  if (v.from && v.to && v.from === v.to) return formatDate(v.from);
+  if (v.from && v.to && rangeMonth(v.from, v.to)) return monthLabel(rangeMonth(v.from, v.to)!);
   if (v.from && v.to) return `${formatDate(v.from)} – ${formatDate(v.to)}`;
   return v.from ? t("filter.since", { date: formatDate(v.from) }) : t("filter.until", { date: formatDate(v.to) });
 }
@@ -44,7 +69,10 @@ export function DateRangeFilter({
   className,
   compact,
   allowAll = true,
+  first,
 }: {
+  /** What the filter offers first: one exact date, or one month (then the other choices). */
+  first?: "day" | "month";
   /** In the top bar: just the icon on phones, the dates on wider screens. */
   compact?: boolean;
   /** Offer "Any date" (and the clear button). */
@@ -65,6 +93,17 @@ export function DateRangeFilter({
     onChange(v);
     setOpen(false);
   };
+  // Month first: the caller's month list, else the last 36 months (chosen as a From and To range).
+  const ownMonths = first === "month" && !picks;
+  const monthList = first === "month" ? (picks ?? { heading: t("filter.month"), options: monthPicks() }) : null;
+  const shownMonth = value.kind === "pick" ? value.value : value.kind === "range" && rangeMonth(value.from, value.to) ? `m:${rangeMonth(value.from, value.to)}` : "";
+  const chooseMonth = (v: string) => {
+    if (ownMonths) {
+      const r = monthRange(v.slice(2));
+      choose({ kind: "range", from: r.from, to: r.to });
+    } else choose({ kind: "pick", value: v, label: monthList?.options.find((o) => o.value === v)?.label ?? v });
+  };
+  const exactDay = value.kind === "range" && value.from && value.from === value.to ? value.from : "";
 
   return (
     <div className={cn("flex items-center", className)}>
@@ -92,6 +131,29 @@ export function DateRangeFilter({
           </Button>
         </PopoverTrigger>
         <PopoverContent align={compact ? "end" : "start"} className="w-[min(92vw,340px)] space-y-3 p-3">
+          {first === "day" ? (
+            <div>
+              <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{t("filter.exact_date")}</p>
+              <Input type="date" value={exactDay} onChange={(e) => (e.target.value ? choose({ kind: "range", from: e.target.value, to: e.target.value }) : undefined)} className="h-9" aria-label={t("filter.exact_date")} />
+            </div>
+          ) : null}
+          {monthList && monthList.options.length ? (
+            <div>
+              <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{monthList.heading}</p>
+              <Select value={shownMonth} onValueChange={chooseMonth}>
+                <SelectTrigger className="h-9 w-full" aria-label={monthList.heading}>
+                  <SelectValue placeholder={t("filter.choose")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {monthList.options.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
           <div>
             <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{t("filter.quick")}</p>
             <div className="grid grid-cols-2 gap-1.5">
@@ -107,7 +169,7 @@ export function DateRangeFilter({
               ))}
             </div>
           </div>
-          {picks && picks.options.length ? (
+          {picks && picks.options.length && first !== "month" ? (
             <div>
               <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{picks.heading}</p>
               <Select value={value.kind === "pick" ? value.value : ""} onValueChange={(v) => choose({ kind: "pick", value: v, label: picks.options.find((o) => o.value === v)?.label ?? v })}>

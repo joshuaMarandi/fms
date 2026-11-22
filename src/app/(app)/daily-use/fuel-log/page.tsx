@@ -6,5 +6,5 @@ import { t } from "@/i18n";
 export default async function Page({ searchParams }: PageProps<"/daily-use/fuel-log">) {
   const sp = await searchParams;
   if (!sp.vehicle) return <DailyUseHub kind="fuel_issues" searchParams={sp} />;
-  return <VehicleRecordsPage moduleKey="daily_use.fuel_issues" searchParams={sp} dateColumn="issue_date" monthly hubHref="/daily-use/fuel-log" hubLabel={t("daily_use.fuel_issues.title")} />;
+  return <VehicleRecordsPage moduleKey="daily_use.fuel_issues" searchParams={sp} dateColumn="issue_date" monthly landOnMonth hubHref="/daily-use/fuel-log" hubLabel={t("daily_use.fuel_issues.title")} />;
 }
