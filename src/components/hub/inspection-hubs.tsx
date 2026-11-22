@@ -6,7 +6,7 @@ import { loadHubVehicles, num, type HubRow } from "./hub-data";
 import { requirePermission, requireSession } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { daysFromNowISO, formatDate, formatNumber, todayISO } from "@/lib/utils";
-import { SummaryDates } from "./daily-use-hub";
+import { HeaderDates } from "@/components/shell/header-tools";
 import { rangeFromParams } from "@/lib/date-range";
 import { t } from "@/i18n";
 
@@ -84,8 +84,8 @@ const DAILY_COLUMNS: HubColumn[] = [
 
 /** Daily pre-start inspections: every vehicle with its last inspection, actions and skipped days. */
 export async function DailyInspectionHub({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> } = {}) {
-  const range = rangeFromParams(searchParams);
-  const when = range?.label ?? t("hub.all_time");
+  // Lands on the current month; other dates (or any date) from the filter.
+  const range = rangeFromParams(searchParams, { defaultMonth: true });
   const session = await requirePermission("inspections.daily", "view");
   if (session.platformMode) redirect("/platform");
   const supabase = await createClient();
@@ -142,7 +142,7 @@ export async function DailyInspectionHub({ searchParams }: { searchParams?: Reco
         title={t("inspections.daily.short_title")}
       />
       <ViewAllMenu items={[{ href: "/inspections/daily?vehicle=all&details=1", label: t("inspections.daily.short_title") }]} />
-      <SummaryDates label={when} />
+      <HeaderDates first="month" defaultMonth />
       <HubSummary
         tiles={[
           { label: t("hub.tile.inspections"), value: formatNumber([...inspections.values()].reduce((a, b) => a + b, 0)) },
@@ -311,8 +311,8 @@ export function skippedWeeks(s: InspectionSummary | undefined, today: string): n
 
 /** Weekly inspections: every vehicle with its last inspection, actions and skipped weeks. */
 export async function WeeklyInspectionHub({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> } = {}) {
-  const range = rangeFromParams(searchParams);
-  const when = range?.label ?? t("hub.all_time");
+  // Lands on the current month; other dates (or any date) from the filter.
+  const range = rangeFromParams(searchParams, { defaultMonth: true });
   const session = await requirePermission("inspections.daily", "view");
   if (session.platformMode) redirect("/platform");
   const supabase = await createClient();
@@ -367,7 +367,7 @@ export async function WeeklyInspectionHub({ searchParams }: { searchParams?: Rec
         description={t("inspections.weekly.description")}
       />
       <ViewAllMenu items={[{ href: "/inspections/weekly?vehicle=all&details=1", label: t("inspections.weekly.title") }]} />
-      <SummaryDates label={when} />
+      <HeaderDates first="month" defaultMonth />
       <HubSummary
         tiles={[
           { label: t("hub.tile.inspections"), value: formatNumber([...inspections.values()].reduce((a, b) => a + b, 0)) },

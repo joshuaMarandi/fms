@@ -223,7 +223,7 @@ export function ApprovalPanel({
         <ol className="relative space-y-3 border-l pl-5" aria-label={t("approval.timeline")}>
           {timeline.map((step) => (
             <li key={step.label} className="relative text-sm">
-              <span className="absolute -left-[27px] top-0.5 flex size-4 items-center justify-center rounded-full bg-card">
+              <span className="absolute -left-6.75 top-0.5 flex size-4 items-center justify-center rounded-full bg-card">
                 {step.state === "done" ? <CheckCircle2 className="size-4 text-success" aria-hidden="true" /> : step.state === "danger" ? <XCircle className="size-4 text-danger" aria-hidden="true" /> : <CircleDashed className="size-4 text-muted-foreground" aria-hidden="true" />}
               </span>
               <span className="font-medium">{step.label}</span>
@@ -273,11 +273,11 @@ export function ApprovalPanel({
         {canApprove ? (
           <div className="space-y-4 rounded-lg border p-4">
             <RadioGroup value={decision} onValueChange={(v) => setDecision(v as "approved" | "rejected")} className="grid gap-2 sm:grid-cols-2">
-              <label className="flex min-h-[44px] cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm has-data-[state=checked]:border-success has-data-[state=checked]:bg-success-bg">
+              <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm has-data-[state=checked]:border-success has-data-[state=checked]:bg-success-bg">
                 <RadioGroupItem value="approved" id={`dec-approve-${request.id}`} />
                 <span className="font-medium">{t("approval.approve")}</span>
               </label>
-              <label className="flex min-h-[44px] cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm has-data-[state=checked]:border-danger has-data-[state=checked]:bg-danger-bg">
+              <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm has-data-[state=checked]:border-danger has-data-[state=checked]:bg-danger-bg">
                 <RadioGroupItem value="rejected" id={`dec-reject-${request.id}`} />
                 <span className="font-medium">{t("approval.reject")}</span>
               </label>

@@ -206,6 +206,7 @@ export const fuelLog: ModuleDef = {
 export const tripRequests: ModuleDef = {
   key: "daily_use.trip_requests",
   path: "/daily-use/trip-requests",
+  landOn: "day",
   resource: "daily_use.trip_requests",
   table: "vehicle_requests",
   title: "daily_use.trips.title",

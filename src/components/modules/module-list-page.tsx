@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/shell/page-header";
+import { HeaderDates } from "@/components/shell/header-tools";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { getModule } from "@/modules/registry";
@@ -31,7 +32,8 @@ export async function ModuleListPage({ moduleKey, searchParams }: { moduleKey: s
         title={t(def.title)}
         description={t(def.description)}
       />
-      {def.listExtra ? <ListExtra name={def.listExtra} searchParams={searchParams} /> : null}
+      {def.landOn ? <HeaderDates first={def.landOn} defaultMonth={def.landOn === "month"} defaultDay={def.landOn === "day"} /> : null}
+      {def.listExtra ? <ListExtra name={def.listExtra} searchParams={searchParams} landOn={def.landOn} /> : null}
       {error ? <p className="rounded-lg bg-danger-bg p-3 text-sm text-danger">{error.message}</p> : null}
       <ModuleTable moduleKey={def.key} rows={rows} />
     </>

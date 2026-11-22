@@ -424,7 +424,7 @@ function FieldRenderer({ field: f, form, ctx, disabled, recordId, schema, prefix
             render={({ field }) => (
               <RadioGroup value={(field.value as string) ?? ""} onValueChange={field.onChange} disabled={isDisabled} className={cn(f.inline ? "flex flex-wrap gap-4" : "grid gap-2")}>
                 {f.options.map((o) => (
-                  <label key={o.value} className="flex min-h-[44px] cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/5">
+                  <label key={o.value} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/5">
                     <RadioGroupItem value={o.value} id={`${id}-${o.value}`} />
                     <span>{tl(o.label)}</span>
                   </label>
@@ -443,7 +443,7 @@ function FieldRenderer({ field: f, form, ctx, disabled, recordId, schema, prefix
             control={form.control}
             name={name}
             render={({ field }) => (
-              <label className="flex min-h-[44px] cursor-pointer items-start gap-3 rounded-lg border px-3 py-2 text-sm">
+              <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border px-3 py-2 text-sm">
                 <Checkbox id={id} checked={!!field.value} onCheckedChange={(c) => field.onChange(!!c)} disabled={isDisabled} className="mt-0.5" />
                 <span>
                   {label}
@@ -481,7 +481,7 @@ function FieldRenderer({ field: f, form, ctx, disabled, recordId, schema, prefix
               return (
                 <div className={cn("grid gap-2", f.columns === 3 ? "sm:grid-cols-3" : f.columns === 1 ? "" : "sm:grid-cols-2")}>
                   {f.options.map((o) => (
-                    <label key={o.value} className="flex min-h-[44px] cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/5">
+                    <label key={o.value} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/5">
                       <Checkbox
                         id={`${id}-${o.value}`}
                         checked={current.includes(o.value)}

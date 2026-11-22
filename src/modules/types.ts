@@ -62,6 +62,11 @@ export type ModuleDef = {
   detailExtra?: string;
   /** Name of a custom block rendered above the list (see modules/extras.tsx) */
   listExtra?: string;
+  /**
+   * The list opens on the current month (records kept by month) or on today (records kept by day),
+   * with that choice first in the date filter; other dates, or any date, from the filter.
+   */
+  landOn?: "month" | "day";
   exportName: string;
   /** Values every record of this module carries (for example kind: internal), saved with the form. */
   fixed?: Record<string, unknown>;

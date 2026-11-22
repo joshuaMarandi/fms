@@ -17,6 +17,8 @@ export type HeaderDateOptions = {
   first?: "day" | "month";
   /** With no dates in the address, show the current month. */
   defaultMonth?: boolean;
+  /** With no dates in the address, show today. */
+  defaultDay?: boolean;
 };
 
 type Ctx = {
@@ -56,20 +58,21 @@ export function useHeaderDates(enabled: boolean, options?: HeaderDateOptions): b
   const allowAll = options?.allowAll;
   const first = options?.first;
   const defaultMonth = options?.defaultMonth;
+  const defaultDay = options?.defaultDay;
   const request = ctx?.request;
   const release = ctx?.release;
   React.useEffect(() => {
     if (!enabled || !request || !release) return;
-    request(id, { defaultPeriod, allowAll, first, defaultMonth });
+    request(id, { defaultPeriod, allowAll, first, defaultMonth, defaultDay });
     return () => release(id);
-  }, [enabled, id, request, release, defaultPeriod, allowAll, first, defaultMonth]);
+  }, [enabled, id, request, release, defaultPeriod, allowAll, first, defaultMonth, defaultDay]);
   return enabled && !!ctx;
 }
 
 /** The defaults the page asked for (used to read the dates when the address has none). */
 export function useHeaderDateOptions(): HeaderDateOptions {
   const ctx = React.useContext(HeaderToolsContext);
-  return ctx ? ([...ctx.requests.values()].find((o) => o.defaultPeriod || o.allowAll === false || o.first || o.defaultMonth) ?? {}) : {};
+  return ctx ? ([...ctx.requests.values()].find((o) => o.defaultPeriod || o.allowAll === false || o.first || o.defaultMonth || o.defaultDay) ?? {}) : {};
 }
 
 /** Placed by a page (or its summary): this page is filtered by the date picker in the top bar. */
@@ -95,7 +98,7 @@ export function HeaderToolsSlot() {
     <div className="flex items-center gap-2">
       {ctx && ctx.requests.size > 0 ? (
         <React.Suspense fallback={null}>
-          <UrlDateFilter inHeader defaultPeriod={options.defaultPeriod} allowAll={options.allowAll !== false} first={options.first} defaultMonth={options.defaultMonth} />
+          <UrlDateFilter inHeader defaultPeriod={options.defaultPeriod} allowAll={options.allowAll !== false} first={options.first} defaultMonth={options.defaultMonth} defaultDay={options.defaultDay} />
         </React.Suspense>
       ) : null}
       <div ref={ref} className="flex items-center gap-2 empty:hidden" />

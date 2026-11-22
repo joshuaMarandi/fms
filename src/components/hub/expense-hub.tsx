@@ -27,7 +27,8 @@ const KINDS: Record<ExpenseKind, { rpc: string; resource: string; path: string; 
 export async function ExpenseHub({ kind, searchParams }: { kind: ExpenseKind; searchParams?: Record<string, string | string[] | undefined> }) {
   const k = KINDS[kind];
   await requirePermission(k.resource, "view");
-  const range = rangeFromParams(searchParams);
+  // Lands on the current month; other dates (or any date) from the filter.
+  const range = rangeFromParams(searchParams, { defaultMonth: true });
   const supabase = await createClient();
   const [rows, { data: totalRows }] = await Promise.all([loadHubVehicles(), supabase.rpc("vehicle_totals", { p_kind: k.rpc, p_from: range?.from ?? null, p_to: range?.to ?? null })]);
   const totals = new Map(((totalRows ?? []) as Totals[]).map((r) => [r.vehicle_id, r]));
@@ -162,7 +163,7 @@ export async function ExpenseHub({ kind, searchParams }: { kind: ExpenseKind; se
         description={t(k.description)}
       />
       <ViewAllMenu items={[{ href: `${k.path}?vehicle=all`, label: t(k.title) }]} />
-      <HeaderDates />
+      <HeaderDates first="month" defaultMonth />
       <HubSummary tiles={tiles} />
       <VehicleHub vehicles={vehicles} kinds={[hubKind]} currentYear={cy} currentMonth={cm} columns={columns} />
     </>

@@ -6,5 +6,5 @@ import { t } from "@/i18n";
 export default async function Page({ searchParams }: PageProps<"/inspections/weekly">) {
   const sp = await searchParams;
   if (!sp.vehicle) return <WeeklyInspectionHub searchParams={sp} />;
-  return <VehicleRecordsPage moduleKey="inspections.weekly" searchParams={sp} dateColumn="inspection_date" monthly={true} hubHref="/inspections/weekly" hubLabel={t("inspections.weekly.title")} />;
+  return <VehicleRecordsPage moduleKey="inspections.weekly" searchParams={sp} dateColumn="inspection_date" monthly={true} landOnMonth hubHref="/inspections/weekly" hubLabel={t("inspections.weekly.title")} />;
 }

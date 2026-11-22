@@ -184,6 +184,7 @@ export const maintenanceCosts: ModuleDef = {
 export const maintenanceWorkOrders: ModuleDef = {
   key: "expenses.maintenance.work_orders",
   path: "/expenses/maintenance/costs/work-orders",
+  landOn: "month",
   resource: "expenses.maintenance.costs",
   table: "maintenance_work_orders",
   title: "maint.work_orders.title",
@@ -229,6 +230,7 @@ export const maintenanceWorkOrders: ModuleDef = {
 export const maintenanceSpareParts: ModuleDef = {
   key: "expenses.maintenance.spare_parts",
   path: "/expenses/maintenance/costs/spare-parts",
+  landOn: "month",
   resource: "expenses.maintenance.costs",
   table: "maintenance_spare_parts",
   title: "maint.spare_parts.title",
@@ -272,6 +274,7 @@ export const maintenanceSpareParts: ModuleDef = {
 export const maintenanceInvoices: ModuleDef = {
   key: "expenses.maintenance.invoices",
   path: "/expenses/maintenance/costs/invoices",
+  landOn: "month",
   resource: "expenses.maintenance.costs",
   table: "maintenance_invoices",
   title: "maint.invoices.title",
@@ -326,6 +329,7 @@ export const maintenanceInvoices: ModuleDef = {
 export const maintenancePurchaseOrders: ModuleDef = {
   key: "expenses.maintenance.purchase_orders",
   path: "/expenses/maintenance/costs/purchase-orders",
+  landOn: "month",
   resource: "expenses.maintenance.costs",
   table: "maintenance_purchase_orders",
   title: "maint.purchase_orders.title",
@@ -372,6 +376,7 @@ export const maintenancePurchaseOrders: ModuleDef = {
 export const tyreRequests: ModuleDef = {
   key: "expenses.tyres",
   path: "/expenses/tyres",
+  landOn: "month",
   resource: "expenses.tyres",
   table: "tyre_requests",
   title: "expenses.tyres.title",
@@ -427,6 +432,7 @@ const WASH_CATEGORIES: Option[] = ["full", "body", "interior", "engine"].map((k)
 export const washRequests: ModuleDef = {
   key: "expenses.washing",
   path: "/expenses/washing",
+  landOn: "month",
   resource: "expenses.washing",
   table: "wash_requests",
   title: "expenses.washing.title",
@@ -527,6 +533,7 @@ export const mandatoryTrainings: ModuleDef = {
 export const toolboxPlans: ModuleDef = {
   key: "expenses.trainings.toolbox",
   path: "/expenses/trainings/toolbox",
+  landOn: "month",
   resource: "expenses.trainings.toolbox",
   table: "toolbox_plans",
   title: "expenses.trainings.toolbox.title",
@@ -824,6 +831,7 @@ export const leavePlans: ModuleDef = {
 export const leaveRequests: ModuleDef = {
   key: "expenses.leave.requests",
   path: "/expenses/leave/requests",
+  landOn: "month",
   resource: "expenses.leave.requests",
   table: "leave_requests",
   title: "expenses.leave.requests.title",
@@ -932,6 +940,7 @@ const personRows = (name: string, label: string): Field => ({
 export const incidents: ModuleDef = {
   key: "expenses.safety.incidents",
   path: "/expenses/safety/incidents",
+  landOn: "month",
   resource: "expenses.safety.incidents",
   table: "incidents",
   title: "expenses.safety.incidents.title",

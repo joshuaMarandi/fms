@@ -7,7 +7,7 @@ import { isPeriod, monthRange, type PeriodKey } from "@/components/hub/periods";
 import { todayISO } from "@/lib/utils";
 
 /** The dates in the address: a quick period, or from and to; else the page's default (or all time). */
-export function useUrlDateValue(defaultPeriod?: PeriodKey, defaultMonth?: boolean): DateValue {
+export function useUrlDateValue(defaultPeriod?: PeriodKey, defaultMonth?: boolean, defaultDay?: boolean): DateValue {
   const params = useSearchParams();
   const period = params.get("period");
   const from = params.get("from") ?? "";
@@ -15,6 +15,10 @@ export function useUrlDateValue(defaultPeriod?: PeriodKey, defaultMonth?: boolea
   if (isPeriod(period)) return { kind: "period", period };
   if (from || to) return { kind: "range", from, to };
   if (period === "all") return { kind: "all" };
+  if (defaultDay) {
+    const d = todayISO();
+    return { kind: "range", from: d, to: d };
+  }
   if (defaultMonth) {
     const r = monthRange(todayISO().slice(0, 7));
     return { kind: "range", from: r.from, to: r.to };
@@ -34,6 +38,7 @@ export function UrlDateFilter({
   allowAll = true,
   first,
   defaultMonth,
+  defaultDay,
 }: {
   className?: string;
   inHeader?: boolean;
@@ -41,11 +46,12 @@ export function UrlDateFilter({
   allowAll?: boolean;
   first?: "day" | "month";
   defaultMonth?: boolean;
+  defaultDay?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const value = useUrlDateValue(defaultPeriod, defaultMonth);
+  const value = useUrlDateValue(defaultPeriod, defaultMonth, defaultDay);
 
   function onChange(v: DateValue) {
     const q = new URLSearchParams(params.toString());
@@ -56,7 +62,7 @@ export function UrlDateFilter({
     else if (v.kind === "range") {
       if (v.from) q.set("from", v.from);
       if (v.to) q.set("to", v.to);
-    } else if (defaultPeriod || defaultMonth) q.set("period", "all");
+    } else if (defaultPeriod || defaultMonth || defaultDay) q.set("period", "all");
     startNavigationProgress();
     router.push(`${pathname}${q.size ? `?${q.toString()}` : ""}`);
   }

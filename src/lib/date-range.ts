@@ -10,8 +10,13 @@ const isDay = (v: string | undefined) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
  * The dates chosen with UrlDateFilter: null for all time (the default), else from and to
  * (inclusive, YYYY-MM-DD, East Africa Time), with a short label for the summary cards.
  */
-export function rangeFromParams(sp: Params, opts?: { defaultMonth?: boolean }): { from: string; to: string; label: string } | null {
+export function rangeFromParams(sp: Params, opts?: { defaultMonth?: boolean; defaultDay?: boolean }): { from: string; to: string; label: string } | null {
   const period = one(sp?.period);
+  // Pages that land on today (no dates in the address, and not "any date").
+  if (opts?.defaultDay && !isPeriod(period) && period !== "all" && !isDay(one(sp?.from)) && !isDay(one(sp?.to))) {
+    const d = todayISO();
+    return { from: d, to: d, label: formatDate(d) };
+  }
   // Pages that land on the current month (no dates in the address, and not "any date").
   if (opts?.defaultMonth && !isPeriod(period) && period !== "all" && !isDay(one(sp?.from)) && !isDay(one(sp?.to))) {
     const r = monthRange(todayISO().slice(0, 7));

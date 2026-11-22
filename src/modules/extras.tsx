@@ -54,7 +54,7 @@ export async function DetailExtra({ name, record }: { name: string; record: Reco
               <CardDescription>{t("admin.outstation.driver_allowances_hint")}</CardDescription>
             </CardHeader>
             <CardContent className="overflow-x-auto">
-              <table className="w-full min-w-[640px] text-sm">
+              <table className="w-full min-w-160 text-sm">
                 <thead className="text-left text-xs text-muted-foreground">
                   <tr>
                     <th className="py-1 pr-3">{t("admin.outstation.date_from")}</th>
@@ -137,7 +137,7 @@ export async function DetailExtra({ name, record }: { name: string; record: Reco
               {rows.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{t("admin.petty_cash.no_transactions")}</p>
               ) : (
-                <table className="w-full min-w-[560px] text-sm">
+                <table className="w-full min-w-140 text-sm">
                   <thead className="text-left text-xs text-muted-foreground">
                     <tr>
                       <th className="py-1 pr-3">{t("common.date")}</th>
@@ -334,8 +334,9 @@ export async function DetailExtra({ name, record }: { name: string; record: Reco
 }
 
 /** Custom blocks rendered above a module list. */
-export async function ListExtra({ name, searchParams }: { name: string; searchParams?: Record<string, string | string[] | undefined> }) {
-  const range = rangeFromParams(searchParams);
+export async function ListExtra({ name, searchParams, landOn }: { name: string; searchParams?: Record<string, string | string[] | undefined>; landOn?: "month" | "day" }) {
+  // The summary cards follow the list's dates (the current month or today when none are chosen).
+  const range = rangeFromParams(searchParams, { defaultMonth: landOn === "month", defaultDay: landOn === "day" });
   const when = range?.label ?? t("hub.all_time");
   const session = await getSession();
   if (!session) return null;

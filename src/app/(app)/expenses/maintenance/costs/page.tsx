@@ -6,5 +6,5 @@ import { t } from "@/i18n";
 export default async function Page({ searchParams }: PageProps<"/expenses/maintenance/costs">) {
   const sp = await searchParams;
   if (!sp.vehicle) return <ExpenseHub kind="maintenance_records" searchParams={sp} />;
-  return <VehicleRecordsPage moduleKey="expenses.maintenance.costs" searchParams={sp} dateColumn="cost_date" monthly hubHref="/expenses/maintenance/costs" hubLabel={t("expenses.maintenance.costs.title")} />;
+  return <VehicleRecordsPage moduleKey="expenses.maintenance.costs" searchParams={sp} dateColumn="cost_date" monthly landOnMonth hubHref="/expenses/maintenance/costs" hubLabel={t("expenses.maintenance.costs.title")} />;
 }

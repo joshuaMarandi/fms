@@ -57,6 +57,7 @@ export const fleetRoster: ModuleDef = {
 export const outstationAllowances: ModuleDef = {
   key: "expenses.admin.outstation",
   path: "/administration/outstation",
+  landOn: "month",
   resource: "expenses.admin.outstation",
   table: "outstation_requests",
   title: "admin.outstation.title",
@@ -169,6 +170,7 @@ export const outstationAllowances: ModuleDef = {
 export const pettyCash: ModuleDef = {
   key: "expenses.admin.petty_cash",
   path: "/administration/petty-cash",
+  landOn: "month",
   resource: "expenses.admin.petty_cash",
   table: "petty_cash_requests",
   title: "admin.petty_cash.title",
@@ -284,6 +286,7 @@ const travelColumns = (direction: "departure" | "arrival"): ColumnSpec[] => [
 const travelModule = (direction: "departure" | "arrival"): ModuleDef => ({
   key: direction === "departure" ? "expenses.travel.departures" : "expenses.travel.arrivals",
   path: direction === "departure" ? "/travel/departures" : "/travel/arrivals",
+  landOn: "day",
   resource: "expenses.travel",
   table: "travel_movements",
   title: direction === "departure" ? "travel.departures.title" : "travel.arrivals.title",
@@ -311,6 +314,7 @@ const travelModule = (direction: "departure" | "arrival"): ModuleDef => ({
 export const pettyCashTransactions: ModuleDef = {
   key: "expenses.admin.petty_cash.transactions",
   path: "/administration/petty-cash/transactions",
+  landOn: "month",
   resource: "expenses.admin.petty_cash",
   table: "petty_cash_transactions",
   title: "admin.petty_cash.transactions",
@@ -405,6 +409,7 @@ export const travelAirports: ModuleDef = {
 export const miscExpenses: ModuleDef = {
   key: "expenses.misc",
   path: "/expenses/misc",
+  landOn: "month",
   resource: "expenses.misc",
   table: "misc_expenses",
   title: "expenses.misc.title",
