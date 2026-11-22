@@ -5,6 +5,7 @@ import { CompanyClient } from "./company-client";
 import { SubscriptionCard } from "./subscription-card";
 import { FuelPriceCard, type FuelPrice } from "./fuel-price-card";
 import { JmpMethodCard } from "./jmp-method-card";
+import { FinanceEmailsCard } from "./finance-emails-card";
 import { t } from "@/i18n";
 
 export default async function CompanyPage() {
@@ -26,6 +27,7 @@ export default async function CompanyPage() {
       <PageHeader title={t("settings.company.title")} description={t("settings.company.description")} />
       <FuelPriceCard companyId={companyId} prices={((fuelPrices ?? []) as FuelPrice[]).map((p) => ({ ...p, price_per_litre: Number(p.price_per_litre) }))} canEdit={session.can("settings.company", "edit")} />
       <JmpMethodCard method={(company as { settings?: { jmp_method?: string } } | null)?.settings?.jmp_method === "manual" ? "manual" : "automatic"} canEdit={session.can("settings.company", "edit")} />
+      <FinanceEmailsCard emails={((company as { settings?: { finance_emails?: unknown } } | null)?.settings?.finance_emails as string[] | undefined)?.filter((e) => typeof e === "string") ?? []} canEdit={session.can("settings.company", "edit")} />
       <SubscriptionCard subscription={session.subscription} vehiclesUsed={(vehicles ?? []).length} companyId={companyId} canEdit={session.can("settings.company", "edit") || session.permissions.isAdmin} />
       <CompanyClient
         company={company as Parameters<typeof CompanyClient>[0]["company"]}

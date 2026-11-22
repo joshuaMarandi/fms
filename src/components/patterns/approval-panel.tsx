@@ -17,6 +17,7 @@ import { SearchSelect } from "./search-select";
 import { usePermissions } from "@/components/permissions/provider";
 import { callRpc } from "@/lib/data/records";
 import { formatDate } from "@/lib/utils";
+import { LINK_TABLES, STAGED_STEPS, currentStep } from "@/lib/approval-steps";
 import { t } from "@/i18n";
 
 export type ApprovalExtraField =
@@ -35,7 +36,11 @@ export type RequestLike = {
   approver_signature?: SignatureValue | null;
   rejection_reason?: string | null;
   approver_name?: string | null;
+  approval_step?: string | null;
 };
+
+/** A step already signed (earlier steps of a request with several steps). */
+export type StepSignoff = { step: string; signer_name: string | null; created_at: string };
 
 /**
  * Shows the request status, the decision radio (Approve or Reject), required reason on reject,
@@ -49,6 +54,7 @@ export function ApprovalPanel({
   extraFields,
   revalidate = [],
   canSubmit,
+  signoffs = [],
   children,
 }: {
   table: string;
@@ -60,6 +66,8 @@ export function ApprovalPanel({
   revalidate?: string[];
   /** Whether the current user may submit the draft (defaults to edit permission) */
   canSubmit?: boolean;
+  /** Steps already approved, for requests with several steps. */
+  signoffs?: StepSignoff[];
   children?: React.ReactNode;
 }) {
   const router = useRouter();
@@ -71,9 +79,14 @@ export function ApprovalPanel({
   const [busy, setBusy] = React.useState(false);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
 
-  const canApprove = can(resource, "approve") && request.status === "submitted";
+  // Several steps: the step waiting decides who may approve (fleet manager, then HR or the HOD...).
+  const steps = STAGED_STEPS[table];
+  const waiting = currentStep(table, request);
+  const canApprove = (waiting ? can(waiting.resource, "approve") : can(resource, "approve")) && request.status === "submitted";
   // A request raised by someone who may approve it is approved straight away, once the follow-up details are filled.
-  const canSelfApprove = can(resource, "approve") && (request.status === "draft" || request.status === "rejected");
+  const canSelfApprove = !steps && can(resource, "approve") && (request.status === "draft" || request.status === "rejected");
+  // Extra inputs (such as the approved amount) belong to the first step only.
+  const shownExtras = !steps || waiting?.step === "approval" ? (extraFields ?? []) : [];
   const mayEdit = canSubmit ?? can(resource, "edit");
 
   async function submit() {
@@ -89,7 +102,7 @@ export function ApprovalPanel({
 
   function validateExtras() {
     const errs: Record<string, string> = {};
-    for (const f of extraFields ?? []) if (f.required && !extra[f.name]) errs[f.name] = t("form.required");
+    for (const f of shownExtras) if (f.required && !extra[f.name]) errs[f.name] = t("form.required");
     setErrors(errs);
     return Object.keys(errs).length === 0;
   }
@@ -117,7 +130,7 @@ export function ApprovalPanel({
     const errs: Record<string, string> = {};
     if (decision === "rejected" && !reason.trim()) errs.reason = t("approval.reason_required");
     if (decision === "approved") {
-      for (const f of extraFields ?? []) if (f.required && !extra[f.name]) errs[f.name] = t("form.required");
+      for (const f of shownExtras) if (f.required && !extra[f.name]) errs[f.name] = t("form.required");
     }
     setErrors(errs);
     if (Object.keys(errs).length) return;
@@ -136,7 +149,7 @@ export function ApprovalPanel({
 
   const approveInputs = (
     <>
-      {(extraFields ?? []).map((f) => (
+      {shownExtras.map((f) => (
         <Field key={f.name} data-invalid={!!errors[f.name]}>
           <FieldLabel htmlFor={`extra-${f.name}`}>
             {f.label}
@@ -154,13 +167,33 @@ export function ApprovalPanel({
     </>
   );
 
-  const timeline: { label: string; date?: string | null; state: "done" | "danger" | "pending" }[] = [
+  const approvedNow = request.status === "approved" || request.status === "completed";
+  const timeline: { label: string; date?: string | null; state: "done" | "danger" | "pending"; who?: string | null }[] = [
     { label: t("status.draft"), date: request.created_at, state: "done" },
     { label: t("status.submitted"), date: request.status === "draft" ? null : (request.submitted_at ?? request.updated_at), state: request.status === "draft" ? "pending" : "done" },
-    request.status === "rejected"
-      ? { label: t("status.rejected"), date: request.approved_at, state: "danger" }
-      : { label: t("status.approved"), date: request.status === "approved" || request.status === "completed" ? request.approved_at : null, state: request.status === "approved" || request.status === "completed" ? "done" : "pending" },
   ];
+  if (steps) {
+    // Each step in turn: signed, waiting, or (on a rejection) where it stopped.
+    const reached = waiting ? steps.indexOf(waiting) : approvedNow ? steps.length : -1;
+    steps.forEach((s, i) => {
+      const signed = signoffs.filter((x) => x.step === s.step).pop();
+      const last = i === steps.length - 1;
+      if (request.status === "rejected") {
+        timeline.push(signed ? { label: t(s.label), date: signed.created_at, state: "done", who: signed.signer_name } : { label: t(s.label), state: "pending" });
+      } else if (i < reached || (last && approvedNow)) {
+        timeline.push({ label: t(s.label), date: last ? request.approved_at : signed?.created_at, state: "done", who: last ? (approverName ?? request.approver_name) : signed?.signer_name });
+      } else {
+        timeline.push({ label: t(s.label), state: "pending" });
+      }
+    });
+    if (request.status === "rejected") timeline.push({ label: t("status.rejected"), date: request.approved_at, state: "danger" });
+  } else {
+    timeline.push(
+      request.status === "rejected"
+        ? { label: t("status.rejected"), date: request.approved_at, state: "danger" }
+        : { label: t("status.approved"), date: approvedNow ? request.approved_at : null, state: approvedNow ? "done" : "pending" },
+    );
+  }
   if (request.status === "completed") timeline.push({ label: t("status.completed"), date: request.updated_at, state: "done" });
 
   return (
@@ -174,9 +207,11 @@ export function ApprovalPanel({
           {request.status === "draft"
             ? t("approval.not_submitted")
             : request.status === "submitted"
-              ? table === "leave_requests" || table === "vehicle_requests"
-                ? `${t("approval.awaiting")}. ${t("approval.sent_by_link")}`
-                : t("approval.awaiting")
+              ? waiting
+                ? `${t("approval.awaiting_step", { step: t(waiting.label) })}. ${t("approval.sent_by_link")}`
+                : LINK_TABLES.has(table)
+                  ? `${t("approval.awaiting")}. ${t("approval.sent_by_link")}`
+                  : t("approval.awaiting")
               : request.status === "rejected"
                 ? t("approval.rejected_by", { name: approverName ?? request.approver_name ?? "" })
                 : t("approval.approved_by", { name: approverName ?? request.approver_name ?? "" })}
@@ -193,6 +228,7 @@ export function ApprovalPanel({
               </span>
               <span className="font-medium">{step.label}</span>
               {step.date ? <span className="ml-2 text-xs text-muted-foreground">{formatDate(step.date, true)}</span> : null}
+              {step.who ? <span className="block text-xs text-muted-foreground">{step.who}</span> : null}
             </li>
           ))}
         </ol>
@@ -201,7 +237,7 @@ export function ApprovalPanel({
           <div className="rounded-lg bg-danger-bg p-3 text-sm text-danger">
             <p className="font-medium">{t("approval.reason")}</p>
             <p>{request.rejection_reason}</p>
-            {mayEdit && (table === "leave_requests" || table === "vehicle_requests") ? <p className="mt-2 text-xs text-foreground/80">{t("approval.resume_hint")}</p> : null}
+            {mayEdit && LINK_TABLES.has(table) ? <p className="mt-2 text-xs text-foreground/80">{t("approval.resume_hint")}</p> : null}
           </div>
         ) : null}
 

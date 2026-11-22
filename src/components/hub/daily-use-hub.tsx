@@ -1,7 +1,7 @@
 import { ViewAllMenu } from "./view-all-menu";
 import { PageHeader } from "@/components/shell/page-header";
 import { HeaderDates } from "@/components/shell/header-tools";
-import { HubSummary, VehicleHub, type HubColumn, type HubKind, type HubVehicle } from "./vehicle-hub";
+import { HubSummary, VehicleHub, type HubCell, type HubColumn, type HubKind, type HubVehicle } from "./vehicle-hub";
 import { loadHubVehicles, num } from "./hub-data";
 import { after } from "next/server";
 import { requirePermission } from "@/lib/auth/session";
@@ -10,6 +10,18 @@ import { createClient } from "@/lib/supabase/server";
 import { rangeFromParams } from "@/lib/date-range";
 import { daysFromNowISO, formatDate, formatNumber, formatTzs, todayISO } from "@/lib/utils";
 import { t } from "@/i18n";
+
+/** Next km service: overdue in red, within 500 km in amber, otherwise the km. */
+function serviceCell(dueKm: number | null, currentKm: number | null): HubCell {
+  if (dueKm === null || dueKm === undefined) return "—";
+  const due = Number(dueKm);
+  const label = `${formatNumber(due)} km`;
+  if (currentKm === null || currentKm === undefined) return label;
+  const left = due - Number(currentKm);
+  if (left <= 0) return { chip: { label, tone: "danger" } };
+  if (left <= 500) return { chip: { label, tone: "warning" } };
+  return label;
+}
 
 type Totals = { vehicle_id: string; records: number; trips: number; km: number; litres: number; cost: number; pending: number; first_date: string | null; last_date: string | null };
 
@@ -23,10 +35,16 @@ export async function DailyUseHub({ kind, searchParams }: { kind: "km_log" | "fu
   await requirePermission(resource, "view");
   const range = rangeFromParams(searchParams);
   const supabase = await createClient();
-  const [rows, { data: totalRows }] = await Promise.all([
+  const [rows, { data: totalRows }, { data: schedules }] = await Promise.all([
     loadHubVehicles(),
     supabase.rpc("vehicle_totals", { p_kind: kind === "km_log" ? "km_log" : kind === "fuel_log" ? "fuel_requests" : "fuel_issues", p_from: range?.from ?? null, p_to: range?.to ?? null }),
+    kind === "km_log"
+      ? supabase.from("service_schedules").select("vehicle_id, next_service_km").is("deleted_at", null).order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] as { vehicle_id: string; next_service_km: number | null }[] }),
   ]);
+  // The current schedule of each vehicle is its newest row.
+  const nextService = new Map<string, number | null>();
+  for (const s of (schedules ?? []) as { vehicle_id: string; next_service_km: number | null }[]) if (!nextService.has(s.vehicle_id)) nextService.set(s.vehicle_id, s.next_service_km);
   const totals = new Map(((totalRows ?? []) as Totals[]).map((r) => [r.vehicle_id, r]));
   const sumOf = (k: keyof Pick<Totals, "records" | "trips" | "km" | "litres" | "cost" | "pending">) => [...totals.values()].reduce((s, r) => s + num(r[k]), 0);
   // Missed km logs raise in-app alerts even where the daily cron job is not set up (once a day each).
@@ -77,6 +95,7 @@ export async function DailyUseHub({ kind, searchParams }: { kind: "km_log" | "fu
           last: last ? { chip: { label: formatDate(last), tone: late ? "danger" : last === today ? "success" : "neutral" } } : late ? { chip: { label: t("hub.no_km_log"), tone: "danger" } } : t("hub.no_km_log"),
           trips: formatNumber(num(tot?.trips)),
           km: `${formatNumber(num(tot?.km))} km`,
+          next_service: serviceCell(nextService.get(r.id) ?? null, r.odometer_km),
         },
       };
     });
@@ -86,6 +105,7 @@ export async function DailyUseHub({ kind, searchParams }: { kind: "km_log" | "fu
       { key: "last", label: "hub.col.last_log" },
       { key: "trips", label: "hub.col.trips", align: "right" },
       { key: "km", label: "hub.col.km_run", align: "right" },
+      { key: "next_service", label: "fleet.next_service_km", align: "right" },
     ];
   } else if (kind === "fuel_log") {
     const pending = sumOf("pending");

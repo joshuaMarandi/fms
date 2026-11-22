@@ -1,6 +1,6 @@
 import type { ColumnSpec, ModuleDef } from "./types";
 import type { Field, Option } from "@/lib/forms/schema";
-import { todayISO } from "@/lib/utils";
+import { t } from "@/i18n";
 
 /** Fleet administration: roster, outstation allowance and petty cash (timesheet and leave live in expenses.ts). */
 
@@ -66,6 +66,9 @@ export const outstationAllowances: ModuleDef = {
   optionSources: ["vehicles", "drivers"],
   isRequest: true,
   editableStatuses: ["draft", "rejected"],
+  // Approved by the fleet manager, verified by the HOD, then emailed to finance.
+  listExtra: "outstation_summary",
+  detailExtra: "outstation_driver",
   titleOf: (r) => `${(r.driver as { full_name?: string } | undefined)?.full_name ?? ""} ${r.location ?? ""}`.trim(),
   schema: {
     table: "outstation_requests",
@@ -155,25 +158,12 @@ export const outstationAllowances: ModuleDef = {
     columns: [
       { key: "date_from", header: "admin.outstation.date_from", type: "date" },
       { key: "date_to", header: "admin.outstation.date_to", type: "date" },
-      { key: "return_date", header: "admin.outstation.return_date", type: "date" },
-      { key: "description", header: "admin.outstation.description_field" },
       { key: "driver.full_name", header: "inspections.driver" },
-      { key: "driver.phone", header: "admin.outstation.phone" },
-      { key: "location", header: "admin.outstation.location" },
-      { key: "total_days", header: "admin.outstation.total_days", type: "number" },
-      { key: "dsa_tzs", header: "admin.outstation.dsa", type: "tzs" },
-      { key: "allowance_tzs", header: "admin.outstation.amount", type: "tzs" },
-      { key: "other_total_tzs", header: "admin.outstation.total_2", type: "tzs" },
       { key: "total_cost_tzs", header: "admin.outstation.total_cost", type: "tzs" },
       { key: "status", header: "common.status", type: "status" },
     ],
   },
 };
-
-const VERIFY: Option[] = [
-  { value: "verified", label: "admin.petty_cash.verified" },
-  { value: "not_verified", label: "admin.petty_cash.not_verified" },
-];
 
 /** Petty cash request and reconciliation (company Excel format). */
 export const pettyCash: ModuleDef = {
@@ -187,9 +177,12 @@ export const pettyCash: ModuleDef = {
   exportName: "petty-cash",
   optionSources: [],
   isRequest: true,
-  // After approval the cash received and the transactions are still recorded on the request.
+  // Approved by the fleet manager (the amount) and the HOD, then emailed to finance. After approval the
+  // money received and its proof of payment are recorded; each spend is a transaction of its own.
   editableStatuses: ["draft", "rejected", "approved"],
   listExtra: "petty_cash_summary",
+  detailExtra: "petty_cash_transactions",
+  approvalExtra: (_options, record) => [{ name: "amount_approved", label: t("admin.petty_cash.amount_approved"), control: "number", required: true, defaultValue: (record.amount_requested_tzs as number | null) ?? "" }],
   titleOf: (r) => `${r.requester_name ?? ""} ${r.request_date ?? ""}`.trim(),
   schema: {
     table: "petty_cash_requests",
@@ -202,39 +195,17 @@ export const pettyCash: ModuleDef = {
           { name: "request_date", label: "common.date", control: "date", required: true },
           { name: "requester_name", label: "admin.petty_cash.requester", control: "auto", format: "text", compute: (v, ctx) => (v.requester_name as string) || ctx.session.fullName },
           { name: "position", label: "admin.petty_cash.position", control: "text", description: "admin.petty_cash.from_profile" },
-          { name: "phone", label: "admin.petty_cash.phone", control: "tel", description: "admin.petty_cash.from_profile" },
           { name: "purpose", label: "admin.petty_cash.purpose", control: "textarea" },
           { name: "amount_requested_tzs", label: "admin.petty_cash.amount_requested", control: "number", min: 0, unit: "TZS", required: true },
-          { name: "amount_received_tzs", label: "admin.petty_cash.amount_received", control: "number", min: 0, unit: "TZS", description: "admin.petty_cash.received_hint" },
           { name: "confirmation", label: "admin.petty_cash.requester_signature", control: "signature", required: true },
         ],
       },
       {
-        title: "admin.petty_cash.transactions",
-        description: "admin.petty_cash.transactions_hint",
+        title: "admin.petty_cash.given_title",
+        description: "admin.petty_cash.given_description",
         fields: [
-          {
-            name: "transactions",
-            label: "admin.petty_cash.transactions",
-            control: "rows",
-            childTable: "petty_cash_transactions",
-            fk: "petty_cash_request_id",
-            addLabel: "admin.petty_cash.add_transaction",
-            fields: [
-              { name: "txn_date", label: "common.date", control: "date", required: true },
-              { name: "description", label: "admin.petty_cash.description_field", control: "text", required: true },
-              { name: "quantity", label: "expenses.misc.quantity", control: "number", min: 0, step: 0.01, required: true },
-              { name: "unit", label: "expenses.misc.unit", control: "text" },
-              { name: "price_tzs", label: "admin.petty_cash.price", control: "number", min: 0, unit: "TZS", required: true },
-              { name: "amount_tzs", label: "expenses.misc.amount", control: "auto", format: "tzs", compute: (v) => (v.quantity === "" || v.price_tzs === "" ? null : Number(v.quantity) * Number(v.price_tzs)) },
-              { name: "receipt_number", label: "admin.petty_cash.receipt", control: "text" },
-              { name: "verification", label: "admin.petty_cash.status", control: "select", options: VERIFY, required: true },
-              { name: "verified_by", label: "admin.petty_cash.verified_by", control: "text", showWhen: { field: "verification", equals: "verified" } },
-            ],
-            defaultRow: () => ({ txn_date: todayISO(), description: "", quantity: 1, unit: "", price_tzs: "", receipt_number: "", verification: "not_verified", verified_by: "" }),
-            totals: [{ label: "admin.petty_cash.amount_spent", format: "tzs", compute: (rows) => rows.reduce((s, r) => s + (Number(r.quantity) || 0) * (Number(r.price_tzs) || 0), 0) }],
-          },
-          { name: "receipts", label: "admin.petty_cash.receipts", control: "file", bucket: "forms", labels: ["admin.petty_cash.receipts"] },
+          { name: "amount_received_tzs", label: "admin.petty_cash.amount_received", control: "number", min: 0, unit: "TZS", description: "admin.petty_cash.received_hint" },
+          { name: "proof", label: "admin.petty_cash.doc.proof_of_payment", control: "file", bucket: "forms", labels: ["admin.petty_cash.doc.proof_of_payment"] },
         ],
       },
     ],
@@ -248,8 +219,8 @@ export const pettyCash: ModuleDef = {
       { key: "request_date", header: "common.date", type: "date" },
       { key: "requester_name", header: "admin.petty_cash.requester" },
       { key: "position", header: "admin.petty_cash.position" },
-      { key: "phone", header: "admin.petty_cash.phone" },
       { key: "amount_requested_tzs", header: "admin.petty_cash.amount_requested", type: "tzs" },
+      { key: "amount_approved_tzs", header: "admin.petty_cash.amount_approved", type: "tzs" },
       { key: "amount_received_tzs", header: "admin.petty_cash.amount_received", type: "tzs" },
       { key: "amount_spent_tzs", header: "admin.petty_cash.amount_spent", type: "tzs" },
       { key: "balance_tzs", header: "admin.petty_cash.balance", type: "tzs" },
@@ -335,6 +306,60 @@ const travelModule = (direction: "departure" | "arrival"): ModuleDef => ({
     columns: travelColumns(direction),
   },
 });
+
+/** One spend of a petty cash request, with its receipt. Approved by the fleet manager, verified by the HOD. */
+export const pettyCashTransactions: ModuleDef = {
+  key: "expenses.admin.petty_cash.transactions",
+  path: "/administration/petty-cash/transactions",
+  resource: "expenses.admin.petty_cash",
+  table: "petty_cash_transactions",
+  title: "admin.petty_cash.transactions",
+  description: "admin.petty_cash.transactions_description",
+  newLabel: "admin.petty_cash.add_transaction",
+  exportName: "petty-cash-transactions",
+  optionSources: ["petty_cash_requests"],
+  isRequest: true,
+  editableStatuses: ["draft", "rejected"],
+  titleOf: (r) => `${r.description ?? ""} ${r.txn_date ?? ""}`.trim(),
+  schema: {
+    table: "petty_cash_transactions",
+    resource: "expenses.admin.petty_cash",
+    isRequest: true,
+    sections: [
+      {
+        fields: [
+          { name: "petty_cash_request_id", label: "admin.petty_cash.request_for", control: "select", source: "petty_cash_requests", required: true, description: "admin.petty_cash.request_for_hint" },
+          { name: "txn_date", label: "common.date", control: "date", required: true },
+          { name: "description", label: "admin.petty_cash.description_field", control: "text", required: true },
+          { name: "quantity", label: "expenses.misc.quantity", control: "number", min: 0, step: 0.01, required: true },
+          { name: "unit", label: "expenses.misc.unit", control: "text" },
+          { name: "price_tzs", label: "admin.petty_cash.price", control: "number", min: 0, unit: "TZS", required: true },
+          { name: "amount_tzs", label: "expenses.misc.amount", control: "auto", format: "tzs", compute: (v) => (v.quantity === "" || v.price_tzs === "" ? null : Number(v.quantity) * Number(v.price_tzs)) },
+        ],
+      },
+      {
+        title: "admin.petty_cash.doc.receipt",
+        description: "admin.petty_cash.receipt_hint",
+        fields: [{ name: "receipt", label: "admin.petty_cash.doc.receipt", control: "file", bucket: "forms", labels: ["admin.petty_cash.doc.receipt"] }],
+      },
+    ],
+  },
+  list: {
+    select: "*, request:petty_cash_requests(requester_name, purpose)",
+    orderBy: { column: "txn_date", ascending: false },
+    searchKeys: ["description", "request.requester_name", "status"],
+    statusColumn: "status",
+    columns: [
+      { key: "txn_date", header: "common.date", type: "date" },
+      { key: "request.requester_name", header: "admin.petty_cash.requester" },
+      { key: "description", header: "admin.petty_cash.description_field" },
+      { key: "quantity", header: "expenses.misc.quantity", type: "number" },
+      { key: "price_tzs", header: "admin.petty_cash.price", type: "tzs" },
+      { key: "amount_tzs", header: "expenses.misc.amount", type: "tzs" },
+      { key: "status", header: "common.status", type: "status" },
+    ],
+  },
+};
 
 export const travelDepartures = travelModule("departure");
 export const travelArrivals = travelModule("arrival");

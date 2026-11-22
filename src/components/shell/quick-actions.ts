@@ -17,6 +17,7 @@ export const QUICK_ACTIONS: { prefix: string; resource: string; href: string; la
   { prefix: "/travel/arrivals", resource: "expenses.travel", href: "/travel/arrivals/new", label: "travel.arrivals.new" },
   { prefix: "/expenses/misc", resource: "expenses.misc", href: "/expenses/misc/new", label: "expenses.misc.new" },
   { prefix: "/administration/outstation", resource: "expenses.admin.outstation", href: "/administration/outstation/new", label: "admin.outstation.new" },
+  { prefix: "/administration/petty-cash/transactions", resource: "expenses.admin.petty_cash", href: "/administration/petty-cash/transactions/new", label: "admin.petty_cash.add_transaction" },
   { prefix: "/administration/petty-cash", resource: "expenses.admin.petty_cash", href: "/administration/petty-cash/new", label: "admin.petty_cash.new" },
   { prefix: "/expenses/tyres", resource: "expenses.tyres", href: "/expenses/tyres/new", label: "expenses.tyres.new" },
   { prefix: "/expenses/washing", resource: "expenses.washing", href: "/expenses/washing/new", label: "expenses.washing.new" },

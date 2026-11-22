@@ -13,7 +13,6 @@ const KINDS = [
   { table: "tyre_requests", resource: "expenses.tyres", path: "/expenses/tyres", label: "expenses.tyres.title", dateCol: "request_date" },
   { table: "wash_requests", resource: "expenses.washing", path: "/expenses/washing", label: "expenses.washing.title", dateCol: "request_date" },
   { table: "leave_requests", resource: "expenses.leave.requests", path: "/expenses/leave/requests", label: "expenses.leave.requests.title", dateCol: "date_from" },
-  { table: "timesheets", resource: "expenses.timesheet", path: "/expenses/timesheet", label: "expenses.timesheet.title", dateCol: "period_month" },
   { table: "vehicle_requests", resource: "daily_use.trip_requests", path: "/daily-use/trip-requests", label: "daily_use.trips.title", dateCol: "date_needed" },
 ];
 

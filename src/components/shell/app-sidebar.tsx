@@ -77,8 +77,10 @@ export function AppSidebar({ counts }: { counts: SidebarCounts; companies?: { id
     const visible = noOwners(filterTree(permissions, all))
       .filter((n) => n.key !== "platform")
       .map((n) => (SINGLE_PAGE.has(n.key) ? { ...n, children: [] } : withMobilization(n)));
+    // Removed from the system: never shown, even where the database still lists them.
+    const REMOVED = new Set(["expenses.maintenance.requests", "expenses.leave.balances"]);
     // Old groups kept only for their permissions (no page, nothing under them) stay out of the menu.
-    const prune = (nodes: ResourceNode[]): ResourceNode[] => nodes.map((n) => ({ ...n, children: prune(n.children) })).filter((n) => n.path || n.children.length > 0);
+    const prune = (nodes: ResourceNode[]): ResourceNode[] => nodes.filter((n) => !REMOVED.has(n.key)).map((n) => ({ ...n, children: prune(n.children) })).filter((n) => n.path || n.children.length > 0);
     if (!session.isOwner) return prune(visible);
     // Owner inside a company: show exactly the modules in that company's package.
     // A group such as Fleet safety stays when any page under it is in the package.

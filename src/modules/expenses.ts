@@ -2,6 +2,7 @@ import type { ModuleDef } from "./types";
 import type { Field, Option } from "@/lib/forms/schema";
 import { MONTH_OPTIONS } from "@/lib/forms/schema";
 import { toISODate } from "@/lib/utils";
+import { SHIFT_TIMES, splitHours, type Shift } from "@/lib/timesheet-hours";
 
 export const TZ_REGIONS = [
   "Arusha", "Dar es Salaam", "Dodoma", "Geita", "Iringa", "Kagera", "Katavi", "Kigoma", "Kilimanjaro", "Lindi", "Manyara", "Mara", "Mbeya", "Morogoro", "Mtwara", "Mwanza", "Njombe", "Pemba North", "Pemba South", "Pwani", "Rukwa", "Ruvuma", "Shinyanga", "Simiyu", "Singida", "Songwe", "Tabora", "Tanga", "Unguja North", "Unguja South", "Unguja Urban West",
@@ -332,8 +333,8 @@ export const toolboxPlans: ModuleDef = {
   },
 };
 
-const DAY_TYPES: Option[] = ["work", "rest", "leave", "public_holiday", "sick"].map((k) => ({ value: k, label: `expenses.timesheet.day_type.${k}` }));
-const SHIFT_TYPES: Option[] = ["day", "night"].map((k) => ({ value: k, label: `expenses.timesheet.shift.${k}` }));
+const DAY_TYPES: Option[] = ["work", "rest", "leave", "public_holiday", "sick", "absent"].map((k) => ({ value: k, label: `expenses.timesheet.day_type.${k}` }));
+const SHIFT_TYPES: Option[] = ["day", "noon", "night"].map((k) => ({ value: k, label: `expenses.timesheet.shift.${k}` }));
 
 /** Hours worked on a day: time out - time in - break (a night shift runs past midnight). */
 function workedHours(v: Record<string, unknown>): number | null {
@@ -362,13 +363,11 @@ export const timesheets: ModuleDef = {
   newLabel: "expenses.timesheet.new",
   exportName: "timesheets",
   optionSources: ["drivers", "profiles"],
-  isRequest: true,
-  editableStatuses: ["draft", "rejected"],
+  // Recorded, not approved: a timesheet can be changed at any time.
   titleOf: (r) => `${r.employee_name ?? ""} ${r.period_month ? String(r.period_month).slice(0, 7) : ""}`.trim(),
   schema: {
     table: "timesheets",
     resource: "expenses.timesheet",
-    isRequest: true,
     sections: [
       {
         fields: [
@@ -409,17 +408,23 @@ export const timesheets: ModuleDef = {
               { name: "total_hours", label: "expenses.timesheet.total_hours", control: "auto", format: "hours", compute: (v) => workedHours(v) },
               { name: "overtime_hours", label: "expenses.timesheet.normal_ot", control: "number", min: 0, max: 24, step: 0.25, unit: "h", description: "expenses.timesheet.normal_ot_hint" },
               { name: "special_overtime_hours", label: "expenses.timesheet.special_ot", control: "number", min: 0, max: 24, step: 0.25, unit: "h", description: "expenses.timesheet.special_ot_hint" },
+              { name: "allowance_tzs", label: "expenses.timesheet.allowance", control: "number", min: 0, step: 100, unit: "TZS" },
             ],
             defaultRow: (values, rows) => {
               const last = rows[rows.length - 1]?.work_date as string | undefined;
               const base = last ? new Date(last + "T00:00:00") : values.period_month ? new Date((values.period_month as string) + "T00:00:00") : new Date();
               if (last) base.setDate(base.getDate() + 1);
-              return { work_date: toISODate(base), day_type: "work", shift: "day", time_in: "07:30", break_from: "13:00", break_to: "14:00", time_out: "17:00", overtime_hours: "", special_overtime_hours: "" };
+              // The same shift as the day before (standard times: 8 hours with a one-hour rest).
+              const shift = ((rows[rows.length - 1]?.shift as Shift | undefined) ?? "day") as Shift;
+              return { work_date: toISODate(base), day_type: "work", shift, ...SHIFT_TIMES[shift] ?? SHIFT_TIMES.day, overtime_hours: "", special_overtime_hours: "", allowance_tzs: "" };
             },
             totals: [
               { label: "expenses.timesheet.total_hours_all", format: "number", compute: (rows) => rows.reduce((s, r) => s + (workedHours(r) ?? 0), 0) },
+              { label: "expenses.timesheet.day_time", format: "number", compute: (rows) => rows.reduce((s, r) => s + splitHours(r).day, 0) },
+              { label: "expenses.timesheet.night_time", format: "number", compute: (rows) => rows.reduce((s, r) => s + splitHours(r).night, 0) },
               { label: "expenses.timesheet.normal_ot", format: "number", compute: (rows) => rows.reduce((s, r) => s + (Number(r.overtime_hours) || 0), 0) },
               { label: "expenses.timesheet.special_ot", format: "number", compute: (rows) => rows.reduce((s, r) => s + (Number(r.special_overtime_hours) || 0), 0) },
+              { label: "expenses.timesheet.allowance", format: "number", compute: (rows) => rows.reduce((s, r) => s + (Number(r.allowance_tzs) || 0), 0) },
             ],
           },
         ],
@@ -435,13 +440,12 @@ export const timesheets: ModuleDef = {
     ],
   },
   list: {
-    select: "*, days:timesheet_days(day_type, shift, total_hours, overtime_hours, special_overtime_hours, deleted_at)",
+    select: "*, days:timesheet_days(day_type, shift, time_in, time_out, break_from, break_to, total_hours, overtime_hours, special_overtime_hours, deleted_at)",
     orderBy: { column: "period_month", ascending: false },
-    searchKeys: ["employee_name", "employment_number", "job_title", "status"],
-    statusColumn: "status",
+    searchKeys: ["employee_name", "employment_number", "job_title"],
     // The Excel summary: days and hours of the month for each employee.
     derive: (r) => {
-      const days = ((r.days as { day_type: string; shift: string; total_hours: number; overtime_hours: number; special_overtime_hours: number; deleted_at: string | null }[] | null) ?? []).filter((d) => !d.deleted_at);
+      const days = ((r.days as { day_type: string; shift: string; time_in: string | null; time_out: string | null; break_from: string | null; break_to: string | null; total_hours: number; overtime_hours: number; special_overtime_hours: number; deleted_at: string | null }[] | null) ?? []).filter((d) => !d.deleted_at);
       const hrs = (d: { total_hours: number }) => Number(d.total_hours) || 0;
       return {
         period_label: r.period_month ? new Date(`${r.period_month}T00:00:00`).toLocaleDateString("en-GB", { month: "long", year: "numeric" }) : "",
@@ -449,7 +453,7 @@ export const timesheets: ModuleDef = {
         holiday_days: days.filter((d) => d.day_type === "public_holiday" && hrs(d) > 0).length,
         normal_ot: days.reduce((s, d) => s + (Number(d.overtime_hours) || 0), 0),
         holiday_ot: days.reduce((s, d) => s + (Number(d.special_overtime_hours) || 0), 0),
-        night_hours: days.filter((d) => d.shift === "night").reduce((s, d) => s + hrs(d), 0),
+        night_hours: days.reduce((s, d) => s + splitHours(d).night, 0),
         off_day_hours: days.filter((d) => d.day_type === "rest").reduce((s, d) => s + hrs(d), 0),
       };
     },
@@ -464,7 +468,6 @@ export const timesheets: ModuleDef = {
       { key: "holiday_ot", header: "expenses.timesheet.holiday_ot", type: "hours" },
       { key: "night_hours", header: "expenses.timesheet.night_hours", type: "hours" },
       { key: "off_day_hours", header: "expenses.timesheet.off_day_hours", type: "hours" },
-      { key: "status", header: "common.status", type: "status" },
     ],
   },
 };
@@ -495,6 +498,49 @@ export const leavePlans: ModuleDef = {
         ],
       },
       {
+        // Leave plans are recorded, not approved. Days can be changed at any time.
+        title: "expenses.leave.plan.days_title",
+        description: "expenses.leave.plan.days_description",
+        fields: [
+          {
+            name: "entitled_days",
+            label: "expenses.leave.plan.entitled",
+            control: "number",
+            min: 0,
+            max: 366,
+            step: 0.5,
+            unit: "days",
+            required: true,
+            prefill: { deps: ["employee_id", "plan_year"], compute: (v) => (v.entitled_days === "" || v.entitled_days == null ? 28 : undefined) },
+          },
+          {
+            name: "carried_forward_days",
+            label: "expenses.leave.plan.carried_forward",
+            control: "number",
+            min: 0,
+            max: 366,
+            step: 0.5,
+            unit: "days",
+            required: true,
+            description: "expenses.leave.plan.carried_forward_hint",
+            prefill: { deps: ["employee_id", "plan_year"], compute: (v) => (v.carried_forward_days === "" || v.carried_forward_days == null ? 0 : undefined) },
+          },
+          {
+            name: "total_available",
+            label: "expenses.leave.plan.total_available",
+            control: "auto",
+            format: "number",
+            digits: 1,
+            compute: (v) => (v.entitled_days === "" && v.carried_forward_days === "" ? null : (Number(v.entitled_days) || 0) + (Number(v.carried_forward_days) || 0)),
+          },
+        ],
+      },
+      {
+        title: "expenses.leave.plan.months_title",
+        description: "expenses.leave.plan.months_description",
+        fields: [{ name: "planned_months", label: "expenses.leave.plan.planned_months", control: "checkbox_group", options: MONTH_OPTIONS, columns: 3 }],
+      },
+      {
         title: "expenses.leave.plan.rows",
         fields: [
           {
@@ -520,12 +566,12 @@ export const leavePlans: ModuleDef = {
   list: {
     select: "*",
     orderBy: { column: "plan_year", ascending: false },
-    searchKeys: ["employee_name", "department"],
+    searchKeys: ["employee_name", "employment_number"],
     columns: [
       { key: "plan_year", header: "expenses.leave.plan.year", type: "number", digits: 0 },
       { key: "employee_name", header: "expenses.leave.name" },
       { key: "employment_number", header: "expenses.leave.employment_number" },
-      { key: "department", header: "expenses.leave.department" },
+      { key: "planned_months", header: "expenses.leave.plan.planned_months", type: "tags", options: MONTH_OPTIONS },
     ],
   },
 };

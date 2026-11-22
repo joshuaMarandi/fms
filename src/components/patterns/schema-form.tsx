@@ -552,7 +552,12 @@ function RowsField({ field: f, form, ctx, disabled, name, schema, recordId }: { 
       {f.description ? <FieldDescription>{tl(f.description)}</FieldDescription> : null}
       <div className="space-y-3">
         {rows.length === 0 ? <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">{t("common.empty_title")}</p> : null}
-        {rows.map((row, idx) => (
+        {/* Newest row first, right under the Add button. The data keeps its order (row 1 is the first), so
+            chained values such as km start = previous km end still follow the rows in sequence. */}
+        {rows
+          .map((row, idx) => ({ row, idx }))
+          .reverse()
+          .map(({ row, idx }) => (
           <div key={row.id} className="relative rounded-lg border p-3">
             <div className="mb-2 flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground">
@@ -570,7 +575,7 @@ function RowsField({ field: f, form, ctx, disabled, name, schema, recordId }: { 
               ))}
             </div>
           </div>
-        ))}
+          ))}
       </div>
       {f.totals && f.totals.length > 0 ? (
         <dl className="mt-2 grid gap-2 rounded-lg bg-muted/50 p-3 text-sm sm:grid-cols-3">

@@ -47,11 +47,11 @@ insert into public.resources (key, parent_key, name, label_prefix, path, icon, s
   ('expenses.trainings.mandatory', 'fleet_safety', 'Mandatory training records', null, '/expenses/trainings/mandatory', null, 305, true, false),
   ('expenses.admin', null, 'Fleet administration', '6', '/administration', 'building', 500, false, true),
   ('expenses.admin.roster', 'expenses.admin', 'Fleet roster', null, '/administration/roster', null, 551, false, false),
-  ('expenses.timesheet', 'expenses.admin', 'Timesheet', null, '/expenses/timesheet', 'clock', 552, false, true),
+  ('expenses.timesheet', 'expenses.admin', 'Timesheet', null, '/expenses/timesheet', 'clock', 552, false, false),
   ('expenses.leave', 'expenses.admin', 'Annual leave', 'h', null, 'calendar-days', 559, false, true),
   ('expenses.leave.plan', 'expenses.admin', 'Leave plan', null, '/expenses/leave/plan', null, 553, false, false),
   ('expenses.leave.requests', 'expenses.admin', 'Leave requests and records', null, '/expenses/leave/requests', null, 554, false, true),
-  ('expenses.leave.balances', 'expenses.admin', 'Leave balances', null, '/expenses/leave/balances', null, 555, false, false),
+  ('expenses.leave.balances', 'expenses.admin', 'Leave balances', null, null, null, 555, false, false),
   ('expenses.admin.outstation', 'expenses.admin', 'Outstation allowance', null, '/administration/outstation', null, 556, false, false),
   ('expenses.admin.petty_cash', 'expenses.admin', 'Petty cash reconciliation', null, '/administration/petty-cash', null, 557, false, false),
   ('expenses.trainings.toolbox', 'fleet_safety', 'Toolbox talks', null, '/expenses/trainings/toolbox', null, 306, false, false),
@@ -204,6 +204,11 @@ begin
     perform pg_temp.grant_role(hod, m, v);
   end loop;
   perform pg_temp.grant_role(hod, 'fleet.remarks', cru);
+  -- HOD: final approval of leave requests, verification of outstation allowances.
+  perform pg_temp.grant_role(hod, 'expenses.admin', v);
+  perform pg_temp.grant_role(hod, 'expenses.leave.requests.hod', array['view', 'approve']);
+  perform pg_temp.grant_role(hod, 'expenses.admin.outstation.hod', array['view', 'approve']);
+  perform pg_temp.grant_role(hod, 'expenses.admin.petty_cash.hod', array['view', 'approve']);
   perform pg_temp.grant_role(hod, 'expenses.reports', array['view', 'export']);
 
   -- Driver: own data only.
@@ -231,6 +236,7 @@ begin
   perform pg_temp.grant_role(hr, 'expenses.trainings', array['view', 'export']);
   perform pg_temp.grant_role(hr, 'expenses.timesheet', array['view', 'export']);
   perform pg_temp.grant_role(hr, 'expenses.leave', array['view', 'export']);
+  perform pg_temp.grant_role(hr, 'expenses.leave.requests.hr', array['view', 'approve']);
   perform pg_temp.grant_role(hr, 'expenses.leave.balances', array['view', 'create', 'edit', 'export']);
   perform pg_temp.grant_role(hr, 'expenses.reports', array['view', 'export']);
 
@@ -575,25 +581,21 @@ end $$;
 -- Timesheets for the last two months for the two driver users
 insert into public.timesheets (id, company_id, driver_id, employee_id, employee_name, employer, employment_number, job_title, department, period_month, status, created_by)
 select gen_random_uuid(), '11111111-1111-1111-1111-111111111111', d.id, d.profile_id, d.full_name, d.employer, d.employment_number, d.job_title, d.department,
-  (date_trunc('month', current_date) - (interval '1 month' * n))::date, 'draft', d.profile_id
+  (date_trunc('month', current_date) - (interval '1 month' * n))::date, 'completed', d.profile_id
 from public.drivers d cross join generate_series(1, 2) n where d.profile_id is not null;
 
-insert into public.timesheet_days (company_id, timesheet_id, work_date, time_in, time_out, day_type)
-select t.company_id, t.id, dd::date, '07:30'::time, case when extract(dow from dd) = 6 then '13:30'::time else '17:00'::time end, 'work'
+-- Day, noon and night shifts in turn (each 8 h with a one-hour rest), Sundays off, one absent day.
+insert into public.timesheet_days (company_id, timesheet_id, work_date, shift, time_in, break_from, break_to, time_out, day_type)
+select t.company_id, t.id, dd::date,
+  (array['day', 'noon', 'night'])[1 + (extract(week from dd)::int % 3)],
+  (array['06:00', '14:00', '22:00'])[1 + (extract(week from dd)::int % 3)]::time,
+  (array['10:00', '18:00', '02:00'])[1 + (extract(week from dd)::int % 3)]::time,
+  (array['11:00', '19:00', '03:00'])[1 + (extract(week from dd)::int % 3)]::time,
+  (array['14:00', '22:00', '06:00'])[1 + (extract(week from dd)::int % 3)]::time,
+  case when extract(day from dd) = 9 then 'absent' else 'work' end
 from public.timesheets t
 cross join lateral generate_series(t.period_month, (t.period_month + interval '1 month' - interval '1 day')::date, interval '1 day') dd
 where extract(dow from dd) <> 0;
-
-update public.timesheets set status = 'submitted' where period_month < date_trunc('month', current_date - interval '1 month');
-do $$
-declare r record;
-begin
-  perform set_config('request.jwt.claim.sub', '33333333-3333-3333-3333-000000000002', true);
-  for r in select id from public.timesheets where status = 'submitted' loop
-    perform public.approve_request('timesheets', r.id);
-  end loop;
-  perform set_config('request.jwt.claim.sub', '', true);
-end $$;
 
 -- Leave
 insert into public.leave_balances (company_id, driver_id, employee_id, balance_year, entitled_days, carried_over_days)

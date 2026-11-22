@@ -49,7 +49,6 @@ const REQUESTS = [
   { table: "tyre_requests", resource: "expenses.tyres", path: "/expenses/tyres", label: "expenses.tyres.title", select: "id, request_date, created_at, vehicle:vehicles(registration)" },
   { table: "wash_requests", resource: "expenses.washing", path: "/expenses/washing", label: "expenses.washing.title", select: "id, request_date, created_at, vehicle:vehicles(registration)" },
   { table: "leave_requests", resource: "expenses.leave.requests", path: "/expenses/leave/requests", label: "expenses.leave.requests.title", select: "id, date_from, created_at, employee:profiles(full_name)" },
-  { table: "timesheets", resource: "expenses.timesheet", path: "/expenses/timesheet", label: "expenses.timesheet.title", select: "id, period_month, employee_name, created_at" },
 ];
 
 function monthKey(d: string | Date) {

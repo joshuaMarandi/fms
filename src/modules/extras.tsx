@@ -1,10 +1,15 @@
+import Link from "next/link";
+import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatusChip } from "@/components/patterns/status-chip";
 import { SignatureSummary, type SignatureValue } from "@/components/patterns/signature-field";
 import { JmpReviewPanel, type JmpReview } from "@/components/modules/jmp-review-panel";
 import { AttachmentsBox } from "@/components/patterns/attachments-box";
 import { HubSummary } from "@/components/hub/vehicle-hub";
 import { loadDocs } from "@/lib/data/docs";
 import { SummaryDates } from "@/components/hub/daily-use-hub";
+import { ViewAllMenu } from "@/components/hub/view-all-menu";
 import { rangeFromParams } from "@/lib/date-range";
 import { getSession } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
@@ -19,6 +24,156 @@ export async function DetailExtra({ name, record }: { name: string; record: Reco
   const supabase = await createClient();
 
   switch (name) {
+    case "outstation_driver": {
+      // Everything this driver was given: the same totals as the list, then each allowance.
+      const driverId = record.driver_id as string | null;
+      if (!driverId) return null;
+      const { data } = await supabase
+        .from("outstation_requests")
+        .select("id, date_from, date_to, location, total_days, allowance_tzs, other_total_tzs, total_cost_tzs, status")
+        .eq("driver_id", driverId)
+        .is("deleted_at", null)
+        .order("date_from", { ascending: false })
+        .limit(500);
+      const rows = (data ?? []) as { id: string; date_from: string; date_to: string; location: string | null; total_days: number | null; allowance_tzs: number | null; other_total_tzs: number | null; total_cost_tzs: number | null; status: string }[];
+      const counted = rows.filter((r) => r.status !== "rejected" && r.status !== "draft");
+      const sum = (k: "allowance_tzs" | "other_total_tzs" | "total_cost_tzs") => counted.reduce((s, r) => s + Number(r[k] ?? 0), 0);
+      return (
+        <div className="mt-6 space-y-4">
+          <HubSummary
+            tiles={[
+              { label: t("admin.outstation.tile.total_cost"), value: formatTzs(sum("total_cost_tzs")), sub: t("admin.outstation.tile.for_driver", { count: counted.length }) },
+              { label: t("admin.outstation.tile.allowance"), value: formatTzs(sum("allowance_tzs")) },
+              { label: t("admin.outstation.tile.other"), value: formatTzs(sum("other_total_tzs")) },
+            ]}
+          />
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">{t("admin.outstation.driver_allowances")}</CardTitle>
+              <CardDescription>{t("admin.outstation.driver_allowances_hint")}</CardDescription>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+              <table className="w-full min-w-[640px] text-sm">
+                <thead className="text-left text-xs text-muted-foreground">
+                  <tr>
+                    <th className="py-1 pr-3">{t("admin.outstation.date_from")}</th>
+                    <th className="py-1 pr-3">{t("admin.outstation.date_to")}</th>
+                    <th className="py-1 pr-3">{t("admin.outstation.location")}</th>
+                    <th className="py-1 pr-3 text-right">{t("admin.outstation.total_days")}</th>
+                    <th className="py-1 pr-3 text-right">{t("admin.outstation.tile.allowance")}</th>
+                    <th className="py-1 pr-3 text-right">{t("admin.outstation.tile.other")}</th>
+                    <th className="py-1 pr-3 text-right">{t("admin.outstation.total_cost")}</th>
+                    <th className="py-1">{t("common.status")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r.id} className={r.id === record.id ? "border-t bg-muted/40" : "border-t"}>
+                      <td className="py-1.5 pr-3">
+                        <Link href={`/administration/outstation/${r.id}`} className="font-medium hover:underline">
+                          {formatDate(r.date_from)}
+                        </Link>
+                      </td>
+                      <td className="py-1.5 pr-3">{formatDate(r.date_to)}</td>
+                      <td className="py-1.5 pr-3">{r.location ?? ""}</td>
+                      <td className="py-1.5 pr-3 text-right tabular-nums">{r.total_days ?? ""}</td>
+                      <td className="py-1.5 pr-3 text-right tabular-nums">{formatTzs(Number(r.allowance_tzs ?? 0))}</td>
+                      <td className="py-1.5 pr-3 text-right tabular-nums">{formatTzs(Number(r.other_total_tzs ?? 0))}</td>
+                      <td className="py-1.5 pr-3 text-right font-medium tabular-nums">{formatTzs(Number(r.total_cost_tzs ?? 0))}</td>
+                      <td className="py-1.5">
+                        <StatusChip status={r.status} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+    case "petty_cash_transactions": {
+      // Each spend of this petty cash, recorded and approved one by one. Spending needs the proof of payment.
+      const id = record.id as string;
+      const [{ data: txns }, { data: proof }] = await Promise.all([
+        supabase.from("petty_cash_transactions").select("id, txn_date, description, quantity, unit, price_tzs, amount_tzs, status, approval_step").eq("petty_cash_request_id", id).is("deleted_at", null).order("txn_date", { ascending: false }),
+        supabase.from("attachments").select("id").eq("table_name", "petty_cash_requests").eq("row_id", id).is("deleted_at", null).ilike("label", `${t("admin.petty_cash.doc.proof_of_payment")}%`).limit(1),
+      ]);
+      const rows = (txns ?? []) as { id: string; txn_date: string; description: string; quantity: number; unit: string | null; price_tzs: number; amount_tzs: number; status: string }[];
+      const approved = record.status === "approved";
+      const hasProof = (proof ?? []).length > 0;
+      const canRecord = approved && hasProof && session.can("expenses.admin.petty_cash", "create");
+      const spent = rows.filter((r) => r.status === "approved").reduce((s, r) => s + Number(r.amount_tzs ?? 0), 0);
+      const pending = rows.filter((r) => r.status === "submitted").reduce((s, r) => s + Number(r.amount_tzs ?? 0), 0);
+      const received = Number(record.amount_received_tzs ?? 0);
+      return (
+        <div className="mt-6 space-y-4">
+          <HubSummary
+            tiles={[
+              { label: t("admin.petty_cash.amount_approved"), value: record.amount_approved_tzs == null ? "—" : formatTzs(Number(record.amount_approved_tzs)) },
+              { label: t("admin.petty_cash.amount_received"), value: formatTzs(received) },
+              { label: t("admin.petty_cash.amount_spent"), value: formatTzs(spent), sub: pending ? t("admin.petty_cash.awaiting_approval", { amount: formatTzs(pending) }) : undefined },
+              { label: t("admin.petty_cash.balance"), value: formatTzs(received - spent), tone: received - spent < 0 ? "danger" : undefined },
+            ]}
+          />
+          <Card>
+            <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+              <div>
+                <CardTitle className="text-base">{t("admin.petty_cash.transactions")}</CardTitle>
+                <CardDescription>
+                  {!approved ? t("admin.petty_cash.spend_after_approval") : !hasProof ? t("admin.petty_cash.spend_after_proof") : t("admin.petty_cash.transactions_hint_new")}
+                </CardDescription>
+              </div>
+              {canRecord ? (
+                <Button asChild className="h-10">
+                  <Link href={`/administration/petty-cash/transactions/new?request=${id}`}>
+                    <Plus /> {t("admin.petty_cash.add_transaction")}
+                  </Link>
+                </Button>
+              ) : null}
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+              {rows.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{t("admin.petty_cash.no_transactions")}</p>
+              ) : (
+                <table className="w-full min-w-[560px] text-sm">
+                  <thead className="text-left text-xs text-muted-foreground">
+                    <tr>
+                      <th className="py-1 pr-3">{t("common.date")}</th>
+                      <th className="py-1 pr-3">{t("admin.petty_cash.description_field")}</th>
+                      <th className="py-1 pr-3 text-right">{t("expenses.misc.quantity")}</th>
+                      <th className="py-1 pr-3 text-right">{t("admin.petty_cash.price")}</th>
+                      <th className="py-1 pr-3 text-right">{t("expenses.misc.amount")}</th>
+                      <th className="py-1">{t("common.status")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r) => (
+                      <tr key={r.id} className="border-t">
+                        <td className="py-1.5 pr-3">
+                          <Link href={`/administration/petty-cash/transactions/${r.id}`} className="font-medium hover:underline">
+                            {formatDate(r.txn_date)}
+                          </Link>
+                        </td>
+                        <td className="py-1.5 pr-3">{r.description}</td>
+                        <td className="py-1.5 pr-3 text-right tabular-nums">
+                          {formatNumber(Number(r.quantity), 2)} {r.unit ?? ""}
+                        </td>
+                        <td className="py-1.5 pr-3 text-right tabular-nums">{formatTzs(Number(r.price_tzs))}</td>
+                        <td className="py-1.5 pr-3 text-right font-medium tabular-nums">{formatTzs(Number(r.amount_tzs))}</td>
+                        <td className="py-1.5">
+                          <StatusChip status={r.status} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
     case "fuel_issue": {
       // Once approved: the totals of the fuel issued (recorded automatically on approval).
       if (record.status !== "approved" && record.status !== "completed") return null;
@@ -173,6 +328,26 @@ export async function ListExtra({ name, searchParams }: { name: string; searchPa
   const supabase = await createClient();
 
   switch (name) {
+    case "outstation_summary": {
+      // Total cost, allowance and other expenses of the allowances in the chosen dates.
+      let q = supabase.from("outstation_requests").select("status, allowance_tzs, other_total_tzs, total_cost_tzs").is("deleted_at", null).limit(5000);
+      if (range) q = q.gte("date_from", range.from).lte("date_from", range.to);
+      const { data } = await q;
+      const rows = ((data ?? []) as { status: string; allowance_tzs: number | null; other_total_tzs: number | null; total_cost_tzs: number | null }[]).filter((r) => r.status !== "rejected" && r.status !== "draft");
+      const sum = (k: "allowance_tzs" | "other_total_tzs" | "total_cost_tzs") => rows.reduce((s, r) => s + Number(r[k] ?? 0), 0);
+      return (
+        <>
+          <SummaryDates label={when} />
+          <HubSummary
+            tiles={[
+              { label: t("admin.outstation.tile.total_cost"), value: formatTzs(sum("total_cost_tzs")), sub: t("admin.outstation.tile.count", { count: rows.length }) },
+              { label: t("admin.outstation.tile.allowance"), value: formatTzs(sum("allowance_tzs")) },
+              { label: t("admin.outstation.tile.other"), value: formatTzs(sum("other_total_tzs")) },
+            ]}
+          />
+        </>
+      );
+    }
     case "trip_summary": {
       // Vehicle requests for the chosen dates (all time by default).
       let q = supabase.from("vehicle_requests").select("status, trip_type, requested_at").is("deleted_at", null).limit(10000);
@@ -207,6 +382,7 @@ export async function ListExtra({ name, searchParams }: { name: string; searchPa
       const spent = sum("amount_spent_tzs");
       return (
         <>
+        <ViewAllMenu items={[{ href: "/administration/petty-cash/transactions", label: t("admin.petty_cash.transactions") }]} />
         <SummaryDates label={when} />
         <HubSummary
           tiles={[

@@ -4,7 +4,8 @@ import { FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shell/page-header";
 import { SchemaForm } from "@/components/patterns/schema-form";
-import { ApprovalPanel, type RequestLike } from "@/components/patterns/approval-panel";
+import { ApprovalPanel, type RequestLike, type StepSignoff } from "@/components/patterns/approval-panel";
+import { STAGED_STEPS } from "@/lib/approval-steps";
 import { RecordTitle } from "./record-title";
 import { PrintButton } from "@/components/shell/print-frame";
 import { requirePermission } from "@/lib/auth/session";
@@ -61,6 +62,13 @@ export async function ModuleRecordPage({ moduleKey, id, preset }: { moduleKey: s
     approverName = (data?.full_name as string) ?? null;
   }
 
+  // Requests with several steps: who signed the earlier ones.
+  let signoffs: StepSignoff[] = [];
+  if (record && STAGED_STEPS[def.table]) {
+    const { data } = await supabase.from("approval_signoffs").select("step, signer_name, created_at").eq("table_name", def.table).eq("record_id", record.id as string).order("created_at");
+    signoffs = (data ?? []) as StepSignoff[];
+  }
+
   const canApproveOrEdit = session.can(def.resource, "edit") || session.can(def.resource, "approve");
   const showApproval = def.isRequest && record;
 
@@ -108,6 +116,7 @@ export async function ModuleRecordPage({ moduleKey, id, preset }: { moduleKey: s
               approverName={approverName}
               extraFields={def.approvalExtra ? def.approvalExtra(options, record) : undefined}
               revalidate={[def.path, `${def.path}/${record.id}`]}
+              signoffs={signoffs}
               canSubmit={canApproveOrEdit && (record.created_by === session.userId || session.can(def.resource, "edit"))}
             />
           </div>

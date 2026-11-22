@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { Eraser, PenLine } from "lucide-react";
+import { Eraser, PenLine, RotateCcw } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSession } from "@/components/permissions/provider";
+import { createClient } from "@/lib/supabase/client";
 import { formatDate } from "@/lib/utils";
 import { t } from "@/i18n";
 
@@ -17,7 +18,34 @@ export type SignatureValue = {
   image?: string; // data URL (PNG) when drawn
 };
 
-/** Signature: checkbox plus name and timestamp, or a drawing canvas. Stored with user id and time. */
+// The person's kept signature, loaded once per page.
+const kept = new Map<string, Promise<string | null>>();
+function keptSignature(userId: string) {
+  let p = kept.get(userId);
+  if (!p) {
+    p = Promise.resolve(createClient().from("profiles").select("signature_image").eq("id", userId).maybeSingle())
+      .then(({ data }) => ((data as { signature_image?: string | null } | null)?.signature_image ?? null))
+      .catch(() => null);
+    kept.set(userId, p);
+  }
+  return p;
+}
+// Saved a moment after the last stroke, not on every stroke.
+let keepTimer: ReturnType<typeof setTimeout> | null = null;
+function keepSignature(userId: string, image: string) {
+  kept.set(userId, Promise.resolve(image));
+  if (keepTimer) clearTimeout(keepTimer);
+  keepTimer = setTimeout(() => {
+    keepTimer = null;
+    void createClient().rpc("save_my_signature", { p_image: image });
+  }, 1200);
+}
+
+/**
+ * Signature: checkbox plus name and timestamp, or a drawing canvas. Stored with user id and time.
+ * The first drawing is kept for the person; after that the box is already signed with it, so they
+ * only press Submit or Approve. Drawing again replaces the kept signature.
+ */
 export function SignatureField({
   value,
   onChange,
@@ -35,8 +63,30 @@ export function SignatureField({
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const drawing = React.useRef(false);
   const [hasInk, setHasInk] = React.useState(false);
+  const [saved, setSaved] = React.useState<string | null>(null);
+  const [redraw, setRedraw] = React.useState(false);
+  const filled = React.useRef(false);
 
-  const base = () => ({ name: session.fullName, user_id: session.userId, signed_at: new Date().toISOString() });
+  const base = React.useCallback(() => ({ name: session.fullName, user_id: session.userId, signed_at: new Date().toISOString() }), [session.fullName, session.userId]);
+
+  // Sign with the kept signature when the box is empty.
+  React.useEffect(() => {
+    if (!session.userId) return;
+    let active = true;
+    keptSignature(session.userId).then((image) => {
+      if (!active) return;
+      setSaved(image);
+      if (image && !value && !disabled && !filled.current) {
+        filled.current = true;
+        onChange({ method: "draw", ...base(), image });
+      }
+    });
+    return () => {
+      active = false;
+    };
+    // Only when the person or the box changes, not on every value change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.userId, disabled]);
 
   function pos(e: React.PointerEvent<HTMLCanvasElement>) {
     const canvas = canvasRef.current!;
@@ -68,7 +118,13 @@ export function SignatureField({
     if (!drawing.current) return;
     drawing.current = false;
     if (canvasRef.current) {
-      onChange({ method: "draw", ...base(), image: canvasRef.current.toDataURL("image/png") });
+      const image = canvasRef.current.toDataURL("image/png");
+      onChange({ method: "draw", ...base(), image });
+      // Kept for next time (the first drawing, or a new one that replaces it).
+      if (session.userId) {
+        setSaved(image);
+        keepSignature(session.userId, image);
+      }
     }
   }
   function clear() {
@@ -90,10 +146,41 @@ export function SignatureField({
     );
   }
 
+  // Signed with the kept signature: nothing to do but press Submit or Approve.
+  if (value?.method === "draw" && value.image && value.image === saved && !redraw && !hasInk) {
+    return (
+      <div className="rounded-lg border p-3">
+        {label ? <p className="mb-2 text-sm font-medium">{label}</p> : null}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element -- in-memory data URL */}
+          <img src={value.image} alt={t("signature.title")} className="h-16 w-auto rounded border bg-white" />
+          <p className="min-w-0 flex-1 text-sm">
+            <span className="flex items-center gap-2 font-medium">
+              <PenLine className="size-4 text-success" aria-hidden="true" />
+              {t("signature.kept")}
+            </span>
+            <span className="block text-xs text-muted-foreground">{t("signature.signed", { name: value.name, time: formatDate(value.signed_at, true) })}</span>
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setRedraw(true);
+              onChange(null);
+            }}
+          >
+            <RotateCcw /> {t("signature.draw_new")}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-lg border p-3">
       {label ? <p className="mb-2 text-sm font-medium">{label}</p> : null}
-      <Tabs defaultValue={value?.method === "draw" ? "draw" : "tick"}>
+      <Tabs defaultValue={value?.method === "draw" || redraw ? "draw" : "tick"}>
         <TabsList className="mb-3">
           <TabsTrigger value="tick">{t("signature.method_tick")}</TabsTrigger>
           <TabsTrigger value="draw">{t("signature.method_draw")}</TabsTrigger>

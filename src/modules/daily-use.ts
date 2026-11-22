@@ -117,14 +117,17 @@ export const kmLogs: ModuleDef = {
     ],
   },
   list: {
-    select: "*, vehicle:vehicles(registration), driver:drivers(full_name), trips:km_log_trips(km_start, km_end, deleted_at)",
+    select: "*, vehicle:vehicles(registration, schedules:service_schedules(next_service_km, created_at, deleted_at)), driver:drivers(full_name), trips:km_log_trips(km_start, km_end, deleted_at)",
     orderBy: { column: "log_date", ascending: false },
     searchKeys: ["vehicle.registration", "driver.full_name"],
     derive: (row) => {
       const trips = ((row.trips as { km_start: number | null; km_end: number | null; deleted_at: string | null }[] | null) ?? []).filter((x) => !x.deleted_at);
       const starts = trips.map((x) => x.km_start).filter((v): v is number => v !== null).map(Number);
       const ends = trips.map((x) => x.km_end).filter((v): v is number => v !== null).map(Number);
-      return { km_start: starts.length ? Math.min(...starts) : null, km_end: ends.length ? Math.max(...ends) : null };
+      // Next km service: the vehicle's current (newest) service schedule.
+      const schedules = (((row.vehicle as { schedules?: { next_service_km: number | null; created_at: string; deleted_at: string | null }[] } | null)?.schedules) ?? []).filter((s) => !s.deleted_at);
+      const current = schedules.sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+      return { km_start: starts.length ? Math.min(...starts) : null, km_end: ends.length ? Math.max(...ends) : null, next_service_km: current?.next_service_km ?? null };
     },
     columns: [
       { key: "log_date", header: "common.date", type: "date" },
@@ -134,6 +137,7 @@ export const kmLogs: ModuleDef = {
       { key: "km_start", header: "daily_use.km_log.km_start", type: "km" },
       { key: "km_end", header: "daily_use.km_log.km_end", type: "km" },
       { key: "total_km", header: "daily_use.km_log.col.km_run", type: "km" },
+      { key: "next_service_km", header: "fleet.next_service_km", type: "km" },
     ],
   },
 };

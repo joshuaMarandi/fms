@@ -48,11 +48,11 @@ insert into public.resources (key, parent_key, name, label_prefix, path, icon, s
   ('expenses.trainings.mandatory', 'fleet_safety', 'Mandatory training records', null, '/expenses/trainings/mandatory', null, 305, true, false),
   ('expenses.admin', null, 'Fleet administration', '6', '/administration', 'building', 500, false, true),
   ('expenses.admin.roster', 'expenses.admin', 'Fleet roster', null, '/administration/roster', null, 551, false, false),
-  ('expenses.timesheet', 'expenses.admin', 'Timesheet', null, '/expenses/timesheet', 'clock', 552, false, true),
+  ('expenses.timesheet', 'expenses.admin', 'Timesheet', null, '/expenses/timesheet', 'clock', 552, false, false),
   ('expenses.leave', 'expenses.admin', 'Annual leave', 'h', null, 'calendar-days', 559, false, true),
   ('expenses.leave.plan', 'expenses.admin', 'Leave plan', null, '/expenses/leave/plan', null, 553, false, false),
   ('expenses.leave.requests', 'expenses.admin', 'Leave requests and records', null, '/expenses/leave/requests', null, 554, false, true),
-  ('expenses.leave.balances', 'expenses.admin', 'Leave balances', null, '/expenses/leave/balances', null, 555, false, false),
+  ('expenses.leave.balances', 'expenses.admin', 'Leave balances', null, null, null, 555, false, false),
   ('expenses.admin.outstation', 'expenses.admin', 'Outstation allowance', null, '/administration/outstation', null, 556, false, false),
   ('expenses.admin.petty_cash', 'expenses.admin', 'Petty cash reconciliation', null, '/administration/petty-cash', null, 557, false, false),
   ('expenses.trainings.toolbox', 'fleet_safety', 'Toolbox talks', null, '/expenses/trainings/toolbox', null, 306, false, false),
@@ -177,6 +177,11 @@ begin
     perform pg_temp.grant_role(hod, m, v);
   end loop;
   perform pg_temp.grant_role(hod, 'fleet.remarks', cru);
+  -- HOD: final approval of leave requests, verification of outstation allowances.
+  perform pg_temp.grant_role(hod, 'expenses.admin', v);
+  perform pg_temp.grant_role(hod, 'expenses.leave.requests.hod', array['view', 'approve']);
+  perform pg_temp.grant_role(hod, 'expenses.admin.outstation.hod', array['view', 'approve']);
+  perform pg_temp.grant_role(hod, 'expenses.admin.petty_cash.hod', array['view', 'approve']);
   perform pg_temp.grant_role(hod, 'expenses.reports', array['view', 'export']);
 
   -- Driver: own data only.
@@ -204,6 +209,7 @@ begin
   perform pg_temp.grant_role(hr, 'expenses.trainings', array['view', 'export']);
   perform pg_temp.grant_role(hr, 'expenses.timesheet', array['view', 'export']);
   perform pg_temp.grant_role(hr, 'expenses.leave', array['view', 'export']);
+  perform pg_temp.grant_role(hr, 'expenses.leave.requests.hr', array['view', 'approve']);
   perform pg_temp.grant_role(hr, 'expenses.leave.balances', array['view', 'create', 'edit', 'export']);
   perform pg_temp.grant_role(hr, 'expenses.reports', array['view', 'export']);
 

@@ -2,7 +2,7 @@ import { allFields, type Field } from "@/lib/forms/schema";
 import type { ColumnSpec, ModuleDef } from "./types";
 import { dailyInspections, mobilizationInspections, thirdPartyInspections, weeklyInspections } from "./inspections";
 import { fuelIssues, fuelLog, kmLogs, tripRequests } from "./daily-use";
-import { fleetRoster, miscExpenses, outstationAllowances, pettyCash, travelAirports, travelArrivals, travelDepartures } from "./administration";
+import { fleetRoster, miscExpenses, outstationAllowances, pettyCash, pettyCashTransactions, travelAirports, travelArrivals, travelDepartures } from "./administration";
 import {
   fuelExpenses,
   incidents,
@@ -44,6 +44,7 @@ const DEFINED: ModuleDef[] = [
   fleetRoster,
   outstationAllowances,
   pettyCash,
+  pettyCashTransactions,
   miscExpenses,
   travelDepartures,
   travelArrivals,

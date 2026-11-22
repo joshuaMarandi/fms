@@ -13,7 +13,7 @@ type LinkInfo = {
   state: "open" | "done" | "expired" | "no_access" | "not_found";
   company_id?: string;
   user_id?: string;
-  table?: "leave_requests" | "vehicle_requests";
+  table?: string;
   record_id?: string;
   step?: string;
   step_label?: string;
@@ -29,6 +29,9 @@ const cap = (s?: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : "");
 
 const STEP_LABEL: Record<string, string> = {
   approval: "Approval",
+  hr_review: "HR review",
+  hod_approval: "HOD final approval",
+  hod_verify: "HOD verification",
   prepare: "Prepare the journey management plan",
   requester: "Requester signs the journey management plan",
   hse_manager: "HSE manager sign-off",

@@ -603,8 +603,16 @@ begin
   v_token := pg_temp.link_for(admin_id);
   j := public.approval_link_decide(v_token, 'approved', null, '{"approver_name": "Amani Mushi", "approver_position": "Fleet Manager"}'::jsonb);
   perform pg_temp.as_admin();
+  perform pg_temp.check('fleet manager approved through the link: on to HR', (select status = 'submitted' and approval_step = 'hr_review' from public.leave_requests where id = v_leave));
+  -- HR, then the HOD's link finalises it.
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000007');
+  perform public.approve_request('leave_requests', v_leave);
+  perform pg_temp.as_admin();
+  v_token := pg_temp.link_for('33333333-3333-3333-3333-000000000004');
+  j := public.approval_link_decide(v_token, 'approved', null, '{"approver_name": "Head of Department", "approver_position": "HOD"}'::jsonb);
+  perform pg_temp.as_admin();
   perform pg_temp.check('approved through the link', (select status from public.leave_requests where id = v_leave) = 'approved'
-    and (select approver_position from public.leave_requests where id = v_leave) = 'Fleet Manager');
+    and (select approver_position from public.leave_requests where id = v_leave) = 'HOD');
   perform pg_temp.check('requester told it was approved', exists (select 1 from public.message_outbox where user_id = coord_id and template = 'request_approved'));
 
   -- Long trip: approval, then each JMP step in turn
@@ -1189,6 +1197,9 @@ begin
   returning id into v_req;
   update public.leave_requests set status = 'submitted' where id = v_req;
   perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  -- Fleet manager, HR and HOD steps (an admin may take each).
+  perform public.approve_request('leave_requests', v_req);
+  perform public.approve_request('leave_requests', v_req);
   perform public.approve_request('leave_requests', v_req);
   perform pg_temp.as_admin();
   perform pg_temp.check('m31: approver name filled from the profile', (select approver_name from public.leave_requests where id = v_req) = (select full_name from public.profiles where id = '33333333-3333-3333-3333-000000000002'));
@@ -1215,10 +1226,8 @@ begin
   insert into public.outstation_expense_items (company_id, outstation_request_id, description, quantity, unit, unit_price_tzs) values ('11111111-1111-1111-1111-111111111111', v_out, 'Car wash', 2, 'Vehicle', 30000);
   perform pg_temp.check('m32: total outstation cost = allowance + other expenses', (select total_cost_tzs from public.outstation_requests where id = v_out) = 620000);
 
-  -- Petty cash: received 250,000, spent 185,000, balance 65,000.
+  -- Petty cash: the balance and its transactions are tested with the approval steps (m38).
   insert into public.petty_cash_requests (company_id, amount_requested_tzs, amount_received_tzs) values ('11111111-1111-1111-1111-111111111111', 250000, 250000) returning id into v_pc;
-  insert into public.petty_cash_transactions (company_id, petty_cash_request_id, description, quantity, price_tzs) values ('11111111-1111-1111-1111-111111111111', v_pc, 'Fuel top-up', 1, 185000);
-  perform pg_temp.check('m32: petty cash balance = received - spent', (select balance_tzs from public.petty_cash_requests where id = v_pc) = 65000);
   perform pg_temp.check('m32: requester filled from the profile', (select requester_name from public.petty_cash_requests where id = v_pc) is not null);
 
   perform pg_temp.check('m32: pickup rules exist', exists (select 1 from public.travel_airports where name = 'JKNIA' and pickup_lead_hours = 3.5));
@@ -1345,5 +1354,192 @@ begin
   perform public.vehicle_problem_sync(v);
   perform pg_temp.check('m36: vehicle status sync runs', (select status from public.vehicles where id = v) is not null);
 end $m36$;
+
+-- 37: timesheets are recorded without approval; noon shift, absent days and allowance.
+do $m37$
+declare v_ts uuid;
+begin
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m37: timesheets are not requests', not (select is_request from public.table_resources where table_name = 'timesheets'));
+  perform pg_temp.check('m37: existing timesheets are records', not exists (select 1 from public.timesheets where status <> 'completed'));
+  insert into public.timesheets (company_id, employee_id, period_month)
+  values ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-000000000006', date_trunc('month', current_date + interval '3 months')::date)
+  returning id into v_ts;
+  perform pg_temp.check('m37: a new timesheet is recorded straight away', (select status from public.timesheets where id = v_ts) = 'completed');
+  insert into public.timesheet_days (company_id, timesheet_id, work_date, shift, time_in, break_from, break_to, time_out, day_type, allowance_tzs)
+  values ('11111111-1111-1111-1111-111111111111', v_ts, (select period_month from public.timesheets where id = v_ts), 'noon', '14:00', '18:00', '19:00', '22:00', 'work', 15000),
+         ('11111111-1111-1111-1111-111111111111', v_ts, (select period_month from public.timesheets where id = v_ts) + 1, 'day', null, null, null, null, 'absent', 0);
+  perform pg_temp.check('m37: a noon shift is 7 hours', (select total_hours from public.timesheet_days where timesheet_id = v_ts and shift = 'noon') = 7);
+  perform pg_temp.check('m37: allowance is kept', (select allowance_tzs from public.timesheet_days where timesheet_id = v_ts and shift = 'noon') = 15000);
+  update public.timesheets set coordinator_name = 'Changed later' where id = v_ts;
+  perform pg_temp.check('m37: a timesheet can be changed at any time', (select coordinator_name from public.timesheets where id = v_ts) = 'Changed later');
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  perform pg_temp.check('m37: shell counts run', (public.shell_counts() ->> 'pending_approvals') is not null);
+  perform pg_temp.as_admin();
+  delete from public.timesheets where id = v_ts;
+end $m37$;
+
+-- 38: leave plan days and months; leave requests through fleet manager, HR and HOD; outstation through
+-- fleet manager and HOD, then finance by email.
+do $m38$
+declare
+  v_lr uuid; v_lr2 uuid; v_out uuid; v_plan uuid; v_pc uuid; v_tx uuid; ok boolean;
+  fm uuid := '33333333-3333-3333-3333-000000000002';
+  hod uuid := '33333333-3333-3333-3333-000000000004';
+  hr uuid := '33333333-3333-3333-3333-000000000007';
+begin
+  -- Leave plan
+  perform pg_temp.as_admin();
+  insert into public.leave_plans (company_id, employee_id, employee_name, plan_year, planned_months, entitled_days, carried_forward_days)
+  values ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-000000000006', 'Test', extract(year from current_date)::int + 2, '{5,10}', 30, 4)
+  returning id into v_plan;
+  perform pg_temp.check('m38: the plan keeps its months', (select planned_months from public.leave_plans where id = v_plan) = '{5,10}'::text[]);
+  perform pg_temp.check('m38: the leave balance follows the plan', (select entitled_days = 30 and carried_over_days = 4 from public.leave_balances where employee_id = '33333333-3333-3333-3333-000000000006' and balance_year = extract(year from current_date)::int + 2));
+  update public.leave_plans set carried_forward_days = 6 where id = v_plan;
+  perform pg_temp.check('m38: changing the plan changes the balance', (select carried_over_days from public.leave_balances where employee_id = '33333333-3333-3333-3333-000000000006' and balance_year = extract(year from current_date)::int + 2) = 6);
+  perform pg_temp.check('m38: leave balance is out of the menu', (select path from public.resources where key = 'expenses.leave.balances') is null);
+
+  -- Leave request: three steps
+  insert into public.leave_requests (company_id, employee_id, category_id, date_from, date_to, reason, status, created_by)
+  values ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-000000000005',
+    (select id from public.leave_categories where company_id = '11111111-1111-1111-1111-111111111111' and not counts_against_balance order by name limit 1),
+    current_date + 90, current_date + 91, 'Family event', 'draft', '33333333-3333-3333-3333-000000000003')
+  returning id into v_lr;
+  update public.leave_requests set status = 'submitted' where id = v_lr;
+  perform pg_temp.check('m38: first step is the fleet manager', (select o_step from public.workflow_current_step('leave_requests', v_lr)) = 'approval');
+  ok := false;
+  perform pg_temp.as_user(hr);
+  begin
+    perform public.approve_request('leave_requests', v_lr);
+  exception when others then ok := true;
+  end;
+  perform pg_temp.check('m38: HR cannot take the fleet manager step', ok);
+  perform pg_temp.as_user(fm);
+  perform public.approve_request('leave_requests', v_lr);
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m38: fleet manager approval moves it to HR', (select status = 'submitted' and approval_step = 'hr_review' from public.leave_requests where id = v_lr));
+  perform pg_temp.check('m38: HR gets the email and SMS link', exists (select 1 from public.message_outbox where user_id = hr and template = 'approval_request' and data ->> 'record_id' = v_lr::text));
+  perform pg_temp.as_user(hr);
+  perform public.approve_request('leave_requests', v_lr);
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m38: HR review moves it to the HOD', (select approval_step from public.leave_requests where id = v_lr) = 'hod_approval');
+  perform pg_temp.check('m38: the HOD gets the link', exists (select 1 from public.message_outbox where user_id = hod and template = 'approval_request' and data ->> 'record_id' = v_lr::text));
+  perform pg_temp.as_user(hod);
+  perform public.approve_request('leave_requests', v_lr);
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m38: HOD approval finalises the leave', (select status from public.leave_requests where id = v_lr) = 'approved');
+  perform pg_temp.check('m38: earlier steps are signed', (select count(*) from public.approval_signoffs where record_id = v_lr) = 2);
+  perform pg_temp.check('m38: each step is in the history', (select count(*) from public.approval_events where record_id = v_lr and action = 'approved') = 3);
+
+  -- A rejection at HR goes back to the start
+  insert into public.leave_requests (company_id, employee_id, category_id, date_from, date_to, reason, status, created_by)
+  values ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-000000000005',
+    (select id from public.leave_categories where company_id = '11111111-1111-1111-1111-111111111111' and not counts_against_balance order by name limit 1),
+    current_date + 120, current_date + 121, 'Wedding', 'draft', '33333333-3333-3333-3333-000000000003')
+  returning id into v_lr2;
+  update public.leave_requests set status = 'submitted' where id = v_lr2;
+  perform pg_temp.as_user(fm);
+  perform public.approve_request('leave_requests', v_lr2);
+  perform pg_temp.as_user(hr);
+  perform public.reject_request('leave_requests', v_lr2, 'Dates clash');
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m38: HR can reject', (select status = 'rejected' and approval_step is null from public.leave_requests where id = v_lr2));
+  update public.leave_requests set status = 'submitted' where id = v_lr2;
+  perform pg_temp.check('m38: sent again it starts with the fleet manager', (select o_step from public.workflow_current_step('leave_requests', v_lr2)) = 'approval');
+
+  -- Outstation allowance: fleet manager, HOD, finance email
+  update public.companies set settings = coalesce(settings, '{}'::jsonb) || '{"finance_emails": ["finance@example.com", "not an email"]}'::jsonb where id = '11111111-1111-1111-1111-111111111111';
+  insert into public.outstation_requests (company_id, date_from, date_to, location, total_days, dsa_tzs, created_by)
+  values ('11111111-1111-1111-1111-111111111111', current_date, current_date + 2, 'Mwanza', 3, 50000, '33333333-3333-3333-3333-000000000003')
+  returning id into v_out;
+  update public.outstation_requests set status = 'submitted' where id = v_out;
+  perform pg_temp.as_user(fm);
+  perform public.approve_request('outstation_requests', v_out);
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m38: outstation goes to the HOD', (select status = 'submitted' and approval_step = 'hod_verify' from public.outstation_requests where id = v_out));
+  perform pg_temp.check('m38: no finance email before the HOD verifies', not exists (select 1 from public.message_outbox where template = 'finance_notice' and data ->> 'record_id' = v_out::text));
+  perform pg_temp.as_user(hod);
+  perform public.approve_request('outstation_requests', v_out);
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m38: HOD verification approves it', (select status from public.outstation_requests where id = v_out) = 'approved');
+  perform pg_temp.check('m38: finance is emailed (valid addresses only)', (select count(*) from public.message_outbox where template = 'finance_notice' and channel = 'email' and data ->> 'record_id' = v_out::text) = 1
+    and exists (select 1 from public.message_outbox where template = 'finance_notice' and recipient = 'finance@example.com'));
+
+  -- Petty cash: fleet manager approves the amount, HOD approves, finance emailed; proof of payment before
+  -- spending; each transaction with its receipt, approved by the fleet manager and verified by the HOD.
+  insert into public.petty_cash_requests (company_id, amount_requested_tzs, purpose, created_by)
+  values ('11111111-1111-1111-1111-111111111111', 200000, 'Office supplies', '33333333-3333-3333-3333-000000000003') returning id into v_pc;
+  update public.petty_cash_requests set status = 'submitted' where id = v_pc;
+  perform pg_temp.as_user(fm);
+  perform public.approve_request('petty_cash_requests', v_pc, null, '{"amount_approved": "150000"}'::jsonb);
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m38: fleet manager sets the amount', (select amount_approved_tzs = 150000 and approval_step = 'hod_approval' and status = 'submitted' from public.petty_cash_requests where id = v_pc));
+  perform pg_temp.as_user(hod);
+  perform public.approve_request('petty_cash_requests', v_pc);
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m38: HOD approves petty cash', (select status from public.petty_cash_requests where id = v_pc) = 'approved');
+  perform pg_temp.check('m38: finance is emailed about petty cash', exists (select 1 from public.message_outbox where template = 'finance_notice' and data ->> 'record_id' = v_pc::text));
+  ok := false;
+  begin
+    insert into public.petty_cash_transactions (company_id, petty_cash_request_id, description, quantity, price_tzs) values ('11111111-1111-1111-1111-111111111111', v_pc, 'Paper', 1, 40000);
+  exception when check_violation then ok := true;
+  end;
+  perform pg_temp.check('m38: no spending before the proof of payment', ok);
+  insert into public.attachments (company_id, table_name, row_id, resource_key, bucket, path, label, file_name)
+  values ('11111111-1111-1111-1111-111111111111', 'petty_cash_requests', v_pc, 'expenses.admin.petty_cash', 'forms', 'test/pop-' || v_pc, 'Proof of payment', 'pop.pdf');
+  insert into public.petty_cash_transactions (company_id, petty_cash_request_id, description, quantity, price_tzs, created_by)
+  values ('11111111-1111-1111-1111-111111111111', v_pc, 'Paper', 1, 40000, '33333333-3333-3333-3333-000000000003') returning id into v_tx;
+  ok := false;
+  begin
+    update public.petty_cash_transactions set status = 'submitted' where id = v_tx;
+  exception when check_violation then ok := true;
+  end;
+  perform pg_temp.check('m38: a transaction needs its receipt', ok);
+  insert into public.attachments (company_id, table_name, row_id, resource_key, bucket, path, label, file_name)
+  values ('11111111-1111-1111-1111-111111111111', 'petty_cash_transactions', v_tx, 'expenses.admin.petty_cash', 'forms', 'test/receipt-' || v_tx, 'Receipt', 'receipt.jpg');
+  update public.petty_cash_transactions set status = 'submitted' where id = v_tx;
+  perform pg_temp.check('m38: unapproved spending is not counted', (select amount_spent_tzs from public.petty_cash_requests where id = v_pc) = 0);
+  perform pg_temp.as_user(fm);
+  perform public.approve_request('petty_cash_transactions', v_tx);
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m38: transaction goes to the HOD', (select approval_step from public.petty_cash_transactions where id = v_tx) = 'hod_verify');
+  perform pg_temp.as_user(hod);
+  perform public.approve_request('petty_cash_transactions', v_tx);
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m38: HOD verifies the transaction', (select status from public.petty_cash_transactions where id = v_tx) = 'approved');
+  perform pg_temp.check('m38: approved spending counts', (select amount_spent_tzs from public.petty_cash_requests where id = v_pc) = 40000);
+
+  delete from public.attachments where row_id in (v_pc, v_tx);
+  delete from public.petty_cash_requests where id = v_pc;
+  delete from public.message_outbox where data ->> 'record_id' in (v_lr::text, v_lr2::text, v_out::text, v_pc::text, v_tx::text);
+  delete from public.leave_requests where id in (v_lr, v_lr2);
+  delete from public.leave_plans where id = v_plan;
+end $m38$;
+
+-- 39: a drawn signature is kept and used when no signature is given (for example from an email link).
+do $m39$
+declare v_ts uuid; v_lr uuid; ok boolean := false;
+begin
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  perform public.save_my_signature('data:image/png;base64,iVBORw0KGgo=');
+  perform pg_temp.check('m39: the signature is kept', (public.my_default_signature() ->> 'image') = 'data:image/png;base64,iVBORw0KGgo=');
+  begin
+    perform public.save_my_signature('not an image');
+  exception when invalid_parameter_value then ok := true;
+  end;
+  perform pg_temp.check('m39: only drawn images are kept', ok);
+  perform pg_temp.as_admin();
+  insert into public.leave_requests (company_id, employee_id, category_id, date_from, date_to, reason, status, created_by)
+  values ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-000000000005',
+    (select id from public.leave_categories where company_id = '11111111-1111-1111-1111-111111111111' and not counts_against_balance order by name limit 1),
+    current_date + 150, current_date + 151, 'Test', 'draft', '33333333-3333-3333-3333-000000000003') returning id into v_lr;
+  update public.leave_requests set status = 'submitted' where id = v_lr;
+  perform pg_temp.as_user('33333333-3333-3333-3333-000000000002');
+  perform public.approve_request('leave_requests', v_lr);
+  perform pg_temp.as_admin();
+  perform pg_temp.check('m39: a step signed without a signature uses the kept one', (select signature ->> 'image' from public.approval_signoffs where record_id = v_lr) = 'data:image/png;base64,iVBORw0KGgo=');
+  delete from public.leave_requests where id = v_lr;
+  update public.profiles set signature_image = null where id = '33333333-3333-3333-3333-000000000002';
+end $m39$;
 
 select 'ALL TESTS PASSED' as result;
