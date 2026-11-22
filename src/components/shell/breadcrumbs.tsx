@@ -12,6 +12,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { usePermissions } from "@/components/permissions/provider";
+import { firstPageUnder, menuItemFor, menuTrail } from "@/lib/nav/menu-trail";
 import { hasKey, t } from "@/i18n";
 
 type Crumb = { label: string; href?: string };
@@ -33,18 +34,66 @@ export function useRecordTitle(title: string | null | undefined) {
 }
 
 const STATIC: Record<string, string> = {
+  "/administration/petty-cash/transactions": "admin.petty_cash.transactions",
   "/profile": "nav.my_profile",
   "/notifications": "nav.notifications",
   "/no-access": "common.no_access_title",
   "/demo": "demo.title",
 };
 
+// Menu groups that are pages of their own (the rest open their first page, as in the menu).
+const GROUP_PAGES = new Set(["fleet", "drivers", "inspections"]);
+
+const PREVIOUS = "fms-previous-page";
+
+/** The page shown before this one in the app (to go back to it from Cancel). */
+export function previousAppPage(): string | null {
+  try {
+    return sessionStorage.getItem(PREVIOUS);
+  } catch {
+    return null;
+  }
+}
+
 export function Breadcrumbs() {
   const pathname = usePathname();
-  const { resources } = usePermissions();
+  // Remember the page before this one, with its filters.
+  const current = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    const here = window.location.pathname + window.location.search;
+    if (current.current && current.current !== here) {
+      try {
+        sessionStorage.setItem(PREVIOUS, current.current);
+      } catch {
+        // Storage blocked: Cancel falls back to the module's page.
+      }
+    }
+    current.current = here;
+  }, [pathname]);
+  const { resources, can: allowed } = usePermissions();
   const { title } = React.useContext(RecordTitleContext);
 
   const crumbs = React.useMemo<Crumb[]>(() => {
+    const name = (r: { key: string; name: string }) => (hasKey(`resource.${r.key}`) ? t(`resource.${r.key}`) : r.name);
+    // Follow the menu: the page's menu item and its groups, then New or the record.
+    const item = menuItemFor(resources, pathname);
+    if (item?.path) {
+      const visible = (r: { key: string }) => allowed(r.key, "view");
+      const out: Crumb[] = menuTrail(resources, item).map((r) => {
+        if (r.key === item.key || (r.path && GROUP_PAGES.has(r.key))) return { label: name(r), href: r.path ? r.path.split("?")[0] : undefined };
+        return { label: name(r), href: firstPageUnder(resources, r.key, visible) ?? undefined };
+      });
+      const itemBase = item.path.split("?")[0]!.replace(/\/$/, "");
+      const rest = pathname.slice(itemBase.length).split("/").filter(Boolean);
+      let acc = itemBase;
+      rest.forEach((seg, i) => {
+        acc += "/" + seg;
+        if (seg === "new") out.push({ label: t("common.new") });
+        else if (STATIC[acc]) out.push({ label: t(STATIC[acc]), href: acc });
+        else if (i === rest.length - 1) out.push({ label: title ?? t("common.record") });
+      });
+      return out;
+    }
     const byPath = new Map<string, { key: string; name: string }>();
     for (const r of resources) {
       if (r.path) byPath.set(r.path.split("?")[0]!, { key: r.key, name: r.name });
@@ -70,7 +119,7 @@ export function Breadcrumbs() {
       }
     }
     return out;
-  }, [pathname, resources, title]);
+  }, [pathname, resources, title, allowed]);
 
   return (
     <Breadcrumb>

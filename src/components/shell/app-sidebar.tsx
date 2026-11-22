@@ -24,6 +24,7 @@ import {
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { usePermissions } from "@/components/permissions/provider";
 import { buildResourceTree, can, filterTree, packageAllows, type ResourceNode } from "@/lib/permissions";
+import { MENU_EXTRAS, REMOVED_KEYS } from "@/lib/nav/menu-trail";
 import { DynamicIcon } from "./icon";
 import { LinkPending } from "./link-pending";
 import { NavLink } from "./nav-link";
@@ -60,9 +61,9 @@ export function AppSidebar({ counts }: { counts: SidebarCounts; companies?: { id
     const SINGLE_PAGE = new Set(["fleet", "drivers"]);
     // Fleet safety drops down to the inspections, trainings and safety records.
     // Mobilization records are the vehicles' inspection status, so they follow that permission.
-    const MOBILIZATION: ResourceNode = { key: "inspections.mobilization", parent_key: "fleet_safety", name: "Mobilization inspection", label_prefix: null, path: "/inspections/mobilization", icon: "clipboard-check", sort_order: 303, has_reminders: false, is_request: false, children: [] };
+    const MOBILIZATION: ResourceNode = { ...MENU_EXTRAS.find((x) => x.key === "inspections.mobilization")!, children: [] };
     // Vehicle operations: the fuel log (fuel issued) sits after Fuel request, under the same permission.
-    const FUEL_LOG: ResourceNode = { key: "daily_use.fuel_issues", parent_key: "daily_use", name: "Fuel log", label_prefix: null, path: "/daily-use/fuel-log", icon: "fuel", sort_order: 404, has_reminders: false, is_request: false, children: [] };
+    const FUEL_LOG: ResourceNode = { ...MENU_EXTRAS.find((x) => x.key === "daily_use.fuel_issues")!, children: [] };
     const withMobilization = (n: ResourceNode): ResourceNode => {
       if (n.key === "daily_use" && n.children.some((c) => c.key === "daily_use.fuel_log")) {
         return { ...n, children: [...n.children, FUEL_LOG].sort((a, b) => a.sort_order - b.sort_order) };
@@ -78,9 +79,8 @@ export function AppSidebar({ counts }: { counts: SidebarCounts; companies?: { id
       .filter((n) => n.key !== "platform")
       .map((n) => (SINGLE_PAGE.has(n.key) ? { ...n, children: [] } : withMobilization(n)));
     // Removed from the system: never shown, even where the database still lists them.
-    const REMOVED = new Set(["expenses.maintenance.requests", "expenses.leave.balances"]);
     // Old groups kept only for their permissions (no page, nothing under them) stay out of the menu.
-    const prune = (nodes: ResourceNode[]): ResourceNode[] => nodes.filter((n) => !REMOVED.has(n.key)).map((n) => ({ ...n, children: prune(n.children) })).filter((n) => n.path || n.children.length > 0);
+    const prune = (nodes: ResourceNode[]): ResourceNode[] => nodes.filter((n) => !REMOVED_KEYS.has(n.key)).map((n) => ({ ...n, children: prune(n.children) })).filter((n) => n.path || n.children.length > 0);
     if (!session.isOwner) return prune(visible);
     // Owner inside a company: show exactly the modules in that company's package.
     // A group such as Fleet safety stays when any page under it is in the package.

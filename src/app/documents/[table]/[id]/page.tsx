@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { brandLines, SYSTEM_NAME } from "@/lib/branding";
 import { formatDate, formatNumber } from "@/lib/utils";
 import { hasKey, t } from "@/i18n";
+import { StatusSeal, sealFor } from "./status-seal";
 import { DocumentToolbar } from "./document-toolbar";
 
 export const metadata: Metadata = { title: "Request document", robots: { index: false, follow: false } };
@@ -205,6 +206,10 @@ export default async function RequestDocumentPage({ params }: PageProps<"/docume
 
   const brand = session.brand;
   const ref = `${doc.ref}-${id.slice(0, 8).toUpperCase()}`;
+  // Seal: approved, submitted or rejected, dated with the decision (or when it was sent).
+  const seal = sealFor(status);
+  const sentAt = (r.submitted_at as string | null) ?? null;
+  const sealDate = decided && r.approved_at ? formatDate(r.approved_at as string) : sentAt ? formatDate(sentAt) : null;
   const printedAt = formatDate(new Date().toISOString(), true);
 
   return (
@@ -240,14 +245,11 @@ export default async function RequestDocumentPage({ params }: PageProps<"/docume
         <div className="mt-4 border-t-[3px] border-[#0f3d34]" />
         <div className="mt-[3px] border-t border-[#0f3d34]" />
 
-        {/* Title in the middle of the content */}
-        <div className="mt-7 mb-6 text-center">
-          <h1 className="text-[28px] font-black tracking-tight text-[#0f3d34] uppercase">{doc.title}</h1>
+        {/* Title in the middle of the content; the status seal stamped on its right, level with it. */}
+        <div className="relative mt-7 mb-6 flex min-h-[120px] flex-col items-center justify-center text-center">
+          <h1 className="px-[130px] text-[28px] font-black tracking-tight text-[#0f3d34] uppercase">{doc.title}</h1>
           <div className="mx-auto mt-2 h-[3px] w-16 bg-[#d98b1f]" />
-          <div className="mt-3 flex items-center justify-center gap-3 text-[12px] text-[#55625e]">
-            <span>{ref}</span>
-            <StatusPill status={status} />
-          </div>
+          {seal ? <StatusSeal status={seal} date={sealDate} className="pointer-events-none absolute top-1/2 right-0 w-[118px] -translate-y-1/2 -rotate-[10deg] opacity-90 mix-blend-multiply" /> : null}
         </div>
 
         {sections.map((s, i) => (

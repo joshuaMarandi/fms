@@ -41,6 +41,7 @@ import { startNavigationProgress } from "@/components/shell/navigation-progress"
 import { cn, formatDate, formatNumber, formatTzs } from "@/lib/utils";
 import { getSchema } from "@/modules/schemas";
 import { hasKey, t } from "@/i18n";
+import { previousAppPage } from "@/components/shell/breadcrumbs";
 
 export type SchemaFormProps = {
   /** Key into src/modules/schemas.ts (schemas hold functions and cannot cross the server boundary) */
@@ -221,7 +222,12 @@ function SchemaFormInner({ schemaKey, record, options = {}, afterSavePath, cance
         setEditing(false);
       }
     : cancelHref
-      ? () => router.push(cancelHref)
+      ? () => {
+          // Back to where the form was opened from (a vehicle, a month...), else the module's page.
+          const prev = previousAppPage();
+          const ok = prev && prev.startsWith("/") && !prev.startsWith("//") && !/\/new(\?|$)/.test(prev) && prev.split("?")[0] !== window.location.pathname;
+          router.push(ok ? prev : cancelHref);
+        }
       : undefined;
 
   return (
