@@ -88,6 +88,7 @@ function formatSize(bytes: number | null) {
  * Files open inside the app (images and PDFs) by downloading them through the app's own
  * Supabase connection, so they show even when storage links point at an internal address.
  */
+
 export function AttachmentsBox({
   table,
   rowId,
