@@ -320,7 +320,7 @@ const travelColumns = (direction: "departure" | "arrival"): ColumnSpec[] => [
 const travelModule = (direction: "departure" | "arrival"): ModuleDef => ({
   key: direction === "departure" ? "expenses.travel.departures" : "expenses.travel.arrivals",
   path: direction === "departure" ? "/travel/departures" : "/travel/arrivals",
-  landOn: "day",
+  landOn: "month",
   resource: "expenses.travel",
   table: "travel_movements",
   title: direction === "departure" ? "travel.departures.title" : "travel.arrivals.title",
