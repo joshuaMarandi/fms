@@ -7,6 +7,7 @@ import type { ActionResult } from "@/lib/data/records";
 import { inviteUserServer } from "@/lib/users/invite";
 import { sendMail } from "@/lib/email/mailer";
 import { registrationRejectedEmail } from "@/lib/email/templates";
+import { syncSoon } from "@/lib/accounts/sync";
 
 export type PackageInput = {
   id?: string | null;
@@ -79,6 +80,7 @@ export async function savePackage(input: PackageInput): Promise<ActionResult<{ i
     if (delErr) return fail(delErr);
     const { error: insErr } = await supabase.from("package_resources").insert(input.resource_keys.map((k) => ({ package_id: id, resource_key: k })));
     if (insErr) return fail(insErr);
+    syncSoon({ packageId: id! });
     revalidatePath("/platform/packages");
     revalidatePath("/");
     return { ok: true, data: { id: id! } };
@@ -127,6 +129,7 @@ export async function saveCompany(input: CompanyInput): Promise<ActionResult<{ i
       if (error) return fail(error);
       id = (data as { id: string }).id;
     }
+    syncSoon({ companyId: id! });
     revalidatePath("/platform");
     revalidatePath("/platform/companies");
     revalidatePath(`/platform/companies/${id}`);
@@ -141,6 +144,7 @@ export async function setCompanyStatus(id: string, status: CompanyInput["status"
     const supabase = await ownerClient();
     const { error } = await supabase.from("companies").update({ status }).eq("id", id);
     if (error) return fail(error);
+    syncSoon({ companyId: id });
     revalidatePath("/platform/companies");
     revalidatePath(`/platform/companies/${id}`);
     return { ok: true, data: null };
@@ -191,6 +195,7 @@ export async function approveRegistration(input: { id: string; package_id: strin
     if (error) return fail(error);
     const r = reg as { contact_name: string; email: string; phone: string | null };
     const invite = await inviteCompanyAdmin(companyId as string, { full_name: r.contact_name, email: r.email, phone: r.phone });
+    syncSoon({ companyId: companyId as string });
     revalidatePath("/platform/registrations");
     revalidatePath("/platform/companies");
     return { ok: true, data: { companyId: companyId as string, inviteError: invite.ok ? undefined : invite.error } };

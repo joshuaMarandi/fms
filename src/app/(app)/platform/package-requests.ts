@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { sendMessagesSoon } from "@/lib/messaging/soon";
+import { syncSoon } from "@/lib/accounts/sync";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -13,6 +14,11 @@ export async function decidePackageChange(id: string, approve: boolean, note: st
   const supabase = await createClient();
   const { error } = await supabase.rpc("decide_package_change", { p_id: id, p_approve: approve, p_note: note.slice(0, 1000) });
   if (error) return { ok: false, error: error.message };
+  if (approve) {
+    // The new package is billed in MDV Accounts (prorated for the rest of the period).
+    const { data: req } = await supabase.from("package_change_requests").select("company_id").eq("id", id).maybeSingle();
+    if (req) syncSoon({ companyId: (req as { company_id: string }).company_id });
+  }
   await sendMessagesSoon();
   revalidatePath("/platform");
   revalidatePath("/platform/companies", "layout");
