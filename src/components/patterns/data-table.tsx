@@ -131,14 +131,18 @@ export function DataTable<T extends Record<string, unknown>>({
   const headerOptions = useHeaderDateOptions();
   const urlDate = useUrlDateValue(headerOptions.defaultPeriod, headerOptions.defaultMonth, headerOptions.defaultDay);
   const dateValue = inHeader ? urlDate : ownDate;
+  // Filter on the dates themselves (text), never on the object: a new array on every render makes the
+  // table reset its page and render again, without end.
+  const range = dateFilter && dateOf ? dateValueRange(dateValue) : null;
+  const rangeFrom = range?.from ?? null;
+  const rangeTo = range?.to ?? null;
   const rowsInRange = React.useMemo(() => {
-    const range = dateFilter && dateOf ? dateValueRange(dateValue) : null;
-    if (!range || !dateOf) return data;
+    if (rangeFrom === null || rangeTo === null || !dateOf) return data;
     return data.filter((r) => {
       const d = dateOf(r);
-      return !!d && d >= range.from && d <= range.to;
+      return !!d && d >= rangeFrom && d <= rangeTo;
     });
-  }, [data, dateOf, dateValue, dateFilter]);
+  }, [data, dateOf, rangeFrom, rangeTo]);
 
   const allColumns = React.useMemo<ColumnDef<T, unknown>[]>(() => {
     if (!rowActions || rowActions.length === 0) return columns;
