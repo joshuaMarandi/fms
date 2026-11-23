@@ -11,8 +11,9 @@ export const dynamic = "force-dynamic";
 
 type Info = {
   state: "open" | "done" | "expired" | "not_found";
-  table?: "fuel_requests";
+  table?: "fuel_requests" | "timesheets";
   record?: Record<string, unknown>;
+  days?: TsDay[];
   driver?: string;
   requested_by?: string | null;
   vehicle?: string | null;
@@ -36,6 +37,7 @@ export default async function DriverConfirmPage({ params }: PageProps<"/c/[token
   }
 
   const r = info.record ?? {};
+  if (info.table === "timesheets") return <TimesheetConfirm token={token} info={info} />;
   const fuel = info.table === "fuel_requests";
   const rows: [string, string][] = fuel
     ? [
@@ -75,6 +77,78 @@ export default async function DriverConfirmPage({ params }: PageProps<"/c/[token
           <Notice icon={Clock} title="This link has expired" text="Ask your coordinator to send the request again." />
         ) : (
           <ConfirmForm token={token} driverName={info.driver ?? ""} />
+        )}
+      </div>
+    </Shell>
+  );
+}
+
+type TsDay = { work_date: string; day_type: string; shift: string; time_in: string | null; time_out: string | null; total_hours: number; overtime_hours: number; special_overtime_hours: number; allowance_tzs: number };
+const DAY_TYPE: Record<string, string> = { work: "Work", rest: "Rest day", leave: "Leave", public_holiday: "Public holiday", sick: "Sick", absent: "Absent" };
+const SHIFT: Record<string, string> = { day: "Day", noon: "Noon", night: "Night" };
+const hrs = (v: number) => (Number(v) ? formatNumber(Number(v), 2) : "—");
+
+/** The employee checks the days of their month and signs it (then it goes to the fleet manager and the HOD). */
+function TimesheetConfirm({ token, info }: { token: string; info: Info }) {
+  const r = info.record ?? {};
+  const days = info.days ?? [];
+  const month = r.period_month ? new Date(`${r.period_month}T12:00:00Z`).toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" }) : "";
+  const total = (k: keyof TsDay) => days.reduce((s, d) => s + (Number(d[k]) || 0), 0);
+  const totals: [string, string][] = [
+    ["Days recorded", formatNumber(days.length)],
+    ["Hours worked", `${formatNumber(total("total_hours"), 2)} h`],
+    ["Normal overtime", `${formatNumber(total("overtime_hours"), 2)} h`],
+    ["Special overtime", `${formatNumber(total("special_overtime_hours"), 2)} h`],
+    ["Allowance", `TZS ${formatNumber(total("allowance_tzs"))}`],
+  ];
+  return (
+    <Shell company={info.company}>
+      <h1 className="text-xl font-semibold">Sign your timesheet for {month}</h1>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {info.driver}, these are the days recorded for you{info.requested_by ? ` by ${info.requested_by}` : ""}. Check them, then sign. After you sign, the fleet manager and then the HOD approve it. If something is wrong, do not sign: tell your coordinator.
+      </p>
+      <dl className="mt-4 grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
+        {totals.map(([k, v]) => (
+          <div key={k} className="rounded-lg border px-3 py-2">
+            <dt className="text-xs text-muted-foreground">{k}</dt>
+            <dd className="font-semibold tabular-nums">{v}</dd>
+          </div>
+        ))}
+      </dl>
+      <div className="mt-4 overflow-x-auto rounded-lg border">
+        <table className="w-full min-w-136 text-sm">
+          <caption className="sr-only">Days of {month}</caption>
+          <thead className="bg-muted/60 text-left text-xs text-muted-foreground">
+            <tr>
+              <th scope="col" className="px-3 py-2 font-medium">Date</th>
+              <th scope="col" className="px-3 py-2 font-medium">Day</th>
+              <th scope="col" className="px-3 py-2 font-medium">Shift</th>
+              <th scope="col" className="px-3 py-2 font-medium">In – out</th>
+              <th scope="col" className="px-3 py-2 text-right font-medium">Hours</th>
+              <th scope="col" className="px-3 py-2 text-right font-medium">Overtime</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {days.map((d) => (
+              <tr key={d.work_date}>
+                <td className="whitespace-nowrap px-3 py-2">{formatDate(d.work_date)}</td>
+                <td className="px-3 py-2">{DAY_TYPE[d.day_type] ?? d.day_type}</td>
+                <td className="px-3 py-2">{Number(d.total_hours) ? (SHIFT[d.shift] ?? d.shift) : "—"}</td>
+                <td className="whitespace-nowrap px-3 py-2 tabular-nums">{d.time_in && d.time_out ? `${d.time_in} – ${d.time_out}` : "—"}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{hrs(d.total_hours)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{hrs(Number(d.overtime_hours) + Number(d.special_overtime_hours))}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="mt-5">
+        {info.state === "done" ? (
+          <Notice icon={CheckCircle2} title="Already signed" text={`You signed this timesheet on ${formatDate(info.confirmed_at ?? null, true)}.`} />
+        ) : info.state === "expired" ? (
+          <Notice icon={Clock} title="This link no longer works" text="It has expired, a newer link was sent, or the month is already signed. Use the latest email or SMS, or ask your coordinator." />
+        ) : (
+          <ConfirmForm token={token} driverName={info.driver ?? ""} timesheet />
         )}
       </div>
     </Shell>

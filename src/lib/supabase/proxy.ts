@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { publicUrl } from "@/lib/public-origin";
 
-const PUBLIC_PATHS = ["/", "/a", "/c", "/register", "/api/cron", "/api/accounts", "/api/dev", "/api/version", "/login", "/auth", "/forgot-password", "/reset-password", "/manifest.webmanifest", "/sw.js", "/offline", "/icons"];
+const PUBLIC_PATHS = ["/", "/a", "/c", "/f", "/register", "/api/cron", "/api/accounts", "/api/dev", "/api/version", "/login", "/auth", "/forgot-password", "/reset-password", "/manifest.webmanifest", "/sw.js", "/offline", "/icons"];
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });

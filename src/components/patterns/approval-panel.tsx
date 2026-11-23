@@ -17,7 +17,7 @@ import { SearchSelect } from "./search-select";
 import { usePermissions } from "@/components/permissions/provider";
 import { callRpc } from "@/lib/data/records";
 import { formatDate } from "@/lib/utils";
-import { LINK_TABLES, STAGED_STEPS, currentStep } from "@/lib/approval-steps";
+import { LINK_TABLES, STAGED_STEPS, VERIFY_TABLES, currentStep } from "@/lib/approval-steps";
 import { t } from "@/i18n";
 
 export type ApprovalExtraField =
@@ -38,6 +38,9 @@ export type RequestLike = {
   approver_name?: string | null;
   approval_step?: string | null;
 };
+
+/** Texts with a verification wording (key + "_verify"). */
+const VERIFY_WORDS = new Set(["approval.submit_for_approval", "approval.approve", "approval.confirm_approve", "approval.approved_by", "approval.not_submitted", "approval.signature", "approval.decided"]);
 
 /** A step already signed (earlier steps of a request with several steps). */
 export type StepSignoff = { step: string; signer_name: string | null; created_at: string };
@@ -72,6 +75,9 @@ export function ApprovalPanel({
 }) {
   const router = useRouter();
   const { can } = usePermissions();
+  // Petty cash is verified, not approved: the same steps, other words.
+  const verify = VERIFY_TABLES.has(table);
+  const w = (key: string, vars?: Record<string, string | number>) => t(verify && VERIFY_WORDS.has(key) ? `${key}_verify` : key, vars);
   const [decision, setDecision] = React.useState<"approved" | "rejected" | "">("");
   const [reason, setReason] = React.useState("");
   const [signature, setSignature] = React.useState<SignatureValue | null>(null);
@@ -142,7 +148,7 @@ export function ApprovalPanel({
     setBusy(false);
     if (!res.ok) toast.error(res.error);
     else {
-      toast.success(t("approval.decided"));
+      toast.success(w("approval.decided"));
       router.refresh();
     }
   }
@@ -163,7 +169,7 @@ export function ApprovalPanel({
           {errors[f.name] ? <FieldError>{errors[f.name]}</FieldError> : null}
         </Field>
       ))}
-      <SignatureField value={signature} onChange={setSignature} label={t("approval.signature")} />
+      <SignatureField value={signature} onChange={setSignature} label={w("approval.signature")} />
     </>
   );
 
@@ -201,11 +207,11 @@ export function ApprovalPanel({
       <CardHeader>
         <CardTitle className="flex items-center justify-between gap-2 text-base">
           {t("approval.title")}
-          <StatusChip status={request.status} />
+          <StatusChip status={request.status} label={verify && request.status === "approved" ? t("status.verified") : undefined} />
         </CardTitle>
         <CardDescription>
           {request.status === "draft"
-            ? t("approval.not_submitted")
+            ? w("approval.not_submitted")
             : request.status === "submitted"
               ? waiting
                 ? `${t("approval.awaiting_step", { step: t(waiting.label) })}. ${t("approval.sent_by_link")}`
@@ -214,7 +220,7 @@ export function ApprovalPanel({
                   : t("approval.awaiting")
               : request.status === "rejected"
                 ? t("approval.rejected_by", { name: approverName ?? request.approver_name ?? "" })
-                : t("approval.approved_by", { name: approverName ?? request.approver_name ?? "" })}
+                : w("approval.approved_by", { name: approverName ?? request.approver_name ?? "" })}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
@@ -243,7 +249,7 @@ export function ApprovalPanel({
 
         {(request.status === "approved" || request.status === "completed") && request.approver_signature ? (
           <div>
-            <p className="mb-1 text-xs text-muted-foreground">{t("approval.signature")}</p>
+            <p className="mb-1 text-xs text-muted-foreground">{w("approval.signature")}</p>
             <SignatureSummary value={request.approver_signature} />
           </div>
         ) : null}
@@ -266,7 +272,7 @@ export function ApprovalPanel({
           </div>
         ) : (request.status === "draft" || request.status === "rejected") && mayEdit ? (
           <Button type="button" size="lg" className="w-full" onClick={submit} disabled={busy}>
-            <Send /> {t("approval.submit_for_approval")}
+            <Send /> {w("approval.submit_for_approval")}
           </Button>
         ) : null}
 
@@ -275,7 +281,7 @@ export function ApprovalPanel({
             <RadioGroup value={decision} onValueChange={(v) => setDecision(v as "approved" | "rejected")} className="grid gap-2 sm:grid-cols-2">
               <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm has-data-[state=checked]:border-success has-data-[state=checked]:bg-success-bg">
                 <RadioGroupItem value="approved" id={`dec-approve-${request.id}`} />
-                <span className="font-medium">{t("approval.approve")}</span>
+                <span className="font-medium">{w("approval.approve")}</span>
               </label>
               <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm has-data-[state=checked]:border-danger has-data-[state=checked]:bg-danger-bg">
                 <RadioGroupItem value="rejected" id={`dec-reject-${request.id}`} />
@@ -306,10 +312,10 @@ export function ApprovalPanel({
                     {t("approval.decide")}
                   </Button>
                 }
-                title={decision === "approved" ? t("approval.confirm_approve") : t("approval.confirm_reject")}
+                title={decision === "approved" ? w("approval.confirm_approve") : t("approval.confirm_reject")}
                 description={decision === "rejected" ? reason || t("approval.reason_required") : undefined}
                 destructive={decision === "rejected"}
-                confirmLabel={decision === "approved" ? t("approval.approve") : t("approval.reject")}
+                confirmLabel={decision === "approved" ? w("approval.approve") : t("approval.reject")}
                 onConfirm={decide}
               />
             ) : null}

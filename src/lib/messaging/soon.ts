@@ -4,7 +4,7 @@ import { appUrl } from "@/lib/app-url";
 import { dispatchOutbox } from "./dispatch";
 
 export const WORKFLOW_TABLES = new Set(["leave_requests", "vehicle_requests", "outstation_requests", "petty_cash_requests", "petty_cash_transactions", "timesheets", "maintenance_invoices"]);
-export const WORKFLOW_RPCS = new Set(["submit_request", "approve_request", "reject_request", "sign_jmp", "send_work_order"]);
+export const WORKFLOW_RPCS = new Set(["submit_request", "approve_request", "reject_request", "sign_jmp", "send_work_order", "timesheet_send_to_employee", "timesheet_sign_on_device"]);
 
 /** Send the outbox right after the response, so the next approver gets the email and SMS within seconds. */
 export async function sendMessagesSoon() {

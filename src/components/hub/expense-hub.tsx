@@ -98,6 +98,7 @@ export async function ExpenseHub({ kind, searchParams }: { kind: ExpenseKind; se
       { label: t("maint.cr_records"), value: formatNumber(total((x) => x.cr.count)) },
       { label: t("maint.pm_cost"), value: formatTzs(total((x) => x.pm.cost)) },
       { label: t("maint.cr_cost"), value: formatTzs(total((x) => x.cr.cost)) },
+      { label: t("expenses.hub.total_cost"), value: formatTzs(total((x) => x.pm.cost + x.cr.cost)) },
     ];
     vehicles = rows.map((r) => {
       const p = per.get(r.id);

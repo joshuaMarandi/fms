@@ -39,6 +39,12 @@ const STEP_LABEL: Record<string, string> = {
   emergency_commander: "Emergency response commander sign-off",
 };
 
+// Petty cash is verified, not approved.
+const PETTY = new Set(["petty_cash_requests", "petty_cash_transactions"]);
+const PETTY_STEP_LABEL: Record<string, string> = { approval: "Fleet manager verification", hod_approval: "HOD verification", hod_verify: "HOD verification" };
+
+const PETTY_ACTION: Record<string, string> = { submitted: "Sent for verification", approved: "Verified" };
+
 const ACTION: Record<string, { label: string; icon: typeof CheckCircle2; tone: string }> = {
   submitted: { label: "Sent for approval", icon: CircleDashed, tone: "text-muted-foreground" },
   resubmitted: { label: "Changed and sent again", icon: CircleDashed, tone: "text-muted-foreground" },
@@ -94,7 +100,7 @@ export default async function ApprovalLinkPage({ params }: PageProps<"/a/[token]
           <p className="text-sm text-muted-foreground">{cap(link.request_label)}</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">{link.summary?.summary ?? cap(link.request_label)}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Step: <span className="font-medium text-foreground">{link.step_label}</span>
+            Step: <span className="font-medium text-foreground">{(PETTY.has(link.table ?? "") && link.step ? PETTY_STEP_LABEL[link.step] : undefined) ?? link.step_label}</span>
           </p>
         </div>
 
@@ -116,7 +122,8 @@ export default async function ApprovalLinkPage({ params }: PageProps<"/a/[token]
             <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">History</p>
             <ol className="relative space-y-3 border-l pl-5">
               {history.map((e, i) => {
-                const a = ACTION[e.action] ?? ACTION.submitted!;
+                const base = ACTION[e.action] ?? ACTION.submitted!;
+                const a = PETTY.has(link.table ?? "") && PETTY_ACTION[e.action] ? { ...base, label: PETTY_ACTION[e.action]! } : base;
                 const Icon = a.icon;
                 return (
                   <li key={i} className="relative text-sm">
@@ -124,7 +131,7 @@ export default async function ApprovalLinkPage({ params }: PageProps<"/a/[token]
                       <Icon className={`size-4 ${a.tone}`} aria-hidden="true" />
                     </span>
                     <span className="font-medium">{a.label}</span>
-                    {e.action !== "submitted" && e.action !== "resubmitted" ? <span className="text-muted-foreground"> · {STEP_LABEL[e.step] ?? e.step}</span> : null}
+                    {e.action !== "submitted" && e.action !== "resubmitted" ? <span className="text-muted-foreground"> · {(PETTY.has(link.table ?? "") ? PETTY_STEP_LABEL[e.step] : undefined) ?? STEP_LABEL[e.step] ?? e.step}</span> : null}
                     <span className="block text-xs text-muted-foreground">
                       {[e.actor_name, formatDate(e.created_at, true), e.via === "link" ? "from the email or SMS link" : null].filter(Boolean).join(" · ")}
                     </span>

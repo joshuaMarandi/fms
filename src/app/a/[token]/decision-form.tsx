@@ -34,6 +34,9 @@ export function DecisionForm({
   vehicles: Option[];
   expiresAt: string | null;
 }) {
+  // Petty cash is verified, not approved.
+  const verify = table === "petty_cash_requests" || table === "petty_cash_transactions";
+  const yes = verify ? "Verify" : "Approve";
   const router = useRouter();
   const [decision, setDecision] = React.useState<"approved" | "rejected" | "">("");
   const [reason, setReason] = React.useState("");
@@ -59,7 +62,7 @@ export function DecisionForm({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     const errs: Record<string, string> = {};
-    if (!decision) errs.decision = "Choose approve or reject.";
+    if (!decision) errs.decision = verify ? "Choose verify or reject." : "Choose approve or reject.";
     if (decision === "rejected" && !reason.trim()) errs.reason = "Give the reason, so the request can be changed.";
     if (decision === "approved") for (const f of fields) if (!extra[f.name]?.trim()) errs[f.name] = "Required.";
     if (!confirmed) errs.confirm = "Tick to confirm the decision.";
@@ -86,13 +89,15 @@ export function DecisionForm({
       <div className={`flex gap-3 rounded-lg p-4 ${done.decision === "approved" ? "bg-success-bg text-success" : "bg-danger-bg text-danger"}`} role="status">
         {done.decision === "approved" ? <CheckCircle2 className="mt-0.5 size-5 shrink-0" aria-hidden="true" /> : <XCircle className="mt-0.5 size-5 shrink-0" aria-hidden="true" />}
         <div>
-          <p className="font-medium">{done.decision === "approved" ? "Approved. Thank you." : "Rejected. Thank you."}</p>
+          <p className="font-medium">{done.decision === "approved" ? `${verify ? "Verified" : "Approved"}. Thank you.` : "Rejected. Thank you."}</p>
           <p className="mt-1 text-sm">
             {done.decision === "rejected"
               ? "The person who made the request was told the reason by email and SMS."
               : done.next
                 ? "The next person was sent the request by email and SMS."
-                : "The request is fully approved and the person who made it was told."}
+                : verify && table === "petty_cash_requests"
+                  ? "The request is fully verified. Finance was sent it by email to give the money and upload the proof of payment."
+                  : `The request is fully ${verify ? "verified" : "approved"} and the person who made it was told.`}
           </p>
         </div>
       </div>
@@ -108,7 +113,7 @@ export function DecisionForm({
       <RadioGroup value={decision} onValueChange={(v) => setDecision(v as "approved" | "rejected")} className="grid gap-2 sm:grid-cols-2" aria-label="Decision">
         <label className="flex min-h-[48px] cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm has-data-[state=checked]:border-success has-data-[state=checked]:bg-success-bg">
           <RadioGroupItem value="approved" id="link-approve" />
-          <span className="font-medium">Approve</span>
+          <span className="font-medium">{yes}</span>
         </label>
         <label className="flex min-h-[48px] cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm has-data-[state=checked]:border-danger has-data-[state=checked]:bg-danger-bg">
           <RadioGroupItem value="rejected" id="link-reject" />
@@ -162,7 +167,7 @@ export function DecisionForm({
       ) : null}
 
       <Button type="submit" size="lg" className="w-full" variant={decision === "rejected" ? "destructive" : "default"} disabled={busy || !decision}>
-        {busy ? "Saving..." : decision === "rejected" ? "Reject the request" : "Approve the request"}
+        {busy ? "Saving..." : decision === "rejected" ? "Reject the request" : `${yes} the request`}
       </Button>
     </form>
   );

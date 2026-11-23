@@ -28,6 +28,9 @@ async function handle(request: NextRequest) {
   const admin = createAdminClient();
   const base = publicOrigin(request);
 
+  // Timesheets of a month that has ended, if the 5-minute messages cron did not send them.
+  const { error: tsError } = await admin.rpc("timesheets_send_due");
+  if (tsError) console.error("[timesheets]", tsError.message);
   // Approval emails and SMS that are still waiting (normally sent within seconds).
   await dispatchOutbox(base, 200).catch((e) => console.error("[messages]", (e as Error).message));
 

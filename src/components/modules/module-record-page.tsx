@@ -117,7 +117,10 @@ export async function ModuleRecordPage({ moduleKey, id, preset }: { moduleKey: s
               extraFields={def.approvalExtra ? def.approvalExtra(options, record) : undefined}
               revalidate={[def.path, `${def.path}/${record.id}`]}
               signoffs={signoffs}
-              canSubmit={canApproveOrEdit && (record.created_by === session.userId || session.can(def.resource, "edit"))}
+              canSubmit={
+                (canApproveOrEdit && (record.created_by === session.userId || session.can(def.resource, "edit"))) ||
+                (!!def.schema.creatorEditsDraft && record.created_by === session.userId && session.can(def.resource, "create"))
+              }
             />
           </div>
         ) : null}

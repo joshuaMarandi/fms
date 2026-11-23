@@ -112,6 +112,18 @@ const daysBetween = (a: unknown, b: unknown) => {
   const d = Math.round((new Date(`${b}T00:00:00`).getTime() - new Date(`${a}T00:00:00`).getTime()) / 86400000);
   return Number.isNaN(d) || d < 0 ? null : d;
 };
+/** "Add description line": one line each, as many as needed. The record keeps them as one text for lists. */
+const descriptionLines = (name: string, label: string, childTable: string, fk: string): Field => ({
+  name,
+  label,
+  control: "rows",
+  childTable,
+  fk,
+  minRows: 1,
+  addLabel: "maint.add_description_line",
+  fields: [{ name: "description", label: "maint.description", control: "text", required: true, colSpan: 2 }],
+  defaultRow: () => ({ description: "" }),
+});
 const vehicleTitle = (r: Record<string, unknown>, date: unknown, ref?: unknown) =>
   [ref, (r.vehicle as { registration?: string } | undefined)?.registration, date].filter((x) => x !== null && x !== undefined && x !== "").join(" ");
 
@@ -136,10 +148,13 @@ export const maintenanceCosts: ModuleDef = {
           ...maintVehicleFields,
           { name: "cost_date", label: "common.date", control: "date", required: true },
           { name: "work_type", label: "maint.maintenance_type", control: "radio", required: true, inline: true, options: MAINT_TYPES },
-          { name: "activities", label: "maint.work_carried_out", control: "textarea", required: true },
           { name: "cost_tzs", label: "maint.labour_cost", control: "number", min: 0, unit: "TZS", required: true },
           { name: "service_provider", label: "expenses.maintenance.provider", control: "text" },
         ],
+      },
+      {
+        title: "maint.work_carried_out",
+        fields: [descriptionLines("activity_lines", "maint.work_carried_out", "maintenance_cost_lines", "maintenance_cost_id")],
       },
       {
         title: "maint.garage_stay",
@@ -204,10 +219,13 @@ export const maintenanceWorkOrders: ModuleDef = {
           ...maintVehicleFields,
           { name: "order_number", label: "maint.order_id", control: "text", description: "maint.order_id_hint" },
           { name: "order_date", label: "maint.order_date", control: "date", required: true },
-          { name: "description", label: "maint.description", control: "textarea", required: true },
           { name: "service_provider", label: "expenses.maintenance.provider", control: "text", required: true },
           { name: "provider_email", label: "maint.work_orders.provider_email", control: "email", description: "maint.work_orders.provider_email_hint" },
         ],
+      },
+      {
+        title: "maint.description",
+        fields: [descriptionLines("description_lines", "maint.description", "maintenance_work_order_lines", "work_order_id")],
       },
     ],
   },
@@ -226,7 +244,7 @@ export const maintenanceWorkOrders: ModuleDef = {
   },
 };
 
-/** Spare parts bought for a vehicle: parts times unit price. */
+/** Spare parts bought for a vehicle: lines of part and quantity, and the total cost. */
 export const maintenanceSpareParts: ModuleDef = {
   key: "expenses.maintenance.spare_parts",
   path: "/expenses/maintenance/costs/spare-parts",
@@ -238,7 +256,7 @@ export const maintenanceSpareParts: ModuleDef = {
   newLabel: "maint.spare_parts.new",
   exportName: "spare-parts",
   optionSources: ["vehicles"],
-  titleOf: (r) => vehicleTitle(r, r.part_date, r.description),
+  titleOf: (r) => vehicleTitle(r, r.part_date),
   schema: {
     table: "maintenance_spare_parts",
     resource: "expenses.maintenance.costs",
@@ -247,10 +265,27 @@ export const maintenanceSpareParts: ModuleDef = {
         fields: [
           ...maintVehicleFields,
           { name: "part_date", label: "common.date", control: "date", required: true },
-          { name: "description", label: "maint.description", control: "text", required: true },
-          { name: "quantity", label: "maint.parts", control: "number", min: 0.01, step: 0.01, required: true },
-          { name: "unit_price_tzs", label: "maint.unit_price", control: "number", min: 0, unit: "TZS", required: true },
-          { name: "cost_tzs", label: "maint.cost", control: "auto", format: "tzs", compute: (v) => safe(num(v.quantity) * num(v.unit_price_tzs)) },
+          { name: "cost_tzs", label: "maint.total_cost", control: "number", min: 0, unit: "TZS", required: true },
+        ],
+      },
+      {
+        title: "maint.parts",
+        fields: [
+          {
+            name: "part_lines",
+            label: "maint.parts",
+            control: "rows",
+            childTable: "maintenance_spare_part_lines",
+            fk: "spare_part_id",
+            minRows: 1,
+            addLabel: "maint.add_description_line",
+            fields: [
+              { name: "part", label: "maint.part", control: "text", required: true },
+              { name: "quantity", label: "maint.qty", control: "number", min: 0.01, step: 0.01, required: true },
+            ],
+            defaultRow: () => ({ part: "", quantity: 1 }),
+            totals: [{ label: "maint.qty_total", compute: (rows) => rows.reduce((t, r) => t + (Number.isNaN(num(r.quantity)) ? 0 : num(r.quantity)), 0), format: "number" }],
+          },
         ],
       },
     ],
@@ -262,10 +297,9 @@ export const maintenanceSpareParts: ModuleDef = {
     columns: [
       { key: "part_date", header: "common.date", type: "date" },
       { key: "vehicle.registration", header: "fleet.reg" },
-      { key: "description", header: "maint.description" },
-      { key: "quantity", header: "maint.parts", type: "number" },
-      { key: "unit_price_tzs", header: "maint.unit_price", type: "tzs" },
-      { key: "cost_tzs", header: "maint.cost", type: "tzs" },
+      { key: "description", header: "maint.parts", type: "multiline" },
+      { key: "quantity", header: "maint.qty_total", type: "number" },
+      { key: "cost_tzs", header: "maint.total_cost", type: "tzs" },
     ],
   },
 };
@@ -296,6 +330,7 @@ export const maintenanceInvoices: ModuleDef = {
           { name: "invoice_number", label: "maint.invoice_id", control: "text", required: true },
           { name: "invoice_date", label: "common.date", control: "date", required: true },
           { name: "service_provider", label: "expenses.maintenance.provider", control: "text", required: true },
+          { name: "provider_email", label: "maint.work_orders.provider_email", control: "email", description: "maint.invoices.provider_email_hint" },
           { name: "labour_tzs", label: "maint.labour_charge", control: "number", min: 0, unit: "TZS", required: true },
           { name: "parts_tzs", label: "maint.parts_cost", control: "number", min: 0, unit: "TZS", required: true },
           { name: "amount_tzs", label: "maint.amount", control: "auto", format: "tzs", compute: (v) => safe((Number.isNaN(num(v.labour_tzs)) ? 0 : num(v.labour_tzs)) + (Number.isNaN(num(v.parts_tzs)) ? 0 : num(v.parts_tzs))) },

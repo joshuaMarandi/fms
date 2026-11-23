@@ -69,3 +69,27 @@ export function YearPicker({ year, years }: { year: number; years: number[] }) {
     </InHeader>
   );
 }
+
+/** Opens an employee's month (where their days are added), also for someone with no timesheet yet. */
+export function EmployeePicker({ employees }: { employees: { value: string; label: string }[] }) {
+  const router = useRouter();
+  return (
+    <Select
+      onValueChange={(id) => {
+        startNavigationProgress();
+        router.push(`/expenses/timesheet?employee=${id}`);
+      }}
+    >
+      <SelectTrigger className="h-10 w-full sm:w-72" aria-label={t("timesheet.open_employee")}>
+        <SelectValue placeholder={t("timesheet.open_employee")} />
+      </SelectTrigger>
+      <SelectContent>
+        {employees.map((e) => (
+          <SelectItem key={e.value} value={e.value}>
+            {e.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}

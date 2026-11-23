@@ -15,11 +15,11 @@ export const STAGED_STEPS: Record<string, ApprovalStep[]> = {
     { step: "hod_verify", label: "approval.step.hod_verify", resource: "expenses.admin.outstation.hod" },
   ],
   petty_cash_requests: [
-    { step: "approval", label: "approval.step.fleet_manager_amount", resource: "expenses.admin.petty_cash" },
-    { step: "hod_approval", label: "approval.step.hod_approval", resource: "expenses.admin.petty_cash.hod" },
+    { step: "approval", label: "approval.step.fleet_manager_verify_amount", resource: "expenses.admin.petty_cash" },
+    { step: "hod_approval", label: "approval.step.hod_verify", resource: "expenses.admin.petty_cash.hod" },
   ],
   petty_cash_transactions: [
-    { step: "approval", label: "approval.step.fleet_manager", resource: "expenses.admin.petty_cash" },
+    { step: "approval", label: "approval.step.fleet_manager_verify", resource: "expenses.admin.petty_cash" },
     { step: "hod_verify", label: "approval.step.hod_verify", resource: "expenses.admin.petty_cash.hod" },
   ],
   timesheets: [
@@ -31,6 +31,9 @@ export const STAGED_STEPS: Record<string, ApprovalStep[]> = {
     { step: "hod_approval", label: "approval.step.hod_approval", resource: "expenses.maintenance.costs.hod" },
   ],
 };
+
+/** Requests that are verified rather than approved (the same steps, other words). */
+export const VERIFY_TABLES = new Set(["petty_cash_requests", "petty_cash_transactions"]);
 
 /** Tables whose approval sends email and SMS links. */
 export const LINK_TABLES = new Set(["leave_requests", "vehicle_requests", ...Object.keys(STAGED_STEPS)]);

@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { confirmByLink } from "./actions";
 
 /** Type your name, tick, draw your signature: the driver's confirmation of a request made for them. */
-export function ConfirmForm({ token, driverName }: { token: string; driverName: string }) {
+export function ConfirmForm({ token, driverName, timesheet }: { token: string; driverName: string; timesheet?: boolean }) {
   const canvas = React.useRef<HTMLCanvasElement>(null);
   const drawing = React.useRef(false);
   const [name, setName] = React.useState(driverName);
@@ -67,8 +67,8 @@ export function ConfirmForm({ token, driverName }: { token: string; driverName: 
       <div className="flex gap-3 rounded-lg border border-success/40 bg-success-bg p-4">
         <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-success" aria-hidden="true" />
         <div>
-          <p className="font-medium text-success">Thank you, the request is confirmed.</p>
-          <p className="mt-1 text-sm text-muted-foreground">Your signature is kept with the request. It can now go for approval.</p>
+          <p className="font-medium text-success">{timesheet ? "Thank you, your timesheet is signed." : "Thank you, the request is confirmed."}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{timesheet ? "It now goes to the fleet manager, then the HOD, for approval." : "Your signature is kept with the request. It can now go for approval."}</p>
         </div>
       </div>
     );
@@ -101,7 +101,7 @@ export function ConfirmForm({ token, driverName }: { token: string; driverName: 
       </div>
       <label className="flex items-start gap-3 rounded-lg border p-3 text-sm">
         <Checkbox checked={agree} onCheckedChange={(v) => setAgree(v === true)} className="mt-0.5" />
-        <span>I confirm that this request was made for me and that the details are correct. I sign it electronically.</span>
+        <span>{timesheet ? "I confirm that these are the days and hours I worked this month. I sign it electronically." : "I confirm that this request was made for me and that the details are correct. I sign it electronically."}</span>
       </label>
       {error ? <p className="rounded-lg bg-danger-bg p-3 text-sm text-danger">{error}</p> : null}
       <Button type="button" className="h-11 w-full" onClick={submit} disabled={busy}>
