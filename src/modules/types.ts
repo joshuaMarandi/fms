@@ -14,6 +14,8 @@ export type ColumnSpec = {
   options?: Option[];
   digits?: number;
   hidden?: boolean;
+  /** A header that depends on the rows shown (i18n key), for example Flight No or Train No. */
+  headerBy?: (rows: Record<string, unknown>[]) => string;
   sortable?: boolean;
 };
 

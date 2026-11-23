@@ -1,6 +1,7 @@
 import type { ColumnSpec, ModuleDef } from "./types";
 import type { Field, Option } from "@/lib/forms/schema";
 import { t } from "@/i18n";
+import { numberLabel, pickupLeadHours, terminalOptions, TRANSPORT_MODES } from "@/lib/travel";
 
 /** Fleet administration: roster, outstation allowance and petty cash (timesheet and leave live in expenses.ts). */
 
@@ -179,8 +180,8 @@ export const pettyCash: ModuleDef = {
   exportName: "petty-cash",
   optionSources: [],
   isRequest: true,
-  // Approved by the fleet manager (the amount) and the HOD, then emailed to finance. After approval the
-  // money received and its proof of payment are recorded; each spend is a transaction of its own.
+  // Verified by the fleet manager (the amount) and the HOD, then emailed to finance, who give the money
+  // and upload the proof of payment from the email link; each spend is a transaction of its own.
   editableStatuses: ["draft", "rejected", "approved"],
   listExtra: "petty_cash_summary",
   detailExtra: "petty_cash_transactions",
@@ -190,6 +191,7 @@ export const pettyCash: ModuleDef = {
     table: "petty_cash_requests",
     resource: "expenses.admin.petty_cash",
     isRequest: true,
+    creatorEditsDraft: true,
     sections: [
       {
         title: "admin.petty_cash.request",
@@ -233,54 +235,86 @@ export const pettyCash: ModuleDef = {
 
 // ---------------------------------------------------------------- travel coordination
 
+const timeMinus = (time: unknown, hours: number) => {
+  const m = /^(\d{2}):(\d{2})/.exec(String(time ?? ""));
+  if (!m) return undefined;
+  const total = (((Number(m[1]) * 60 + Number(m[2]) - Math.round(hours * 60)) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+};
+const busTerminal = (v: Record<string, unknown>) => {
+  const name = String(v.bus_terminal ?? "").trim();
+  return !name ? null : /terminal|stand|station/i.test(name) ? name : `${name} Bus Terminal`;
+};
+const chosenTerminal = (v: Record<string, unknown>) => (v.transport_mode === "bus" ? busTerminal(v) : (v.terminal as string) || null);
+
 const travelFields = (direction: "departure" | "arrival"): Field[] => [
   { name: "direction", label: "common.record", control: "hidden" },
   { name: "travel_date", label: "common.date", control: "date", required: true },
   { name: "travellers", label: "travel.travellers", control: "textarea", required: true, description: "travel.travellers_hint" },
-  { name: "airport", label: "travel.airport", control: "select", source: "travel_airports", required: true },
-  { name: "flight", label: "travel.flight", control: "text" },
-  { name: "flight_time", label: direction === "departure" ? "travel.departure_time" : "travel.arrival_time", control: "time", required: true },
-  { name: "pickup_from", label: "travel.pickup_from", control: "text", required: direction === "departure" },
+  { name: "traveller_email", label: "travel.traveller_email", control: "email", description: "travel.traveller_contact_hint" },
+  { name: "traveller_phone", label: "travel.traveller_phone", control: "tel" },
+  { name: "transport_mode", label: "travel.transport", control: "radio", inline: true, options: TRANSPORT_MODES, required: true },
   {
-    name: "pickup_time",
-    label: "travel.pickup_time",
-    control: "time",
-    description: direction === "departure" ? "travel.pickup_rule_departure" : "travel.pickup_rule_arrival",
-    // Departures: pick up the set number of hours before the flight (per airport). Arrivals: at landing.
-    prefill: {
-      deps: ["airport", "flight_time"],
-      compute: (v, ctx) => {
-        const time = String(v.flight_time ?? "");
-        if (!/^\d{2}:\d{2}/.test(time)) return undefined;
-        if (direction === "arrival") return time.slice(0, 5);
-        const lead = Number((ctx.options.travel_airports ?? []).find((a) => a.value === v.airport)?.pickup_lead_hours ?? 3);
-        const [h, m] = time.split(":").map(Number) as [number, number];
-        const total = (((h * 60 + m - Math.round(lead * 60)) % 1440) + 1440) % 1440;
-        return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
-      },
-    },
+    name: "terminal",
+    label: "travel.terminal",
+    control: "select",
+    optionsBy: (v) => terminalOptions(v.transport_mode),
+    required: true,
+    showWhen: { field: "transport_mode", in: ["air", "marine", "railway"] },
+    // One marine terminal: chosen by itself.
+    prefill: { deps: ["transport_mode"], compute: (v) => (v.transport_mode === "marine" ? terminalOptions("marine")[0]?.value : v.transport_mode === "air" || v.transport_mode === "railway" ? "" : undefined) },
   },
-  { name: "transport_to", label: "travel.transport_to", control: "text" },
-  { name: "host", label: "travel.host", control: "text" },
+  { name: "bus_terminal", label: "travel.bus_terminal", control: "text", required: true, description: "travel.bus_terminal_hint", showWhen: { field: "transport_mode", equals: "bus" } },
+  { name: "flight", label: "travel.no.air", labelBy: (v) => numberLabel(v.transport_mode), control: "text", showWhen: { field: "transport_mode", truthy: true } },
+  { name: "flight_time", label: direction === "departure" ? "travel.departure_time" : "travel.arrival_time", control: "time", required: true },
+  ...(direction === "departure"
+    ? ([
+        { name: "pickup_from", label: "travel.pickup_from", control: "text", required: true },
+        {
+          name: "pickup_time",
+          label: "travel.pickup_time",
+          control: "time",
+          description: "travel.pickup_rule",
+          // Air, marine and railway: 3 hours before (JKNIA 3.5 hours); bus: 2.5 hours.
+          prefill: { deps: ["transport_mode", "terminal", "flight_time"], compute: (v) => timeMinus(v.flight_time, pickupLeadHours(v.transport_mode, v.terminal)) },
+        },
+        { name: "transport_to", label: "travel.transport_to", control: "auto", format: "text", compute: (v) => chosenTerminal(v) },
+      ] as Field[])
+    : ([
+        { name: "pickup_from", label: "travel.pickup_from", control: "auto", format: "text", compute: (v) => chosenTerminal(v) },
+        { name: "transport_to", label: "travel.transport_to", control: "text" },
+        { name: "host", label: "travel.host", control: "text", required: true },
+      ] as Field[])),
   { name: "driver_id", label: "inspections.driver", control: "select", source: "drivers" },
-  { name: "vehicle_id", label: "inspections.vehicle", control: "select", source: "vehicles" },
+  { name: "vehicle_id", label: "inspections.vehicle", control: "select", source: "vehicles", description: "travel.vehicle_optional" },
   { name: "notes", label: "common.notes", control: "textarea" },
 ];
 
 const travelColumns = (direction: "departure" | "arrival"): ColumnSpec[] => [
   { key: "travel_date", header: "common.date", type: "date" },
   { key: "travellers", header: "travel.travellers", type: "multiline" },
-  { key: "airport", header: "travel.airport" },
-  { key: "flight", header: "travel.flight" },
+  { key: "traveller_phone", header: "travel.traveller_phone" },
+  { key: "transport_mode", header: "travel.transport", type: "label", options: TRANSPORT_MODES },
+  { key: "terminal", header: "travel.terminal" },
+  // Flight No, Vessel No, Train No or Bus number: by the transport of the rows shown.
+  {
+    key: "flight",
+    header: "travel.no.any",
+    headerBy: (rows) => {
+      const modes = new Set(rows.map((r) => r.transport_mode as string | null).filter(Boolean));
+      return modes.size === 1 ? numberLabel([...modes][0]) : "travel.no.any";
+    },
+  },
   { key: "flight_time", header: direction === "departure" ? "travel.departure_time" : "travel.arrival_time", type: "time" },
   { key: "pickup_from", header: "travel.pickup_from" },
-  { key: "pickup_time", header: "travel.pickup_time", type: "time" },
+  ...(direction === "departure" ? ([{ key: "pickup_time", header: "travel.pickup_time", type: "time" }] as ColumnSpec[]) : []),
   { key: "transport_to", header: "travel.transport_to" },
-  { key: "host", header: "travel.host" },
+  ...(direction === "arrival" ? ([{ key: "host", header: "travel.host" }] as ColumnSpec[]) : []),
   { key: "driver.full_name", header: "inspections.driver" },
   { key: "driver.phone", header: "admin.outstation.phone" },
   { key: "vehicle_name", header: "inspections.vehicle" },
   { key: "vehicle.registration", header: "travel.reg" },
+  { key: "notified_at", header: "travel.sent_to_traveller", type: "datetime" },
 ];
 
 const travelModule = (direction: "departure" | "arrival"): ModuleDef => ({
@@ -293,15 +327,16 @@ const travelModule = (direction: "departure" | "arrival"): ModuleDef => ({
   description: direction === "departure" ? "travel.departures.description" : "travel.arrivals.description",
   newLabel: direction === "departure" ? "travel.departures.new" : "travel.arrivals.new",
   exportName: direction === "departure" ? "local-departures" : "local-arrivals",
-  optionSources: ["drivers", "vehicles", "travel_airports"],
+  optionSources: ["drivers", "vehicles"],
   fixed: { direction },
+  detailExtra: "travel_notify",
   titleOf: (r) => `${r.travel_date ?? ""} ${r.flight ?? ""}`.trim(),
-  schema: { table: "travel_movements", resource: "expenses.travel", sections: [{ fields: travelFields(direction) }] },
+  schema: { table: "travel_movements", resource: "expenses.travel", omitOnSave: ["notified_at", "notified_to"], sections: [{ fields: travelFields(direction) }] },
   list: {
     select: "*, driver:drivers(full_name, phone), vehicle:vehicles(make, model, registration)",
     eq: { direction },
     orderBy: { column: "travel_date", ascending: false },
-    searchKeys: ["travellers", "airport", "flight", "driver.full_name"],
+    searchKeys: ["travellers", "terminal", "flight", "driver.full_name", "traveller_phone"],
     derive: (r) => {
       const v = r.vehicle as { make?: string; model?: string } | null;
       return { vehicle_name: v ? `${v.make ?? ""} ${v.model ?? ""}`.trim() : null };
@@ -310,7 +345,7 @@ const travelModule = (direction: "departure" | "arrival"): ModuleDef => ({
   },
 });
 
-/** One spend of a petty cash request, with its receipt. Approved by the fleet manager, verified by the HOD. */
+/** One spend of a petty cash request, with its receipt. Verified by the fleet manager, then the HOD. */
 export const pettyCashTransactions: ModuleDef = {
   key: "expenses.admin.petty_cash.transactions",
   path: "/administration/petty-cash/transactions",
@@ -329,6 +364,7 @@ export const pettyCashTransactions: ModuleDef = {
     table: "petty_cash_transactions",
     resource: "expenses.admin.petty_cash",
     isRequest: true,
+    creatorEditsDraft: true,
     sections: [
       {
         fields: [
@@ -367,43 +403,6 @@ export const pettyCashTransactions: ModuleDef = {
 
 export const travelDepartures = travelModule("departure");
 export const travelArrivals = travelModule("arrival");
-
-/** Pickup rules per airport: how long before a departing flight the driver picks travellers up. */
-export const travelAirports: ModuleDef = {
-  key: "expenses.travel.settings",
-  path: "/travel/settings",
-  resource: "expenses.travel",
-  table: "travel_airports",
-  title: "travel.settings.title",
-  description: "travel.settings.description",
-  newLabel: "travel.settings.new",
-  exportName: "pickup-settings",
-  optionSources: [],
-  titleOf: (r) => String(r.name ?? ""),
-  schema: {
-    table: "travel_airports",
-    resource: "expenses.travel",
-    sections: [
-      {
-        fields: [
-          { name: "name", label: "travel.airport", control: "text", required: true },
-          { name: "pickup_lead_hours", label: "travel.lead_hours", control: "number", min: 0, step: 0.5, unit: "h", required: true, description: "travel.lead_hours_hint" },
-          { name: "host_person", label: "travel.host", control: "text" },
-        ],
-      },
-    ],
-  },
-  list: {
-    select: "*",
-    orderBy: { column: "name", ascending: true },
-    searchKeys: ["name", "host_person"],
-    columns: [
-      { key: "name", header: "travel.airport" },
-      { key: "pickup_lead_hours", header: "travel.lead_hours", type: "hours", digits: 1 },
-      { key: "host_person", header: "travel.host" },
-    ],
-  },
-};
 
 /** Fleet expenses: anything bought for the fleet that has no page of its own. */
 export const miscExpenses: ModuleDef = {

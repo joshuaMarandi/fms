@@ -62,7 +62,6 @@ insert into public.resources (key, parent_key, name, label_prefix, path, icon, s
   ('expenses.travel', null, 'Travel coordination', '8', null, 'map-pin', 800, false, false),
   ('expenses.travel.departures', 'expenses.travel', 'Local departures', null, '/travel/departures', null, 561, false, false),
   ('expenses.travel.arrivals', 'expenses.travel', 'Local arrivals', null, '/travel/arrivals', null, 562, false, false),
-  ('expenses.travel.settings', 'expenses.travel', 'Pickup settings', null, '/travel/settings', null, 563, false, false),
   ('expenses.reports', null, 'Fleet data reports', '7', '/expenses/reports', 'bar-chart-3', 700, false, false),
   ('platform', null, 'Platform', null, '/platform', 'building', 50, false, false),
   ('platform.overview', 'platform', 'Overview', null, '/platform', 'layout-grid', 51, false, false),

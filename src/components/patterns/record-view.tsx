@@ -69,7 +69,7 @@ function display(f: Field, v: unknown, values: Values, ctx: FormComputeContext):
     case "year":
       return String(v);
     case "select": {
-      const opts = f.options ?? (f.source ? (ctx.options[f.source] ?? []) : []);
+      const opts = (f.optionsBy ? f.optionsBy(values) : f.options) ?? (f.source ? (ctx.options[f.source] ?? []) : []);
       const o = opts.find((x) => String(x.value) === String(v));
       return o ? optionLabel(o.label) : String(v);
     }
@@ -138,7 +138,7 @@ function FieldItem({ f, values, ctx, recordId, schema }: { f: Field; values: Val
   if (shown === null) return null;
   return (
     <div className={cn("min-w-0", WIDE.has(f.control) && "sm:col-span-2 lg:col-span-3")}>
-      <dt className="text-xs font-medium text-muted-foreground">{shortLabel(f.label)}</dt>
+      <dt className="text-xs font-medium text-muted-foreground">{shortLabel(f.labelBy?.(values) ?? f.label)}</dt>
       <dd className={cn("mt-0.5 text-sm font-medium break-words", f.control === "textarea" && "font-normal whitespace-pre-line")}>{shown}</dd>
     </div>
   );

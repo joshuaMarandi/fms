@@ -8,7 +8,7 @@ import { t } from "@/i18n";
 export type Option = { value: string; label: string };
 
 /** Dynamic option sources loaded server-side and passed to the form as `options`. */
-export type OptionSource = "vehicles" | "drivers" | "sites" | "profiles" | "leave_categories" | "roles" | "companies" | "fuel_requests" | "travel_airports" | "petty_cash_requests";
+export type OptionSource = "vehicles" | "drivers" | "sites" | "profiles" | "leave_categories" | "roles" | "companies" | "fuel_requests" | "petty_cash_requests";
 
 export type Condition = { field: string; equals?: string | boolean | number; in?: (string | number)[]; truthy?: boolean; includes?: string };
 
@@ -16,6 +16,8 @@ type Base = {
   name: string;
   /** i18n key */
   label: string;
+  /** A label that depends on other answers (i18n key), for example Flight No or Train No by transport. */
+  labelBy?: (values: Record<string, unknown>) => string | undefined;
   /** i18n key */
   description?: string;
   required?: boolean;
@@ -43,7 +45,14 @@ export type Field =
   | (Base & { control: "number"; min?: number; max?: number; step?: number; unit?: string; integer?: boolean })
   | (Base & { control: "date" | "time" | "datetime" })
   | (Base & { control: "year"; from?: number })
-  | (Base & { control: "select"; options?: Option[]; source?: OptionSource; sourceFilter?: (opt: Option & Record<string, unknown>, values: Record<string, unknown>) => boolean })
+  | (Base & {
+      control: "select";
+      options?: Option[];
+      /** Choices that depend on other answers (instead of options), for example the terminals of the transport chosen. */
+      optionsBy?: (values: Record<string, unknown>) => Option[];
+      source?: OptionSource;
+      sourceFilter?: (opt: Option & Record<string, unknown>, values: Record<string, unknown>) => boolean;
+    })
   | (Base & { control: "radio"; options: Option[]; inline?: boolean })
   | (Base & { control: "checkbox" })
   | (Base & { control: "switch" })
@@ -99,6 +108,8 @@ export type FormSchema = {
   omitOnSave?: string[];
   /** Request table: show the approval panel */
   isRequest?: boolean;
+  /** The person who recorded it may change their own draft (or rejected) record without the edit permission. */
+  creatorEditsDraft?: boolean;
   /** Label field used for the breadcrumb and title */
   titleField?: string | ((record: Record<string, unknown>) => string);
   /** How a saved record is grouped in view mode (field names per card); other fields go last. */

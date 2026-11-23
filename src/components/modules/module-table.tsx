@@ -137,7 +137,7 @@ export function ModuleTable({ moduleKey, rows, pathPrefix, hiddenColumns, varian
     () =>
       (variant === "details" && def.list.detailColumns ? def.list.detailColumns : def.list.columns).filter((spec) => !hiddenKey.split(",").includes(spec.key)).map((spec) => ({
         id: spec.key,
-        header: tl(spec.header),
+        header: tl(spec.headerBy ? spec.headerBy(rows) : spec.header),
         accessorFn: (row) => exportValue(spec, getPath(row, spec.key)),
         cell: ({ row }) =>
           spec.type === "docs" && fileField && mayAttach ? (
@@ -156,7 +156,7 @@ export function ModuleTable({ moduleKey, rows, pathPrefix, hiddenColumns, varian
         // Date columns feed the table's From and To filter.
         meta: { hidden: spec.hidden, ...(spec.type === "date" || spec.type === "datetime" || spec.type === "reminder_date" ? { dateOf: (row: Row) => getPath(row, spec.key) } : {}) },
       })),
-    [def, hiddenKey, variant, fileField, mayAttach],
+    [def, hiddenKey, variant, fileField, mayAttach, rows],
   );
 
   const canEdit = can(def.resource, "edit");

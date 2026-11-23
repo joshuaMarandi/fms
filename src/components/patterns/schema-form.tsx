@@ -107,7 +107,10 @@ function SchemaFormInner({ schemaKey, record, options = {}, afterSavePath, cance
     () => ({ options, session: { fullName: session.fullName, userId: session.userId, driverId: session.driverId }, record }),
     [options, session, record],
   );
-  const canEdit = !readOnly && (record?.id ? can(schema.resource, "edit") : can(schema.resource, "create"));
+  // The person who recorded it may also change their own draft (or a rejected one) where the form allows it.
+  const ownDraft =
+    !!schema.creatorEditsDraft && !!record?.id && record.created_by === session.userId && (record.status === "draft" || record.status === "rejected") && can(schema.resource, "create");
+  const canEdit = !readOnly && (record?.id ? can(schema.resource, "edit") || ownDraft : can(schema.resource, "create"));
   const defaults = React.useMemo(() => defaultValues(schema, record, ctx), [schema, record, ctx]);
   // A saved record opens read-only; the form shows only after Edit (new records go straight to the form).
   const saved = !!record?.id;
@@ -293,7 +296,7 @@ function FieldRenderer({ field: f, form, ctx, disabled, recordId, schema, prefix
   if (!conditionMet(f.showWhen, scopeValues)) return null;
   const error = getPath(form.formState.errors, name) as { message?: string } | undefined;
   const id = `f-${name.replace(/\./g, "-")}`;
-  const label = tl(f.label);
+  const label = tl(f.labelBy?.(scopeValues) ?? f.label);
   const span = f.colSpan === 2 || f.control === "textarea" || f.control === "rows" || f.control === "checkbox_group" || f.control === "signature" || f.control === "file" ? "md:col-span-2" : "";
   const isDisabled = disabled || !!f.readOnly || (!!f.lockWhen && f.lockWhen(values, ctx, rowIndex));
 
@@ -378,7 +381,8 @@ function FieldRenderer({ field: f, form, ctx, disabled, recordId, schema, prefix
       );
     case "select": {
       const sourceOpts = f.source ? (ctx.options[f.source] ?? []).filter((o) => !f.sourceFilter || f.sourceFilter(o, scopeValues)) : [];
-      const opts = f.options ? f.options.map((o) => ({ ...o, label: tl(o.label) })) : sourceOpts;
+      const own = f.optionsBy ? f.optionsBy(scopeValues) : f.options;
+      const opts = own ? own.map((o) => ({ ...o, label: tl(o.label) })) : sourceOpts;
       return wrap(
         <Controller
           control={form.control}

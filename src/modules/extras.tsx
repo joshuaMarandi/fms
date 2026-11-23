@@ -7,6 +7,7 @@ import { SignatureSummary, type SignatureValue } from "@/components/patterns/sig
 import { JmpReviewPanel, type JmpReview } from "@/components/modules/jmp-review-panel";
 import { AttachmentsBox } from "@/components/patterns/attachments-box";
 import { WorkOrderEmail } from "@/components/modules/work-order-email";
+import { TravelNotify } from "@/components/modules/travel-notify";
 import { HubSummary } from "@/components/hub/vehicle-hub";
 import { loadDocs } from "@/lib/data/docs";
 import { SummaryDates } from "@/components/hub/daily-use-hub";
@@ -271,6 +272,21 @@ export async function DetailExtra({ name, record }: { name: string; record: Reco
             />
           ) : null}
         </div>
+      );
+    }
+    case "travel_notify": {
+      // Send the pickup details to the traveller by email and SMS.
+      if (!record.id) return null;
+      return (
+        <TravelNotify
+          id={record.id as string}
+          path={record.direction === "arrival" ? "/travel/arrivals" : "/travel/departures"}
+          email={(record.traveller_email as string | null) ?? null}
+          phone={(record.traveller_phone as string | null) ?? null}
+          sentAt={(record.notified_at as string | null) ?? null}
+          sentTo={(record.notified_to as string | null) ?? null}
+          canSend={session.can("expenses.travel", "edit") || session.can("expenses.travel", "create")}
+        />
       );
     }
     case "work_order_email": {
