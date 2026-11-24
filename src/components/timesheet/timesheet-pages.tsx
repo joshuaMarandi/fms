@@ -3,12 +3,11 @@ import { PageHeader } from "@/components/shell/page-header";
 import { RecordTitle } from "@/components/modules/record-title";
 import { ViewAllMenu } from "@/components/hub/view-all-menu";
 import { ApprovalPanel, type RequestLike, type StepSignoff } from "@/components/patterns/approval-panel";
-import { EmployeePicker, MonthPicker, YearPicker } from "./period-pickers";
+import { MonthPicker, YearPicker } from "./period-pickers";
 import { DaysTable, EmployeesTable, type DayRow, type EmployeeRow } from "./timesheet-tables";
 import { EmployeeSignControls } from "./employee-sign";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
-import { loadOptions } from "@/lib/data/records";
 import { splitHours, SHIFTS } from "@/lib/timesheet-hours";
 import { formatDate, formatNumber, formatTzs, todayISO } from "@/lib/utils";
 import { t } from "@/i18n";
@@ -30,23 +29,27 @@ function monthsTouched(from: string, to: string, year: number): number[] {
   return out;
 }
 
-/** Timesheet home: every employee with their latest record, absences, and leave from the leave plan. */
+/** Timesheet home: every employee of the company (its active users) with their latest day, absences, and leave from the leave plan. */
 export async function TimesheetEmployees({ searchParams }: { searchParams: SP }) {
-  await requirePermission("expenses.timesheet", "view");
+  const session = await requirePermission("expenses.timesheet", "view");
+  const companyId = session.company?.id ?? session.profile.company_id;
   const today = todayISO();
   const thisYear = Number(today.slice(0, 4));
   const yearParam = Number(one(searchParams.year));
   const year = Number.isInteger(yearParam) && yearParam >= 2000 && yearParam <= 2100 ? yearParam : thisYear;
   const supabase = await createClient();
 
-  const [{ data: sheets }, { data: plans }, options] = await Promise.all([
+  const [{ data: sheets }, { data: plans }, { data: users }] = await Promise.all([
     supabase
       .from("timesheets")
       .select("id, employee_id, employee_name, employment_number, job_title, period_month, days:timesheet_days(work_date, day_type, deleted_at)")
       .is("deleted_at", null)
       .order("period_month", { ascending: false }),
     supabase.from("leave_plans").select("employee_id, employee_name, employment_number, position, planned_months, rows:leave_plan_rows(date_from, date_to, deleted_at)").is("deleted_at", null).eq("plan_year", year),
-    loadOptions(["profiles"]),
+    // The company's active users (the company in view, also for the platform owner).
+    companyId
+      ? supabase.from("profiles").select("id, full_name, employment_number, job_title").eq("is_active", true).eq("company_id", companyId).order("full_name")
+      : Promise.resolve({ data: [] }),
   ]);
 
   type Acc = EmployeeRow & { months: Set<number>; periods: { from: string; to: string }[] };
@@ -60,6 +63,14 @@ export async function TimesheetEmployees({ searchParams }: { searchParams: SP })
     }
     return p;
   };
+
+  // Every active user of the company is an employee here, with or without a timesheet yet: a user
+  // added to the company shows at once, and their days are added from their month.
+  for (const u of (users ?? []) as { id: string; full_name: string; employment_number: string | null; job_title: string | null }[]) {
+    const p = get(u.id, u.full_name || t("common.unknown"));
+    p.employment_number ||= u.employment_number ?? "";
+    p.position ||= u.job_title ?? "";
+  }
 
   // Newest timesheet first, so the employee details come from the latest one.
   for (const s of (sheets ?? []) as { employee_id: string | null; employee_name: string; employment_number: string | null; job_title: string | null; days: { work_date: string; day_type: string; deleted_at: string | null }[] | null }[]) {
@@ -102,10 +113,6 @@ export async function TimesheetEmployees({ searchParams }: { searchParams: SP })
       <PageHeader title={t("expenses.timesheet.title")} description={t("timesheet.home_description", { year })} />
       <ViewAllMenu items={[{ href: "/expenses/timesheet?employee=all", label: t("expenses.timesheet.title") }]} />
       <YearPicker year={year} years={years} />
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm text-muted-foreground">{t("timesheet.open_employee_hint")}</span>
-        <EmployeePicker employees={(options.profiles ?? []).map((o) => ({ value: o.value, label: o.label }))} />
-      </div>
       <EmployeesTable rows={rows} />
     </>
   );
