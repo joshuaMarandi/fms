@@ -653,15 +653,15 @@ insert into public.incident_people (company_id, incident_id, kind, name, sex, ag
   ('11111111-1111-1111-1111-111111111111', 'bbbbbbbb-bbbb-bbbb-bbbb-000000000002', 'injured', 'Samwel Magesa', 'male', 34, '+255700000099', 'Buswelu, Ilemela');
 
 -- Travel coordination: local departures and arrivals (pickup times follow each airport's rule:
--- JKNIA 3.5 h before departure, other airports 3 h; arrivals are met at landing).
+-- JNIA 3.5 h before departure, other airports 3 h; arrivals are met at landing).
 insert into public.travel_movements (company_id, direction, travel_date, travellers, airport, flight, flight_time, pickup_from, pickup_time, transport_to, host, driver_id, vehicle_id, notes) values
   ('11111111-1111-1111-1111-111111111111', 'departure', current_date + 2, 'David Michael', 'Kahama Airport', 'Precision Air PW 711', '12:30', 'Submarine Hotel', '09:30', 'Kahama Airport', null, '66666666-6666-6666-6666-000000000001', '55555555-5555-5555-5555-000000000001', null),
   ('11111111-1111-1111-1111-111111111111', 'departure', current_date + 2, E'Loi Rogers
-Anna Peter', 'JKNIA', 'Air Tanzania TC 100', '15:00', 'Dar es Salaam HQ', '11:30', 'JKNIA Terminal 3', null, '66666666-6666-6666-6666-000000000002', '55555555-5555-5555-5555-000000000002', 'Two bags each'),
+Anna Peter', 'JNIA', 'Air Tanzania TC 100', '15:00', 'Dar es Salaam HQ', '11:30', 'JNIA Terminal 3', null, '66666666-6666-6666-6666-000000000002', '55555555-5555-5555-5555-000000000002', 'Two bags each'),
   ('11111111-1111-1111-1111-111111111111', 'departure', current_date + 5, 'Grace Mollel', 'Mwanza Airport', 'Air Tanzania TC 141', '08:45', 'Mwanza site', '05:45', 'Mwanza Airport', null, '66666666-6666-6666-6666-000000000003', '55555555-5555-5555-5555-000000000003', null),
   ('11111111-1111-1111-1111-111111111111', 'arrival', current_date + 1, 'Matteo Gurau', 'Kahama Airport', 'Precision Air PW 710', '10:15', 'Kahama Airport', '10:15', 'Submarine Hotel', 'Site manager', '66666666-6666-6666-6666-000000000001', '55555555-5555-5555-5555-000000000001', null),
   ('11111111-1111-1111-1111-111111111111', 'arrival', current_date + 3, E'Loi Rogers
-James Otieno', 'JKNIA', 'Air Tanzania TC 101', '18:40', 'JKNIA Terminal 3', '18:40', 'Dar es Salaam HQ', 'Fleet coordinator', '66666666-6666-6666-6666-000000000004', '55555555-5555-5555-5555-000000000005', 'Meet at arrivals with a name board'),
+James Otieno', 'JNIA', 'Air Tanzania TC 101', '18:40', 'JNIA Terminal 3', '18:40', 'Dar es Salaam HQ', 'Fleet coordinator', '66666666-6666-6666-6666-000000000004', '55555555-5555-5555-5555-000000000005', 'Meet at arrivals with a name board'),
   ('11111111-1111-1111-1111-111111111111', 'arrival', current_date - 2, 'Sarah Kimaro', 'Arusha Airport', 'Precision Air PW 422', '13:05', 'Arusha Airport', '13:05', 'Arusha guest house', null, '66666666-6666-6666-6666-000000000002', '55555555-5555-5555-5555-000000000004', null);
 
 -- Fleet roster: a 28-day rotating block roster (7 Day, 7 Noon, 7 Night, 7 OFF). Coordinators in
