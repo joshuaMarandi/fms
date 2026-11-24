@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm, useFieldArray, Controller, type FieldValues, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { ChevronRight, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +21,7 @@ import { SignatureField, type SignatureValue } from "./signature-field";
 import { AttachmentsBox, StagedFilesContext, uploadAttachments, type StagedFiles } from "./attachments-box";
 import { SearchSelect, toSearchOptions } from "./search-select";
 import { FormActions } from "./form-actions";
-import { RecordView } from "./record-view";
+import { RecordView, display as displayValue, shortLabel } from "./record-view";
 import { FileFallbackContext, useFileFallback } from "./file-fallback";
 import type { DocRef } from "./doc-button";
 import { usePermissions } from "@/components/permissions/provider";
@@ -32,6 +33,7 @@ import {
   buildZod,
   conditionMet,
   defaultValues,
+  draftEditable,
   toPayload,
   YEAR_OPTIONS,
   type Field,
@@ -111,12 +113,14 @@ function SchemaFormInner({ schemaKey, record, options = {}, afterSavePath, cance
   );
   // The person who recorded it may also change their own draft (or a rejected one) where the form allows it.
   const ownDraft =
-    !!schema.creatorEditsDraft && !!record?.id && record.created_by === session.userId && (record.status === "draft" || record.status === "rejected") && can(schema.resource, "create");
+    draftEditable(schema.creatorEditsDraft, record, session.userId) && can(schema.resource, "create");
   const canEdit = !readOnly && (record?.id ? can(schema.resource, "edit") || ownDraft : can(schema.resource, "create"));
   const defaults = React.useMemo(() => defaultValues(schema, record, ctx), [schema, record, ctx]);
   // A saved record opens read-only; the form shows only after Edit (new records go straight to the form).
   const saved = !!record?.id;
-  const [editing, setEditing] = React.useState(!!startInEdit);
+  // "Edit" from a list opens the record straight in its form (?edit=1).
+  const editParam = useSearchParams()?.get("edit") === "1";
+  const [editing, setEditing] = React.useState(!!startInEdit || (saved && editParam && canEdit));
 
   const form = useForm<FieldValues>({
     defaultValues: defaults,
@@ -557,6 +561,8 @@ function RowsField({ field: f, form, ctx, disabled, name, schema, recordId }: { 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chainKey, disabled]);
 
+  if (f.dialog) return <DialogRows f={f} form={form} ctx={ctx} disabled={disabled} name={name} schema={schema} recordId={recordId} rows={rows} append={append} remove={remove} values={values} rowValues={rowValues} error={error} />;
+
   return (
     <FieldSet className="md:col-span-2">
       <div className="flex items-center justify-between">
@@ -606,6 +612,151 @@ function RowsField({ field: f, form, ctx, disabled, name, schema, recordId }: { 
         </dl>
       ) : null}
       {error?.message || error?.root?.message ? <FieldError>{error.message ?? error.root?.message}</FieldError> : null}
+    </FieldSet>
+  );
+}
+
+/**
+ * Rows added one by one in a dialog (Add traveller, Add response): the rows show as a table with Edit
+ * and Remove; the dialog holds one row's fields. A row added and then cancelled is taken out again.
+ */
+function DialogRows({ f, form, ctx, disabled, name, schema, recordId, rows, append, remove, values, rowValues, error }: {
+  f: Extract<Field, { control: "rows" }>;
+  form: UseFormReturn<FieldValues>;
+  ctx: FormComputeContext;
+  disabled: boolean;
+  name: string;
+  schema: FormSchema;
+  recordId: string | null;
+  rows: { id: string }[];
+  append: (v: Record<string, unknown>) => void;
+  remove: (i: number) => void;
+  values: Record<string, unknown>;
+  rowValues: Record<string, unknown>[];
+  error: { message?: string; root?: { message?: string } } | undefined;
+}) {
+  // The row open in the dialog, and whether it was just added (Cancel then removes it).
+  const [open, setOpen] = React.useState<{ idx: number; isNew: boolean; before?: Record<string, unknown> } | null>(null);
+  const cols = f.fields.filter((s) => s.control !== "hidden" && s.control !== "file");
+  const canAdd = !disabled && (!f.maxRows || rows.length < f.maxRows);
+  const canRemove = !disabled && (!f.minRows || rows.length > f.minRows);
+
+  function add() {
+    const idx = rows.length;
+    append(f.defaultRow ? f.defaultRow(values, rowValues, ctx) : defaultRow(f));
+    setOpen({ idx, isNew: true });
+  }
+  function cancel() {
+    if (!open) return;
+    if (open.isNew) remove(open.idx);
+    else if (open.before) form.setValue(`${name}.${open.idx}`, open.before, { shouldDirty: true });
+    setOpen(null);
+  }
+  async function done() {
+    if (!open) return;
+    const names = f.fields.map((s) => `${name}.${open.idx}.${s.name}`);
+    const ok = await form.trigger(names);
+    if (ok) setOpen(null);
+  }
+
+  return (
+    <FieldSet className="md:col-span-2 @5xl/dialog:col-span-3">
+      <div className="flex items-center justify-between gap-2">
+        <FieldLegend variant="label">
+          {tl(f.label)} {rows.length ? <span className="tabular-nums text-muted-foreground">({rows.length})</span> : null}
+          {f.minRows ? <span className="text-danger" aria-hidden="true"> *</span> : null}
+        </FieldLegend>
+        {canAdd ? (
+          <Button type="button" variant="outline" size="sm" onClick={add}>
+            <Plus /> {f.addLabel ? tl(f.addLabel) : t("common.add_row")}
+          </Button>
+        ) : null}
+      </div>
+      {f.description ? <FieldDescription>{tl(f.description)}</FieldDescription> : null}
+      {rows.length === 0 ? (
+        <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">{t("common.empty_title")}</p>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border">
+          <table className="w-full min-w-[480px] text-sm">
+            <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+              <tr>
+                <th scope="col" className="w-8 px-3 py-2 font-medium">#</th>
+                {cols.map((c) => (
+                  <th key={c.name} scope="col" className="px-3 py-2 font-medium">
+                    {shortLabel(c.label)}
+                  </th>
+                ))}
+                {!disabled ? (
+                  <th scope="col" className="px-3 py-2">
+                    <span className="sr-only">{t("common.actions")}</span>
+                  </th>
+                ) : null}
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {rows.map((row, idx) => {
+                const r = rowValues[idx] ?? {};
+                return (
+                  <tr key={row.id} className="align-top">
+                    <td className="px-3 py-2 text-muted-foreground tabular-nums">{idx + 1}</td>
+                    {cols.map((c) => (
+                      <td key={c.name} className={cn("px-3 py-2", c.control === "textarea" ? "min-w-[200px] whitespace-pre-line" : "whitespace-nowrap")}>
+                        {displayValue(c, r[c.name], r, ctx) ?? <span className="text-muted-foreground">—</span>}
+                      </td>
+                    ))}
+                    {!disabled ? (
+                      <td className="px-2 py-1 text-right whitespace-nowrap">
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setOpen({ idx, isNew: false, before: { ...r } })}>
+                          <Pencil /> {t("common.edit")}
+                        </Button>
+                        {canRemove ? (
+                          <Button type="button" variant="ghost" size="sm" className="text-danger" onClick={() => remove(idx)} aria-label={`${t("common.remove_row")} ${idx + 1}`}>
+                            <Trash2 />
+                          </Button>
+                        ) : null}
+                      </td>
+                    ) : null}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {error?.message || error?.root?.message ? <FieldError>{error.message ?? error.root?.message}</FieldError> : null}
+
+      <Dialog open={!!open} onOpenChange={(o) => (o ? null : cancel())}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>{open?.isNew ? tl(f.dialogTitle ?? f.addLabel ?? f.label) : `${tl(f.label)}: ${t("common.row")} ${(open?.idx ?? 0) + 1}`}</DialogTitle>
+            <DialogDescription className="sr-only">{tl(f.label)}</DialogDescription>
+          </DialogHeader>
+          {open ? (
+            <div
+              className="grid gap-3"
+              onKeyDown={(e) => {
+                // Enter adds the row (it must not send the whole form).
+                if (e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA") {
+                  e.preventDefault();
+                  void done();
+                }
+              }}
+            >
+              {f.fields.map((s) => (
+                <FieldRenderer key={s.name} field={{ ...s, colSpan: undefined }} form={form} ctx={ctx} disabled={disabled} recordId={recordId} schema={schema} prefix={`${name}.${open.idx}`} rowIndex={open.idx} />
+              ))}
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={cancel}>
+              {t("common.cancel")}
+            </Button>
+            <Button type="button" onClick={() => void done()}>
+              {open?.isNew ? (f.addLabel ? tl(f.addLabel) : t("common.add_row")) : t("common.save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </FieldSet>
   );
 }

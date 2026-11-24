@@ -16,7 +16,7 @@ const tl = (key?: string) => (key ? (hasKey(key) ? t(key) : key) : "");
 const empty = (v: unknown) => v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
 
 /** "Mobilization inspection: date of inspection" reads as "Date of inspection" under its section title. */
-function shortLabel(key: string) {
+export function shortLabel(key: string) {
   const full = tl(key);
   const i = full.indexOf(": ");
   const s = i > 0 ? full.slice(i + 2) : full;
@@ -48,7 +48,7 @@ function formatAuto(v: unknown, format?: string, digits?: number) {
 }
 
 /** The value of one field as text (or a small element); null when there is nothing to show. */
-function display(f: Field, v: unknown, values: Values, ctx: FormComputeContext): React.ReactNode | null {
+export function display(f: Field, v: unknown, values: Values, ctx: FormComputeContext): React.ReactNode | null {
   if (f.control === "auto") {
     const computed = f.compute ? f.compute(values, ctx) : v;
     return empty(computed) ? null : formatAuto(computed, f.format, f.digits);

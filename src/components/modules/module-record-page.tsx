@@ -119,9 +119,10 @@ export async function ModuleRecordPage({ moduleKey, id, preset }: { moduleKey: s
               signoffs={signoffs}
               canSubmit={
                 (canApproveOrEdit && (record.created_by === session.userId || session.can(def.resource, "edit"))) ||
-                (!!def.schema.creatorEditsDraft && record.created_by === session.userId && session.can(def.resource, "create"))
+                (!!def.schema.creatorEditsDraft && (def.schema.creatorEditsDraft === "anyone" || record.created_by === session.userId) && session.can(def.resource, "create"))
               }
             />
+            {def.sideExtra ? <DetailExtra name={def.sideExtra} record={record} options={options} /> : null}
           </div>
         ) : null}
       </div>

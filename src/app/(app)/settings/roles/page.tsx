@@ -10,7 +10,9 @@ export default async function RolesPage({ searchParams }: PageProps<"/settings/r
   const session = await requirePermission("settings.roles", "view");
   const supabase = await createClient();
 
-  const [{ data: roles }, { data: grants }, { data: resources }, { data: userRoles }, { data: ceilings }] = await Promise.all([
+  // The company whose timesheet the roles are set for (none in platform mode: system roles only).
+  const companyId = session.platformMode ? null : (session.company?.id ?? session.profile.company_id);
+  const [{ data: roles }, { data: grants }, { data: resources }, { data: userRoles }, { data: ceilings }, { data: hidden }] = await Promise.all([
     (session.platformMode
       ? supabase.from("roles").select("id, name, description, is_system, is_owner, is_admin, company_id").is("company_id", null)
       : supabase.from("roles").select("id, name, description, is_system, is_owner, is_admin, company_id").or(`company_id.is.null,company_id.eq.${session.profile.company_id}`)
@@ -19,6 +21,7 @@ export default async function RolesPage({ searchParams }: PageProps<"/settings/r
     supabase.from("resources").select("*").order("sort_order"),
     supabase.from("user_roles").select("role_id"),
     supabase.from("admin_ceilings").select("resource_key").eq("user_id", session.userId),
+    companyId ? supabase.from("timesheet_hidden_roles").select("role_id").eq("company_id", companyId) : Promise.resolve({ data: [] }),
   ]);
 
   const counts = new Map<string, number>();
@@ -39,6 +42,7 @@ export default async function RolesPage({ searchParams }: PageProps<"/settings/r
         ceiling={((ceilings ?? []) as { resource_key: string }[]).map((c) => c.resource_key)}
         myGrants={session.permissions.grants}
         openAdd={sp.add === "1"}
+        timesheet={companyId ? { companyId, hidden: ((hidden ?? []) as { role_id: string }[]).map((h) => h.role_id) } : null}
       />
     </>
   );

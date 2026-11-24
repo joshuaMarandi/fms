@@ -12,6 +12,7 @@ import { usePermissions } from "@/components/permissions/provider";
 import { deleteRecord } from "@/lib/data/records";
 import { getModule, moduleFileField } from "@/modules/registry";
 import type { ColumnSpec } from "@/modules/types";
+import { draftEditable } from "@/lib/forms/schema";
 import { formatDate, formatNumber, formatTzs } from "@/lib/utils";
 import { hasKey, t } from "@/i18n";
 
@@ -126,7 +127,7 @@ export function exportValue(spec: ColumnSpec, value: unknown): unknown {
 export function ModuleTable({ moduleKey, rows, pathPrefix, hiddenColumns, variant = "list", dateFilter = true }: { moduleKey: string; rows: Row[]; pathPrefix?: string; hiddenColumns?: string[]; variant?: "list" | "details"; dateFilter?: boolean }) {
   const def = getModule(moduleKey);
   const router = useRouter();
-  const { can } = usePermissions();
+  const { can, session } = usePermissions();
   const [pendingDelete, setPendingDelete] = React.useState<Row | null>(null);
   const base = pathPrefix ?? def.recordPath ?? def.path;
   const hiddenKey = (hiddenColumns ?? []).join(",");
@@ -146,6 +147,8 @@ export function ModuleTable({ moduleKey, rows, pathPrefix, hiddenColumns, varian
               compact
               upload={{ table: def.table, rowId: row.original.id, resource: def.resource, bucket: fileField.bucket ?? "forms", label: tl(fileField.label), labels: (fileField.labels ?? [fileField.label]).map((l) => tl(l)), sensitive: fileField.sensitive }}
             />
+          ) : spec.type === "status" && def.statusLabels?.[String(getPath(row.original, spec.key))] ? (
+            <StatusChip status={String(getPath(row.original, spec.key))} label={tl(def.statusLabels[String(getPath(row.original, spec.key))])} />
           ) : (
             renderCell(spec, getPath(row.original, spec.key))
           ),
@@ -173,7 +176,8 @@ export function ModuleTable({ moduleKey, rows, pathPrefix, hiddenColumns, varian
         statusLabel={(s) => {
           const spec = def.list.columns.find((c) => c.key === def.list.statusColumn);
           const opt = spec?.type === "label" ? spec.options?.find((o) => o.value === s) : undefined;
-          return opt ? tl(opt.label) : undefined;
+          if (opt) return tl(opt.label);
+          return def.statusLabels?.[s] ? tl(def.statusLabels[s]) : undefined;
         }}
         rowHref={(r) => `${base}/${r.id}`}
         dateFilter={dateFilter}
@@ -182,7 +186,8 @@ export function ModuleTable({ moduleKey, rows, pathPrefix, hiddenColumns, varian
         exportTitle={tl(def.title)}
         rowActions={[
           { label: t("common.view"), href: (r) => `${base}/${r.id}` },
-          { label: t("common.edit"), href: (r) => `${base}/${r.id}`, hidden: () => !canEdit },
+          // Opens the record straight in its form. A draft may also be changed by whoever the module allows.
+          { label: t("common.edit"), href: (r) => `${base}/${r.id}?edit=1`, hidden: (r) => !(canEdit || (draftEditable(def.schema.creatorEditsDraft, r, session.userId) && can(def.resource, "create"))) },
           { label: t("common.delete"), destructive: true, onSelect: (r) => setPendingDelete(r), hidden: () => !canDelete },
         ]}
       />

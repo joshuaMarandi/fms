@@ -50,3 +50,13 @@ export async function rolePreview(roleId: string): Promise<ActionResult<string[]
   if (error) return { ok: false, error: error.message };
   return { ok: true, data: ((data ?? []) as { sentence: string }[]).map((r) => r.sentence) };
 }
+
+/** Whether the users of this role are listed on the company's timesheet. */
+export async function setRoleOnTimesheet(companyId: string, roleId: string, on: boolean): Promise<ActionResult<boolean>> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_role_on_timesheet", { p_company: companyId, p_role: roleId, p_on: on });
+  if (error) return { ok: false, error: error.message, hint: error.hint ?? undefined };
+  revalidatePath("/settings/roles");
+  revalidatePath("/expenses/timesheet");
+  return { ok: true, data: on };
+}

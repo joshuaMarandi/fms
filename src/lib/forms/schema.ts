@@ -77,6 +77,10 @@ export type Field =
       minRows?: number;
       maxRows?: number;
       addLabel?: string;
+      /** Rows show as a table; Add (and Edit on a row) opens a dialog with the row's fields. */
+      dialog?: boolean;
+      /** Dialog title for a new row (i18n key); defaults to the add label. */
+      dialogTitle?: string;
       totals?: { label: string; compute: (rows: Record<string, unknown>[], values: Record<string, unknown>) => unknown; format?: "number" | "tzs" | "text" }[];
       defaultRow?: (values: Record<string, unknown>, rows: Record<string, unknown>[], ctx: FormComputeContext) => Record<string, unknown>;
     });
@@ -108,13 +112,22 @@ export type FormSchema = {
   omitOnSave?: string[];
   /** Request table: show the approval panel */
   isRequest?: boolean;
-  /** The person who recorded it may change their own draft (or rejected) record without the edit permission. */
-  creatorEditsDraft?: boolean;
+  /**
+   * A draft (or rejected) record may be changed without the edit permission: by the person who
+   * recorded it (true), or by anyone who may create these records ("anyone").
+   */
+  creatorEditsDraft?: boolean | "anyone";
   /** Label field used for the breadcrumb and title */
   titleField?: string | ((record: Record<string, unknown>) => string);
   /** How a saved record is grouped in view mode (field names per card); other fields go last. */
   viewGroups?: { title: string; fields: string[] }[];
 };
+
+/** A draft (or rejected) record this person may change under creatorEditsDraft (the create permission is checked apart). */
+export function draftEditable(rule: FormSchema["creatorEditsDraft"], record: Record<string, unknown> | null | undefined, userId: string | null | undefined): boolean {
+  if (!rule || !record?.id || (record.status !== "draft" && record.status !== "rejected")) return false;
+  return rule === "anyone" || (!!userId && record.created_by === userId);
+}
 
 export function allFields(schema: FormSchema): Field[] {
   return schema.sections.flatMap((s) => s.fields);

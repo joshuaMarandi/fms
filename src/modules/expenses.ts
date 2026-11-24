@@ -1,7 +1,7 @@
 import type { ModuleDef } from "./types";
 import type { Field, Option } from "@/lib/forms/schema";
 import { MONTH_OPTIONS } from "@/lib/forms/schema";
-import { toISODate } from "@/lib/utils";
+import { toISODate, todayISO } from "@/lib/utils";
 import { SHIFT_TIMES, splitHours, type Shift } from "@/lib/timesheet-hours";
 
 export const TZ_REGIONS = [
@@ -1096,7 +1096,22 @@ export const incidents: ModuleDef = {
         title: "expenses.safety.response",
         collapsible: true,
         fields: [
-          { name: "other_actions", label: "expenses.safety.response", control: "textarea", placeholder: "expenses.safety.response_placeholder", colSpan: 2 },
+          // Many responses, added one by one (Add response opens a dialog): date, response, who is responsible.
+          {
+            name: "responses",
+            label: "expenses.safety.response",
+            control: "rows",
+            childTable: "incident_responses",
+            fk: "incident_id",
+            dialog: true,
+            addLabel: "expenses.safety.add_response",
+            fields: [
+              { name: "response_date", label: "expenses.safety.response_date", control: "date", required: true },
+              { name: "response", label: "expenses.safety.response_text", control: "textarea", required: true, placeholder: "expenses.safety.response_placeholder" },
+              { name: "responsible", label: "expenses.safety.response_responsible", control: "text", required: true },
+            ],
+            defaultRow: () => ({ response_date: todayISO(), response: "", responsible: "" }),
+          },
         ],
       },
       {

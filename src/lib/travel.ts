@@ -14,11 +14,11 @@ export const TRANSPORT_MODES: Option[] = [
 ];
 
 /** Julius Nyerere International Airport (Dar es Salaam) has three terminals; its pickup is earlier. */
-export const JKNIA = ["JKNIA Terminal 1 (Dar es Salaam)", "JKNIA Terminal 2 (Dar es Salaam)", "JKNIA Terminal 3 (Dar es Salaam)"];
+export const JNIA = ["JNIA Terminal 1 (Dar es Salaam)", "JNIA Terminal 2 (Dar es Salaam)", "JNIA Terminal 3 (Dar es Salaam)"];
 
 export const TERMINALS: Record<Exclude<TransportMode, "bus">, string[]> = {
   air: [
-    ...JKNIA,
+    ...JNIA,
     "Kilimanjaro International Airport (KIA)",
     "Abeid Amani Karume International Airport (Zanzibar)",
     "Arusha Airport",
@@ -56,12 +56,8 @@ export function terminalOptions(mode: unknown): Option[] {
 
 /** Hours before the departure time that the driver picks the travellers up. */
 export function pickupLeadHours(mode: unknown, terminal: unknown): number {
-  if (mode === "air") return JKNIA.includes(String(terminal ?? "")) || /^JKNIA\b/i.test(String(terminal ?? "")) ? 3.5 : 3;
+  // JNIA (also trips saved under its old name, JKNIA).
+  if (mode === "air") return /^JK?NIA\b/i.test(String(terminal ?? "")) ? 3.5 : 3;
   if (mode === "bus") return 2.5;
   return 3;
-}
-
-/** The label of the trip number for the transport: Flight No, Vessel No, Train No or Bus number. */
-export function numberLabel(mode: unknown): string {
-  return mode === "marine" ? "travel.no.marine" : mode === "railway" ? "travel.no.railway" : mode === "bus" ? "travel.no.bus" : "travel.no.air";
 }

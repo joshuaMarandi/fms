@@ -62,6 +62,8 @@ export type ModuleDef = {
   approvalExtra?: (options: LoadedOptions, record: Record<string, unknown>) => ApprovalExtraField[];
   /** Name of a custom detail block rendered under the form (see modules/extras.tsx) */
   detailExtra?: string;
+  /** A custom block under the decision card (requests), for example a button opening related records. */
+  sideExtra?: string;
   /** Name of a custom block rendered above the list (see modules/extras.tsx) */
   listExtra?: string;
   /**
@@ -74,4 +76,6 @@ export type ModuleDef = {
   fixed?: Record<string, unknown>;
   /** Request rows stay editable only in these statuses */
   editableStatuses?: string[];
+  /** Other words for some statuses in the list and its filter (for example approved: "status.verified"). */
+  statusLabels?: Record<string, string>;
 };

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { ChevronDown, ChevronRight, Lock, Pencil, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -15,18 +16,21 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
 import { ACTIONS, buildResourceTree, describeGrant, permissionScope, SCOPES, type Grant, type GrantScope, type PermissionAction, type Resource, type ResourceNode } from "@/lib/permissions";
-import { createRole, deleteRole, renameRole, saveRoleGrants } from "./actions";
+import { createRole, deleteRole, renameRole, saveRoleGrants, setRoleOnTimesheet } from "./actions";
 import { cn } from "@/lib/utils";
 import { hasKey, t } from "@/i18n";
 
 export type RoleRow = { id: string; name: string; description: string | null; is_system: boolean; is_owner: boolean; is_admin: boolean; company_id: string | null; user_count: number };
+
+/** The company's timesheet: the roles whose users are not listed there. */
+export type TimesheetRoles = { companyId: string; hidden: string[] };
 
 type Cell = { actions: Set<PermissionAction>; scope: GrantScope };
 type Matrix = Map<string, Cell>;
 
 const label = (r: Resource) => (hasKey(`resource.${r.key}`) ? t(`resource.${r.key}`) : r.name);
 
-export function RolesClient({ roles, grants, resources, isOwner, canEdit, canCreate, ceiling, myGrants, openAdd }: { roles: RoleRow[]; grants: Grant[]; resources: Resource[]; isOwner: boolean; canEdit: boolean; canCreate: boolean; ceiling: string[]; myGrants: Grant[]; openAdd: boolean }) {
+export function RolesClient({ roles, grants, resources, isOwner, canEdit, canCreate, ceiling, myGrants, openAdd, timesheet }: { roles: RoleRow[]; grants: Grant[]; resources: Resource[]; isOwner: boolean; canEdit: boolean; canCreate: boolean; ceiling: string[]; myGrants: Grant[]; openAdd: boolean; timesheet: TimesheetRoles | null }) {
   const router = useRouter();
   const [selectedId, setSelectedId] = React.useState(roles[0]?.id ?? "");
   const [adding, setAdding] = React.useState(openAdd);
@@ -58,7 +62,10 @@ export function RolesClient({ roles, grants, resources, isOwner, canEdit, canCre
               <button type="button" onClick={() => setSelectedId(r.id)} className={cn("flex w-full items-start justify-between gap-2 px-3 py-2.5 text-left text-sm hover:bg-muted/50", selected?.id === r.id && "bg-primary/5 font-medium")} aria-current={selected?.id === r.id}>
                 <span className="min-w-0">
                   <span className="block truncate">{r.name}</span>
-                  <span className="block text-xs text-muted-foreground">{t("settings.roles.users_with_role", { count: r.user_count })}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {t("settings.roles.users_with_role", { count: r.user_count })}
+                    {timesheet?.hidden.includes(r.id) ? ` · ${t("settings.roles.not_on_timesheet")}` : ""}
+                  </span>
                 </span>
                 {r.is_owner ? <Lock className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-label={t("settings.roles.system")} /> : r.is_system ? <Badge variant="secondary" className="text-[10px]">{t("settings.roles.system")}</Badge> : null}
               </button>
@@ -80,10 +87,11 @@ export function RolesClient({ roles, grants, resources, isOwner, canEdit, canCre
           holdsAction={(key, action) => (isOwner ? true : permissionScope(myCtx, key, action) !== null)}
           maxScope={(key, action) => (isOwner ? "all" : permissionScope(myCtx, key, action))}
           onDeleted={() => { setSelectedId(roles.find((r) => r.id !== selected.id)?.id ?? ""); router.refresh(); }}
+          timesheet={timesheet ? { companyId: timesheet.companyId, on: !timesheet.hidden.includes(selected.id), canChange: canEdit } : null}
         />
       ) : null}
 
-      <AddRoleDialog open={adding} onOpenChange={setAdding} roles={roles} onCreated={(id) => { setSelectedId(id); router.refresh(); }} />
+      <AddRoleDialog open={adding} onOpenChange={setAdding} roles={roles} timesheetCompany={timesheet?.companyId ?? null} onCreated={(id) => { setSelectedId(id); router.refresh(); }} />
     </div>
   );
 }
@@ -97,7 +105,7 @@ function filterCeiling(nodes: ResourceNode[], inCeiling: (k: string) => boolean)
   return out;
 }
 
-function RoleEditor({ role, grants, resources, tree, editable, isOwner, canDelete, holdsAction, maxScope, onDeleted }: {
+function RoleEditor({ role, grants, resources, tree, editable, isOwner, canDelete, holdsAction, maxScope, onDeleted, timesheet }: {
   role: RoleRow;
   grants: Grant[];
   resources: Resource[];
@@ -108,8 +116,25 @@ function RoleEditor({ role, grants, resources, tree, editable, isOwner, canDelet
   holdsAction: (key: string, action: PermissionAction) => boolean;
   maxScope: (key: string, action: PermissionAction) => GrantScope | null;
   onDeleted: () => void;
+  timesheet: { companyId: string; on: boolean; canChange: boolean } | null;
 }) {
   const router = useRouter();
+  const [onTimesheet, setOnTimesheet] = React.useState(timesheet?.on ?? true);
+  const [savingTimesheet, setSavingTimesheet] = React.useState(false);
+  async function changeTimesheet(on: boolean) {
+    if (!timesheet) return;
+    setOnTimesheet(on);
+    setSavingTimesheet(true);
+    const res = await setRoleOnTimesheet(timesheet.companyId, role.id, on);
+    setSavingTimesheet(false);
+    if (!res.ok) {
+      setOnTimesheet(!on);
+      toast.error(res.error);
+      return;
+    }
+    toast.success(on ? t("settings.roles.timesheet_on_saved") : t("settings.roles.timesheet_off_saved"));
+    router.refresh();
+  }
   const initial = React.useMemo<Matrix>(() => new Map(grants.map((g) => [g.resource_key, { actions: new Set(g.actions), scope: g.scope }])), [grants]);
   const [matrix, setMatrix] = React.useState<Matrix>(initial);
   const [collapsed, setCollapsed] = React.useState<Set<string>>(new Set());
@@ -338,6 +363,18 @@ function RoleEditor({ role, grants, resources, tree, editable, isOwner, canDelet
         </div>
       </div>
 
+      {timesheet ? (
+        <div className="page-card flex items-start justify-between gap-4 p-4">
+          <div className="min-w-0">
+            <label htmlFor="role-on-timesheet" className="text-sm font-medium">
+              {t("settings.roles.on_timesheet")}
+            </label>
+            <p className="text-xs text-muted-foreground">{t("settings.roles.on_timesheet_hint")}</p>
+          </div>
+          <Switch id="role-on-timesheet" checked={onTimesheet} onCheckedChange={(v) => changeTimesheet(!!v)} disabled={!timesheet.canChange || savingTimesheet} />
+        </div>
+      ) : null}
+
       {role.is_owner ? (
         <p className="rounded-lg bg-muted p-3 text-sm">{t("settings.roles.owner_locked")}</p>
       ) : (
@@ -386,8 +423,9 @@ function serialize(m: Matrix) {
   return JSON.stringify(Array.from(m.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([k, c]) => [k, Array.from(c.actions).sort(), c.scope]));
 }
 
-function AddRoleDialog({ open, onOpenChange, roles, onCreated }: { open: boolean; onOpenChange: (o: boolean) => void; roles: RoleRow[]; onCreated: (id: string) => void }) {
+function AddRoleDialog({ open, onOpenChange, roles, timesheetCompany, onCreated }: { open: boolean; onOpenChange: (o: boolean) => void; roles: RoleRow[]; timesheetCompany: string | null; onCreated: (id: string) => void }) {
   const [name, setName] = React.useState("");
+  const [onTimesheet, setOnTimesheet] = React.useState(true);
   const [description, setDescription] = React.useState("");
   const [copyFrom, setCopyFrom] = React.useState<string>("none");
   const [busy, setBusy] = React.useState(false);
@@ -396,6 +434,10 @@ function AddRoleDialog({ open, onOpenChange, roles, onCreated }: { open: boolean
     e.preventDefault();
     setBusy(true);
     const res = await createRole({ name: name.trim(), description: description.trim() || undefined, copy_from: copyFrom === "none" ? null : copyFrom });
+    if (res.ok && timesheetCompany && !onTimesheet) {
+      const ts = await setRoleOnTimesheet(timesheetCompany, res.data.id, false);
+      if (!ts.ok) toast.error(ts.error);
+    }
     setBusy(false);
     if (!res.ok) toast.error(res.error);
     else {
@@ -403,6 +445,7 @@ function AddRoleDialog({ open, onOpenChange, roles, onCreated }: { open: boolean
       onOpenChange(false);
       setName("");
       setDescription("");
+      setOnTimesheet(true);
       onCreated(res.data.id);
     }
   }
@@ -439,6 +482,17 @@ function AddRoleDialog({ open, onOpenChange, roles, onCreated }: { open: boolean
               </SelectContent>
             </Select>
           </Field>
+          {timesheetCompany ? (
+            <div className="flex items-start justify-between gap-4 rounded-lg border p-3">
+              <div className="min-w-0">
+                <label htmlFor="role-new-timesheet" className="text-sm font-medium">
+                  {t("settings.roles.on_timesheet")}
+                </label>
+                <p className="text-xs text-muted-foreground">{t("settings.roles.on_timesheet_hint")}</p>
+              </div>
+              <Switch id="role-new-timesheet" checked={onTimesheet} onCheckedChange={(v) => setOnTimesheet(!!v)} />
+            </div>
+          ) : null}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {t("common.cancel")}

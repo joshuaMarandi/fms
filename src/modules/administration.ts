@@ -1,7 +1,7 @@
 import type { ColumnSpec, ModuleDef } from "./types";
 import type { Field, Option } from "@/lib/forms/schema";
 import { t } from "@/i18n";
-import { numberLabel, pickupLeadHours, terminalOptions, TRANSPORT_MODES } from "@/lib/travel";
+import { pickupLeadHours, terminalOptions, TRANSPORT_MODES } from "@/lib/travel";
 
 /** Fleet administration: roster, outstation allowance and petty cash (timesheet and leave live in expenses.ts). */
 
@@ -147,6 +147,8 @@ export const outstationAllowances: ModuleDef = {
               return allowance + other;
             },
           },
+          // Recorded by finance from the payment email link, with the proof of payment.
+          { name: "amount_paid_tzs", label: "admin.outstation.amount_paid", control: "auto", format: "tzs", compute: (v) => (v.amount_paid_tzs === "" || v.amount_paid_tzs == null ? null : Number(v.amount_paid_tzs)) },
           { name: "confirmation", label: "admin.outstation.requester_signature", control: "signature", required: true },
         ],
       },
@@ -162,6 +164,7 @@ export const outstationAllowances: ModuleDef = {
       { key: "date_to", header: "admin.outstation.date_to", type: "date" },
       { key: "driver.full_name", header: "inspections.driver" },
       { key: "total_cost_tzs", header: "admin.outstation.total_cost", type: "tzs" },
+      { key: "amount_paid_tzs", header: "admin.outstation.amount_paid", type: "tzs" },
       { key: "status", header: "common.status", type: "status" },
     ],
   },
@@ -184,7 +187,9 @@ export const pettyCash: ModuleDef = {
   // and upload the proof of payment from the email link; each spend is a transaction of its own.
   editableStatuses: ["draft", "rejected", "approved"],
   listExtra: "petty_cash_summary",
-  detailExtra: "petty_cash_transactions",
+  // Under the decision: View all transactions (the totals, every spend, and Add transaction).
+  sideExtra: "petty_cash_transactions",
+  statusLabels: { approved: "status.verified" },
   approvalExtra: (_options, record) => [{ name: "amount_approved", label: t("admin.petty_cash.amount_approved"), control: "number", required: true, defaultValue: (record.amount_requested_tzs as number | null) ?? "" }],
   titleOf: (r) => `${r.requester_name ?? ""} ${r.request_date ?? ""}`.trim(),
   schema: {
@@ -250,10 +255,25 @@ const chosenTerminal = (v: Record<string, unknown>) => (v.transport_mode === "bu
 const travelFields = (direction: "departure" | "arrival"): Field[] => [
   { name: "direction", label: "common.record", control: "hidden" },
   { name: "travel_date", label: "common.date", control: "date", required: true },
-  { name: "travellers", label: "travel.travellers", control: "textarea", required: true, description: "travel.travellers_hint" },
-  { name: "traveller_email", label: "travel.traveller_email", control: "email", description: "travel.traveller_contact_hint" },
-  { name: "traveller_phone", label: "travel.traveller_phone", control: "tel" },
-  { name: "transport_mode", label: "travel.transport", control: "radio", inline: true, options: TRANSPORT_MODES, required: true },
+  // Each traveller with the email and phone the pickup details are sent to (Add traveller opens a dialog).
+  {
+    name: "traveller_list",
+    label: "travel.travellers",
+    control: "rows",
+    childTable: "travel_travellers",
+    fk: "movement_id",
+    dialog: true,
+    minRows: 1,
+    addLabel: "travel.add_traveller",
+    description: "travel.traveller_contact_hint",
+    fields: [
+      { name: "name", label: "travel.traveller_name", control: "text", required: true },
+      { name: "email", label: "travel.traveller_email", control: "email" },
+      { name: "phone", label: "travel.traveller_phone", control: "tel" },
+    ],
+    defaultRow: () => ({ name: "", email: "", phone: "" }),
+  },
+  { name: "transport_mode", label: "travel.mode_of_transport", control: "radio", inline: true, options: TRANSPORT_MODES, required: true },
   {
     name: "terminal",
     label: "travel.terminal",
@@ -265,7 +285,7 @@ const travelFields = (direction: "departure" | "arrival"): Field[] => [
     prefill: { deps: ["transport_mode"], compute: (v) => (v.transport_mode === "marine" ? terminalOptions("marine")[0]?.value : v.transport_mode === "air" || v.transport_mode === "railway" ? "" : undefined) },
   },
   { name: "bus_terminal", label: "travel.bus_terminal", control: "text", required: true, description: "travel.bus_terminal_hint", showWhen: { field: "transport_mode", equals: "bus" } },
-  { name: "flight", label: "travel.no.air", labelBy: (v) => numberLabel(v.transport_mode), control: "text", showWhen: { field: "transport_mode", truthy: true } },
+  { name: "flight", label: "travel.reservation_no", control: "text" },
   { name: "flight_time", label: direction === "departure" ? "travel.departure_time" : "travel.arrival_time", control: "time", required: true },
   ...(direction === "departure"
     ? ([
@@ -275,7 +295,7 @@ const travelFields = (direction: "departure" | "arrival"): Field[] => [
           label: "travel.pickup_time",
           control: "time",
           description: "travel.pickup_rule",
-          // Air, marine and railway: 3 hours before (JKNIA 3.5 hours); bus: 2.5 hours.
+          // Air, marine and railway: 3 hours before (JNIA 3.5 hours); bus: 2.5 hours.
           prefill: { deps: ["transport_mode", "terminal", "flight_time"], compute: (v) => timeMinus(v.flight_time, pickupLeadHours(v.transport_mode, v.terminal)) },
         },
         { name: "transport_to", label: "travel.transport_to", control: "auto", format: "text", compute: (v) => chosenTerminal(v) },
@@ -293,18 +313,10 @@ const travelFields = (direction: "departure" | "arrival"): Field[] => [
 const travelColumns = (direction: "departure" | "arrival"): ColumnSpec[] => [
   { key: "travel_date", header: "common.date", type: "date" },
   { key: "travellers", header: "travel.travellers", type: "multiline" },
-  { key: "traveller_phone", header: "travel.traveller_phone" },
-  { key: "transport_mode", header: "travel.transport", type: "label", options: TRANSPORT_MODES },
+  { key: "traveller_phone", header: "travel.phone", type: "multiline" },
+  { key: "transport_mode", header: "travel.mode", type: "label", options: TRANSPORT_MODES },
   { key: "terminal", header: "travel.terminal" },
-  // Flight No, Vessel No, Train No or Bus number: by the transport of the rows shown.
-  {
-    key: "flight",
-    header: "travel.no.any",
-    headerBy: (rows) => {
-      const modes = new Set(rows.map((r) => r.transport_mode as string | null).filter(Boolean));
-      return modes.size === 1 ? numberLabel([...modes][0]) : "travel.no.any";
-    },
-  },
+  { key: "flight", header: "travel.reservation_no" },
   { key: "flight_time", header: direction === "departure" ? "travel.departure_time" : "travel.arrival_time", type: "time" },
   { key: "pickup_from", header: "travel.pickup_from" },
   ...(direction === "departure" ? ([{ key: "pickup_time", header: "travel.pickup_time", type: "time" }] as ColumnSpec[]) : []),
@@ -359,12 +371,15 @@ export const pettyCashTransactions: ModuleDef = {
   optionSources: ["petty_cash_requests"],
   isRequest: true,
   editableStatuses: ["draft", "rejected"],
+  // Transactions are verified (fleet manager, then HOD), not approved.
+  statusLabels: { approved: "status.verified" },
   titleOf: (r) => `${r.description ?? ""} ${r.txn_date ?? ""}`.trim(),
   schema: {
     table: "petty_cash_transactions",
     resource: "expenses.admin.petty_cash",
     isRequest: true,
-    creatorEditsDraft: true,
+    // A draft (or a rejected one) can be changed by anyone who records petty cash.
+    creatorEditsDraft: "anyone",
     sections: [
       {
         fields: [

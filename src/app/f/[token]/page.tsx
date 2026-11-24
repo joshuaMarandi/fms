@@ -6,11 +6,15 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDate, formatNumber } from "@/lib/utils";
 import { GiveForm } from "./give-form";
 
-export const metadata: Metadata = { title: "Give petty cash", robots: { index: false, follow: false }, referrer: "no-referrer" };
+export const metadata: Metadata = { title: "Record a payment", robots: { index: false, follow: false }, referrer: "no-referrer" };
 export const dynamic = "force-dynamic";
 
 type Info = {
   state: "open" | "done" | "expired" | "not_found";
+  kind?: "petty_cash" | "outstation";
+  /** Outstation allowance: its lines and the total to pay. */
+  rows?: { label: string; value: string }[];
+  amount?: number | null;
   company?: string;
   requester?: string | null;
   position?: string | null;
@@ -27,7 +31,7 @@ type Info = {
 
 const tzs = (v: number | null | undefined) => (v == null ? "—" : `TZS ${formatNumber(Number(v))}`);
 
-/** Finance, from the email: a verified petty cash request to pay. Record the amount given and upload the proof. */
+/** Finance, from the email: a verified petty cash request or an approved outstation allowance to pay. Record the amount and upload the proof. */
 export default async function FinanceGivePage({ params }: PageProps<"/f/[token]">) {
   const { token } = await params;
   const valid = /^[0-9a-f]{32}$/.test(token);
@@ -42,7 +46,8 @@ export default async function FinanceGivePage({ params }: PageProps<"/f/[token]"
     );
   }
 
-  const rows: [string, string][] = [
+  const outstation = info.kind === "outstation";
+  const rows: [string, string][] = outstation ? (info.rows ?? []).map((r) => [r.label, r.value || "—"]) : [
     ["Requested by", [info.requester, info.position].filter(Boolean).join(", ") || "—"],
     ["Date", formatDate(info.request_date ?? null) || "—"],
     ["Purpose", info.purpose || "—"],
@@ -53,9 +58,11 @@ export default async function FinanceGivePage({ params }: PageProps<"/f/[token]"
 
   return (
     <Shell company={info.company}>
-      <h1 className="text-xl font-semibold">Give petty cash</h1>
+      <h1 className="text-xl font-semibold">{outstation ? "Pay outstation allowance" : "Give petty cash"}</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        This petty cash request is verified. Give the money, then record the amount and upload the proof of payment here. The person who asked can then record what they spend.
+        {outstation
+          ? "This outstation allowance is approved. Pay it, then record the amount paid and upload the proof of payment here. The person who recorded it is told."
+          : "This petty cash request is verified. Give the money, then record the amount and upload the proof of payment here. The person who asked can then record what they spend."}
       </p>
       <dl className="mt-4 divide-y rounded-lg border text-sm">
         {rows.map(([k, v]) => (
@@ -71,7 +78,7 @@ export default async function FinanceGivePage({ params }: PageProps<"/f/[token]"
         ) : info.state === "expired" ? (
           <Notice icon={Clock} title="This link no longer works" text="It has expired, or the request changed. Ask the fleet manager to check the request." />
         ) : (
-          <GiveForm token={token} amount={Number(info.amount_approved ?? 0)} />
+          <GiveForm token={token} amount={Number((outstation ? info.amount : info.amount_approved) ?? 0)} />
         )}
       </div>
     </Shell>

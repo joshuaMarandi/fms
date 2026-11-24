@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusChip } from "@/components/patterns/status-chip";
@@ -8,6 +8,7 @@ import { JmpReviewPanel, type JmpReview } from "@/components/modules/jmp-review-
 import { AttachmentsBox } from "@/components/patterns/attachments-box";
 import { WorkOrderEmail } from "@/components/modules/work-order-email";
 import { TravelNotify } from "@/components/modules/travel-notify";
+import { ViewAllDialog } from "@/components/modules/view-all-dialog";
 import { HubSummary } from "@/components/hub/vehicle-hub";
 import { loadDocs } from "@/lib/data/docs";
 import { SummaryDates } from "@/components/hub/daily-use-hub";
@@ -18,6 +19,13 @@ import { createClient } from "@/lib/supabase/server";
 import type { LoadedOptions } from "@/lib/data/records";
 import { formatDate, formatNumber, formatTzs } from "@/lib/utils";
 import { t } from "@/i18n";
+
+/** The travellers' emails or phones, comma separated (null when none has one). */
+function contactsOf(record: Record<string, unknown>, key: "email" | "phone"): string | null {
+  const list = Array.isArray(record.traveller_list) ? (record.traveller_list as Record<string, unknown>[]) : [];
+  const values = list.map((r) => String(r[key] ?? "").trim()).filter(Boolean);
+  return values.length ? values.join(", ") : null;
+}
 
 /** Custom blocks rendered under a record form. */
 export async function DetailExtra({ name, record }: { name: string; record: Record<string, unknown>; options: LoadedOptions }) {
@@ -95,7 +103,8 @@ export async function DetailExtra({ name, record }: { name: string; record: Reco
       );
     }
     case "petty_cash_transactions": {
-      // Each spend of this petty cash, recorded and approved one by one. Spending needs the proof of payment.
+      // Under the decision: a button opening the totals and every spend of this petty cash, each
+      // recorded and verified one by one. Spending needs the proof of payment.
       const id = record.id as string;
       const [{ data: txns }, { data: proof }] = await Promise.all([
         supabase.from("petty_cash_transactions").select("id, txn_date, description, quantity, unit, price_tzs, amount_tzs, status, approval_step").eq("petty_cash_request_id", id).is("deleted_at", null).order("txn_date", { ascending: false }),
@@ -105,11 +114,15 @@ export async function DetailExtra({ name, record }: { name: string; record: Reco
       const approved = record.status === "approved";
       const hasProof = (proof ?? []).length > 0;
       const canRecord = approved && hasProof && session.can("expenses.admin.petty_cash", "create");
+      // A draft (or rejected) transaction can be changed by anyone who records petty cash.
+      const canChangeDraft = session.can("expenses.admin.petty_cash", "create") || session.can("expenses.admin.petty_cash", "edit");
+      const verifiedWord = (s: string) => (s === "approved" ? t("status.verified") : undefined);
       const spent = rows.filter((r) => r.status === "approved").reduce((s, r) => s + Number(r.amount_tzs ?? 0), 0);
       const pending = rows.filter((r) => r.status === "submitted").reduce((s, r) => s + Number(r.amount_tzs ?? 0), 0);
       const received = Number(record.amount_received_tzs ?? 0);
       return (
-        <div className="mt-6 space-y-4">
+        <ViewAllDialog label={t("admin.petty_cash.view_all_transactions")} title={t("admin.petty_cash.transactions")} description={t("admin.petty_cash.view_all_hint", { count: rows.length })}>
+        <div className="space-y-4">
           <HubSummary
             tiles={[
               { label: t("admin.petty_cash.amount_approved"), value: record.amount_approved_tzs == null ? "—" : formatTzs(Number(record.amount_approved_tzs)) },
@@ -146,7 +159,10 @@ export async function DetailExtra({ name, record }: { name: string; record: Reco
                       <th className="py-1 pr-3 text-right">{t("expenses.misc.quantity")}</th>
                       <th className="py-1 pr-3 text-right">{t("admin.petty_cash.price")}</th>
                       <th className="py-1 pr-3 text-right">{t("expenses.misc.amount")}</th>
-                      <th className="py-1">{t("common.status")}</th>
+                      <th className="py-1 pr-3">{t("common.status")}</th>
+                      <th className="py-1">
+                        <span className="sr-only">{t("common.actions")}</span>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -163,8 +179,17 @@ export async function DetailExtra({ name, record }: { name: string; record: Reco
                         </td>
                         <td className="py-1.5 pr-3 text-right tabular-nums">{formatTzs(Number(r.price_tzs))}</td>
                         <td className="py-1.5 pr-3 text-right font-medium tabular-nums">{formatTzs(Number(r.amount_tzs))}</td>
-                        <td className="py-1.5">
-                          <StatusChip status={r.status} />
+                        <td className="py-1.5 pr-3">
+                          <StatusChip status={r.status} label={verifiedWord(r.status)} />
+                        </td>
+                        <td className="py-1.5 text-right">
+                          {canChangeDraft && (r.status === "draft" || r.status === "rejected") ? (
+                            <Button asChild variant="ghost" size="sm">
+                              <Link href={`/administration/petty-cash/transactions/${r.id}?edit=1`}>
+                                <Pencil /> {t("common.edit")}
+                              </Link>
+                            </Button>
+                          ) : null}
                         </td>
                       </tr>
                     ))}
@@ -174,6 +199,7 @@ export async function DetailExtra({ name, record }: { name: string; record: Reco
             </CardContent>
           </Card>
         </div>
+        </ViewAllDialog>
       );
     }
     case "fuel_issue": {
@@ -281,8 +307,8 @@ export async function DetailExtra({ name, record }: { name: string; record: Reco
         <TravelNotify
           id={record.id as string}
           path={record.direction === "arrival" ? "/travel/arrivals" : "/travel/departures"}
-          email={(record.traveller_email as string | null) ?? null}
-          phone={(record.traveller_phone as string | null) ?? null}
+          email={contactsOf(record, "email") ?? ((record.traveller_email as string | null) ?? null)}
+          phone={contactsOf(record, "phone") ?? ((record.traveller_phone as string | null) ?? null)}
           sentAt={(record.notified_at as string | null) ?? null}
           sentTo={(record.notified_to as string | null) ?? null}
           canSend={session.can("expenses.travel", "edit") || session.can("expenses.travel", "create")}

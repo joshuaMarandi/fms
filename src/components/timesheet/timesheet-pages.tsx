@@ -39,7 +39,7 @@ export async function TimesheetEmployees({ searchParams }: { searchParams: SP })
   const year = Number.isInteger(yearParam) && yearParam >= 2000 && yearParam <= 2100 ? yearParam : thisYear;
   const supabase = await createClient();
 
-  const [{ data: sheets }, { data: plans }, { data: users }] = await Promise.all([
+  const [{ data: sheets }, { data: plans }, { data: users }, { data: hiddenRoles }] = await Promise.all([
     supabase
       .from("timesheets")
       .select("id, employee_id, employee_name, employment_number, job_title, period_month, days:timesheet_days(work_date, day_type, deleted_at)")
@@ -48,9 +48,12 @@ export async function TimesheetEmployees({ searchParams }: { searchParams: SP })
     supabase.from("leave_plans").select("employee_id, employee_name, employment_number, position, planned_months, rows:leave_plan_rows(date_from, date_to, deleted_at)").is("deleted_at", null).eq("plan_year", year),
     // The company's active users (the company in view, also for the platform owner).
     companyId
-      ? supabase.from("profiles").select("id, full_name, employment_number, job_title").eq("is_active", true).eq("company_id", companyId).order("full_name")
+      ? supabase.from("profiles").select("id, full_name, employment_number, job_title, roles:user_roles(role_id)").eq("is_active", true).eq("company_id", companyId).order("full_name")
       : Promise.resolve({ data: [] }),
+    // Roles switched off for the timesheet in Settings, Roles.
+    companyId ? supabase.from("timesheet_hidden_roles").select("role_id").eq("company_id", companyId) : Promise.resolve({ data: [] }),
   ]);
+  const hidden = new Set(((hiddenRoles ?? []) as { role_id: string }[]).map((r) => r.role_id));
 
   type Acc = EmployeeRow & { months: Set<number>; periods: { from: string; to: string }[] };
   const people = new Map<string, Acc>();
@@ -66,7 +69,10 @@ export async function TimesheetEmployees({ searchParams }: { searchParams: SP })
 
   // Every active user of the company is an employee here, with or without a timesheet yet: a user
   // added to the company shows at once, and their days are added from their month.
-  for (const u of (users ?? []) as { id: string; full_name: string; employment_number: string | null; job_title: string | null }[]) {
+  // Not listed: users whose every role is off for the timesheet (they still show once they have days).
+  for (const u of (users ?? []) as { id: string; full_name: string; employment_number: string | null; job_title: string | null; roles: { role_id: string }[] | null }[]) {
+    const roles = u.roles ?? [];
+    if (roles.length > 0 && roles.every((r) => hidden.has(r.role_id))) continue;
     const p = get(u.id, u.full_name || t("common.unknown"));
     p.employment_number ||= u.employment_number ?? "";
     p.position ||= u.job_title ?? "";
