@@ -16,7 +16,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Locale } from "@/i18n";
 import type { NotificationRow } from "@/components/shell/notifications-bell";
 
-export default async function AppLayout({ children }: LayoutProps<"/">) {
+export default async function AppLayout({ children, modal }: LayoutProps<"/">) {
   const session = await requireSession();
   const supabase = await createClient();
 
@@ -65,6 +65,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
               <div className="mx-auto w-full max-w-[1400px] space-y-6">{blocked ? <SubscriptionBlocked subscription={session.subscription} companyName={session.company?.name ?? null} /> : children}</div>
             </main>
             {session.isDriverOnly ? <DriverBottomNav /> : null}
+            {/* "New" forms opened from inside the app show here, in a dialog over the page. */}
+            {blocked ? null : modal}
           </SidebarInset>
         </SidebarProvider>
         </HeaderToolsProvider>

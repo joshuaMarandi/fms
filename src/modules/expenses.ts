@@ -244,7 +244,10 @@ export const maintenanceWorkOrders: ModuleDef = {
   },
 };
 
-/** Spare parts bought for a vehicle: lines of part and quantity, and the total cost. */
+/** One spare part line: quantity x cost each. */
+const partLineCost = (r: Record<string, unknown>) => (Number.isNaN(num(r.quantity)) || Number.isNaN(num(r.unit_cost_tzs)) ? 0 : num(r.quantity) * num(r.unit_cost_tzs));
+
+/** Spare parts bought for a vehicle: lines of part, quantity and cost each; the total is their sum. */
 export const maintenanceSpareParts: ModuleDef = {
   key: "expenses.maintenance.spare_parts",
   path: "/expenses/maintenance/costs/spare-parts",
@@ -265,7 +268,14 @@ export const maintenanceSpareParts: ModuleDef = {
         fields: [
           ...maintVehicleFields,
           { name: "part_date", label: "common.date", control: "date", required: true },
-          { name: "cost_tzs", label: "maint.total_cost", control: "number", min: 0, unit: "TZS", required: true },
+          // Worked out from the lines below (quantity x cost each).
+          {
+            name: "cost_tzs",
+            label: "maint.total_cost",
+            control: "auto",
+            format: "tzs",
+            compute: (v) => (Array.isArray(v.part_lines) ? (v.part_lines as Record<string, unknown>[]).reduce((t, r) => t + partLineCost(r), 0) : null),
+          },
         ],
       },
       {
@@ -282,9 +292,14 @@ export const maintenanceSpareParts: ModuleDef = {
             fields: [
               { name: "part", label: "maint.part", control: "text", required: true },
               { name: "quantity", label: "maint.qty", control: "number", min: 0.01, step: 0.01, required: true },
+              { name: "unit_cost_tzs", label: "maint.cost_each", control: "number", min: 0, unit: "TZS", required: true },
+              { name: "line_amount", label: "expenses.misc.amount", control: "auto", format: "tzs", compute: (v) => partLineCost(v) },
             ],
-            defaultRow: () => ({ part: "", quantity: 1 }),
-            totals: [{ label: "maint.qty_total", compute: (rows) => rows.reduce((t, r) => t + (Number.isNaN(num(r.quantity)) ? 0 : num(r.quantity)), 0), format: "number" }],
+            defaultRow: () => ({ part: "", quantity: 1, unit_cost_tzs: "" }),
+            totals: [
+              { label: "maint.qty_total", compute: (rows) => rows.reduce((t, r) => t + (Number.isNaN(num(r.quantity)) ? 0 : num(r.quantity)), 0), format: "number" },
+              { label: "maint.total_cost", compute: (rows) => rows.reduce((t, r) => t + partLineCost(r), 0), format: "tzs" },
+            ],
           },
         ],
       },

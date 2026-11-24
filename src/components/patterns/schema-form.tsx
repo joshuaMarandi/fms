@@ -24,6 +24,7 @@ import { RecordView } from "./record-view";
 import { FileFallbackContext, useFileFallback } from "./file-fallback";
 import type { DocRef } from "./doc-button";
 import { usePermissions } from "@/components/permissions/provider";
+import { RouteDialogContext } from "@/components/shell/route-dialog";
 import { saveRecord } from "@/lib/data/records";
 import type { LoadedOptions } from "@/lib/data/records";
 import {
@@ -101,6 +102,7 @@ export function SchemaForm(props: SchemaFormProps) {
 
 function SchemaFormInner({ schemaKey, record, options = {}, afterSavePath, cancelHref, readOnly, extra, revalidate, onSaved, children, submitLabel, startInEdit }: SchemaFormProps) {
   const router = useRouter();
+  const dialog = React.useContext(RouteDialogContext);
   const schema = getSchema(schemaKey);
   const { can, session } = usePermissions();
   const ctx = React.useMemo<FormComputeContext>(
@@ -224,7 +226,9 @@ function SchemaFormInner({ schemaKey, record, options = {}, afterSavePath, cance
         form.reset(defaults);
         setEditing(false);
       }
-    : cancelHref
+    : dialog
+      ? dialog.close
+      : cancelHref
       ? () => {
           // Back to where the form was opened from (a vehicle, a month...), else the module's page.
           const prev = previousAppPage();
@@ -244,7 +248,7 @@ function SchemaFormInner({ schemaKey, record, options = {}, afterSavePath, cance
     >
       {sections.map((section, i) => {
         const body = (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2 @5xl/dialog:grid-cols-3">
             {section.fields.map((f) => (
               <FieldRenderer key={f.name} field={f} form={form} ctx={ctx} disabled={!canEdit || (!!f.editResource && !can(f.editResource, "edit"))} recordId={(record?.id as string) ?? null} schema={schema} />
             ))}
@@ -297,7 +301,8 @@ function FieldRenderer({ field: f, form, ctx, disabled, recordId, schema, prefix
   const error = getPath(form.formState.errors, name) as { message?: string } | undefined;
   const id = `f-${name.replace(/\./g, "-")}`;
   const label = tl(f.labelBy?.(scopeValues) ?? f.label);
-  const span = f.colSpan === 2 || f.control === "textarea" || f.control === "rows" || f.control === "checkbox_group" || f.control === "signature" || f.control === "file" ? "md:col-span-2" : "";
+  // Wide fields take the whole row (two columns on a page, three in a large dialog).
+  const span = f.colSpan === 2 || f.control === "textarea" || f.control === "rows" || f.control === "checkbox_group" || f.control === "signature" || f.control === "file" ? "md:col-span-2 @5xl/dialog:col-span-3" : "";
   const isDisabled = disabled || !!f.readOnly || (!!f.lockWhen && f.lockWhen(values, ctx, rowIndex));
 
   const wrap = (control: React.ReactNode, opts?: { noLabel?: boolean }) => (

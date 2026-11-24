@@ -106,7 +106,9 @@ const hours = (v: number) => (v ? `${formatNumber(v, 2)} h` : "—");
  * The days of one employee's month. Days are added and changed here (no separate timesheet form)
  * until the employee signs the month; then the table is read only.
  */
-export function DaysTable({ rows, employeeId, month, editable }: { rows: DayRow[]; employeeId: string; month: string; editable: boolean }) {
+export type MonthSignature = { name?: string | null; image?: string | null; signed_at?: string | null } | null;
+
+export function DaysTable({ rows, employeeId, month, editable, signature }: { rows: DayRow[]; employeeId: string; month: string; editable: boolean; signature?: MonthSignature }) {
   const can = useCan();
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
@@ -153,6 +155,24 @@ export function DaysTable({ rows, employeeId, month, editable }: { rows: DayRow[
       { id: "overtime", header: t("expenses.timesheet.normal_ot"), accessorKey: "overtime", cell: ({ row }) => <span className="tabular-nums">{hours(row.original.overtime)}</span> },
       { id: "special", header: t("expenses.timesheet.special_ot"), accessorKey: "special", cell: ({ row }) => <span className="tabular-nums">{hours(row.original.special)}</span> },
       { id: "allowance", header: t("expenses.timesheet.allowance"), accessorKey: "allowance", cell: ({ row }) => <span className="tabular-nums">{row.original.allowance ? formatTzs(row.original.allowance) : "—"}</span> },
+      // The month is signed once; the signature stands for every day of it.
+      {
+        id: "signature",
+        header: t("timesheet.col.signature"),
+        enableSorting: false,
+        accessorFn: () => (signature?.name ? `${signature.name}${signature.signed_at ? ` (${formatDate(signature.signed_at)})` : ""}` : ""),
+        cell: () =>
+          signature?.signed_at ? (
+            signature.image ? (
+              // eslint-disable-next-line @next/next/no-img-element -- the employee's drawn signature (data URL)
+              <img src={signature.image} alt={t("timesheet.signature_of", { name: signature.name ?? "" })} title={signature.name ?? undefined} className="h-7 w-auto max-w-24 rounded bg-white px-1" />
+            ) : (
+              <span className="text-xs">{signature.name}</span>
+            )
+          ) : (
+            <span className="text-xs text-muted-foreground">{t("timesheet.not_signed_yet")}</span>
+          ),
+      },
     ];
     if (mayEdit) {
       cols.push({
@@ -191,7 +211,7 @@ export function DaysTable({ rows, employeeId, month, editable }: { rows: DayRow[
       });
     }
     return cols;
-  }, [mayEdit, remove]);
+  }, [mayEdit, remove, signature]);
 
   return (
     <section className="space-y-3">

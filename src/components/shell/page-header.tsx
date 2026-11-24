@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { SetPageTitle } from "./page-title";
+import { DialogAwareTitle } from "./route-dialog";
 
 /**
  * A page's title and explanation go to the middle of the top bar (the explanation shows on hover),
@@ -18,7 +19,7 @@ export function PageHeader({
 }) {
   return (
     <>
-      <SetPageTitle title={title} description={description} />
+      <DialogAwareTitle title={title} description={description} fallback={<SetPageTitle title={title} description={description} />} />
       {/* Kept for printing: the printed page still names what it is. */}
       <h2 className="print-only text-xl font-semibold">{title}</h2>
       {actions ? <div className={cn("flex flex-wrap items-center justify-end gap-2", className)}>{actions}</div> : null}

@@ -4,6 +4,7 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/components/permissions/provider";
+import { RouteDialogContext } from "@/components/shell/route-dialog";
 import { cn } from "@/lib/utils";
 import { t } from "@/i18n";
 
@@ -36,6 +37,7 @@ export function FormActions({
   children?: React.ReactNode;
 }) {
   const session = useSession();
+  const dialog = React.useContext(RouteDialogContext);
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => {
     const id = requestAnimationFrame(() => setMounted(true));
@@ -62,6 +64,11 @@ export function FormActions({
       </Button>
     </>
   );
+
+  // In a dialog: a bar kept at the bottom of the dialog (a bar on the page would sit under it).
+  if (dialog) {
+    return <div className="sticky -bottom-4 z-10 -mx-4 -mb-4 flex items-center justify-end gap-2 border-t bg-popover px-4 py-3 md:-bottom-6 md:-mx-6 md:-mb-6 md:px-6">{buttons}</div>;
+  }
 
   return (
     <>

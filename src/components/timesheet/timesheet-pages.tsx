@@ -302,7 +302,7 @@ export async function TimesheetEmployeeMonth({ employeeId, searchParams }: { emp
           ))}
         </dl>
       </section>
-      <DaysTable rows={rows} employeeId={employeeId} month={month} editable={editable} />
+      <DaysTable rows={rows} employeeId={employeeId} month={month} editable={editable} signature={sheet && !editable ? sheet.employee_signature : null} />
       {sheet ? (
         <TimesheetDecision sheet={sheet} employee={name} lastDay={to} />
       ) : (
