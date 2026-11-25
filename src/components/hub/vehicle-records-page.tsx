@@ -55,7 +55,9 @@ async function loadModuleRows(supabase: Supa, moduleKey: string, vehicle: string
 function summaryFor(moduleKey: string, rows: Row[], extra: Record<string, Row[]> = {}): Tile[] | null {
   switch (moduleKey) {
     case "inspections.daily":
-    case "inspections.weekly": {
+    case "inspections.weekly":
+    case "inspections.third_party":
+    case "inspections.mobilization": {
       const anomalies = rows.flatMap((r) => ((r.actions as { status?: string; deleted_at?: string | null }[] | null) ?? []).filter((a) => !a.deleted_at));
       const open = anomalies.filter((a) => a.status === "open").length;
       const withAnomalies = rows.filter((r) => r.remark === "anomalies").length;

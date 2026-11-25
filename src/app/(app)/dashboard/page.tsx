@@ -190,7 +190,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/dashbo
 
   // Training completion
   const tr = (trainings ?? []) as { driver_id: string; courses: string[] }[];
-  const courseKeys = ["defensive_driving", "four_wd", "fatigue", "night_driving"];
+  const courseKeys = ["defensive_driving", "induction", "first_aid", "off_road"];
   const training = courseKeys.map((c) => ({ label: t(`expenses.trainings.course.${c}`), count: new Set(tr.filter((r) => (r.courses ?? []).includes(c)).map((r) => r.driver_id)).size }));
   const driverCount = (drivers ?? []).length;
 

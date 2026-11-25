@@ -3,14 +3,12 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import type { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/patterns/data-table";
 import { StatusChip } from "@/components/patterns/status-chip";
-import { ConfirmDialog } from "@/components/patterns/confirm-dialog";
+import { CloseAnomalyDialog } from "@/components/inspections/close-anomaly-dialog";
 import { Button } from "@/components/ui/button";
-import { saveRecord } from "@/lib/data/records";
-import { daysUntil, formatDate, todayISO } from "@/lib/utils";
+import { daysUntil, formatDate } from "@/lib/utils";
 import { t } from "@/i18n";
 
 export type AnomalyRow = {
@@ -19,6 +17,7 @@ export type AnomalyRow = {
   driver: string;
   description: string;
   action_required: string;
+  action_taken: string;
   when_to_act: string;
   status: string;
   date_opened: string;
@@ -35,7 +34,18 @@ export function AnomaliesTable({ rows, canClose }: { rows: AnomalyRow[]; canClos
       { id: "date_opened", header: t("inspections.anomaly.date_opened"), accessorKey: "date_opened", cell: ({ row }) => formatDate(row.original.date_opened) },
       { id: "vehicle", header: t("inspections.vehicle"), accessorKey: "vehicle", cell: ({ row }) => <Link href={row.original.inspection_href} className="font-medium text-primary underline-offset-4 hover:underline">{row.original.vehicle}</Link> },
       { id: "description", header: t("inspections.anomaly.description"), accessorKey: "description", cell: ({ row }) => <span className="block max-w-[360px] whitespace-normal">{row.original.description}</span> },
-      { id: "action_required", header: t("inspections.anomaly.action"), accessorKey: "action_required", cell: ({ row }) => <span className="block max-w-[280px] whitespace-normal">{row.original.action_required}</span> },
+      {
+        id: "action_required",
+        header: t("inspections.col.action_required"),
+        accessorKey: "action_required",
+        cell: ({ row }) => <span className={`block max-w-[280px] whitespace-normal ${row.original.status === "open" ? "font-medium text-danger" : ""}`}>{row.original.action_required}</span>,
+      },
+      {
+        id: "action_taken",
+        header: t("inspections.col.action_taken"),
+        accessorKey: "action_taken",
+        cell: ({ row }) => (row.original.status === "closed" ? <span className="block max-w-[280px] whitespace-normal font-medium text-success">{row.original.action_taken || row.original.action_required}</span> : <span className="text-muted-foreground">—</span>),
+      },
       {
         id: "when_to_act",
         header: t("inspections.anomaly.when"),
@@ -77,22 +87,11 @@ export function AnomaliesTable({ rows, canClose }: { rows: AnomalyRow[]; canClos
   return (
     <>
       <DataTable<AnomalyRow> columns={columns} data={rows} getRowId={(r) => r.id} searchKeys={["vehicle", "description", "action_required"]} statusColumn="status" statusOptions={["open", "closed"]} exportName="anomalies" canExport />
-      <ConfirmDialog
-        open={!!closing}
+      <CloseAnomalyDialog
+        anomaly={closing ? { id: closing.id, description: closing.description, action_required: closing.action_required, date_opened: closing.date_opened } : null}
         onOpenChange={(o) => !o && setClosing(null)}
-        title={t("inspections.anomaly.close")}
-        description={closing?.description}
-        confirmLabel={t("inspections.anomaly.close")}
-        onConfirm={async () => {
-          if (!closing) return;
-          const res = await saveRecord({ table: "inspection_anomalies", id: closing.id, values: { status: "closed", date_closed: todayISO() }, revalidate: ["/inspections/anomalies", "/fleet"] });
-          if (!res.ok) toast.error(res.error);
-          else {
-            toast.success(t("inspections.anomaly.closed"));
-            router.refresh();
-          }
-          setClosing(null);
-        }}
+        onClosed={() => router.refresh()}
+        revalidate={["/inspections/daily", "/inspections/weekly", "/inspections/third-party", "/inspections/mobilization"]}
       />
     </>
   );

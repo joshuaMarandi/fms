@@ -3,7 +3,7 @@ import type { Field } from "@/lib/forms/schema";
 import { formatDate, todayISO } from "@/lib/utils";
 import { hasKey, t } from "@/i18n";
 
-type Anomaly = { description?: string | null; action_required?: string | null; when_to_act?: string | null; status?: string | null; date_opened?: string | null; date_closed?: string | null; deleted_at?: string | null };
+type Anomaly = { id?: string; description?: string | null; action_required?: string | null; action_taken?: string | null; when_to_act?: string | null; status?: string | null; date_opened?: string | null; date_closed?: string | null; deleted_at?: string | null };
 const label = (k: string, fallback: string) => (hasKey(k) ? t(k) : fallback);
 
 /** One line per anomaly for the description, action, timing and status columns. */
@@ -12,6 +12,9 @@ function anomalyLines(row: Record<string, unknown>) {
   const many = list.length > 1;
   const pre = (i: number) => (many ? `${i + 1}. ` : "");
   return {
+    // The two action columns read the same list: open ones under Action required, closed ones under Action taken.
+    actions_required: list,
+    actions_taken: list,
     anomaly_description: list.map((a, i) => pre(i) + (a.description ?? "")).join("\n"),
     anomaly_action: list.map((a, i) => pre(i) + (a.action_required ?? "")).join("\n"),
     anomaly_when: list.map((a, i) => pre(i) + (a.when_to_act ? label(`inspections.anomaly.when.${a.when_to_act}`, a.when_to_act) : "")).join("\n"),
@@ -25,19 +28,24 @@ const REMARK_OPTIONS = [
   { value: "safe", label: "inspections.remark.short.safe" },
   { value: "anomalies", label: "inspections.remark.short.anomalies" },
 ];
-const ANOMALY_SELECT = "actions:inspection_anomalies(description, action_required, when_to_act, status, date_opened, date_closed, deleted_at)";
+const ANOMALY_SELECT = "actions:inspection_anomalies(id, description, action_required, action_taken, when_to_act, status, date_opened, date_closed, deleted_at)";
+
+/** Action required (open, red, with Close) and Action taken (closed, green). */
+const actionColumns: ColumnSpec[] = [
+  { key: "actions_required", header: "inspections.col.action_required", type: "action_required", sortable: false },
+  { key: "actions_taken", header: "inspections.col.action_taken", type: "action_taken", sortable: false },
+];
 
 const anomalyDetailColumns: ColumnSpec[] = [
   { key: "remark", header: "inspections.remark", type: "label", options: REMARK_OPTIONS },
   { key: "anomaly_description", header: "inspections.col.description", type: "multiline", sortable: false },
-  { key: "anomaly_action", header: "inspections.col.action", type: "multiline", sortable: false },
+  ...actionColumns,
   { key: "anomaly_when", header: "inspections.anomaly.when", type: "multiline", sortable: false },
-  { key: "anomaly_status", header: "inspections.anomaly.status", type: "multiline", sortable: false },
 ];
 
 const anomalyRowFields: Field[] = [
   { name: "description", label: "inspections.anomaly.description", control: "textarea", required: true, colSpan: 2 },
-  { name: "action_required", label: "inspections.anomaly.action", control: "textarea", required: true, colSpan: 2 },
+  { name: "action_required", label: "inspections.col.action_required", control: "textarea", required: true, colSpan: 2 },
   {
     name: "when_to_act",
     label: "inspections.anomaly.when",
@@ -61,19 +69,11 @@ const anomalyRowFields: Field[] = [
   },
   { name: "date_opened", label: "inspections.anomaly.date_opened", control: "date", required: true },
   { name: "date_closed", label: "inspections.anomaly.date_closed", control: "date", showWhen: { field: "status", equals: "closed" }, description: "inspections.anomaly.date_closed_hint" },
+  { name: "action_taken", label: "inspections.col.action_taken", control: "textarea", colSpan: 2, showWhen: { field: "status", equals: "closed" }, placeholder: "inspections.close.other_placeholder" },
 ];
 
-const inspectionCore = (childFk: string): Field[] => [
-  {
-    name: "driver_id",
-    label: "inspections.driver_name",
-    control: "select",
-    source: "drivers",
-    description: "Auto: the current driver when left empty",
-  },
-  { name: "vehicle_id", label: "inspections.vehicle", control: "select", source: "vehicles", required: true },
-  { name: "inspection_date", label: "inspections.date", control: "date", required: true },
-  { name: "mileage_km", label: "inspections.mileage", control: "number", min: 0, unit: "km", required: true },
+/** Remark and anomalies, the same on every inspection (daily, weekly, mobilization, third-party). */
+const anomalyFields = (childFk: string): Field[] => [
   {
     name: "remark",
     label: "inspections.remark",
@@ -94,8 +94,22 @@ const inspectionCore = (childFk: string): Field[] => [
     showWhen: { field: "remark", equals: "anomalies" },
     fields: anomalyRowFields,
     addLabel: "inspections.add_anomaly",
-    defaultRow: () => ({ description: "", action_required: "", when_to_act: "before_next_service", status: "open", date_opened: todayISO(), date_closed: "" }),
+    defaultRow: () => ({ description: "", action_required: "", when_to_act: "before_next_service", status: "open", date_opened: todayISO(), date_closed: "", action_taken: "" }),
   },
+];
+
+const inspectionCore = (childFk: string): Field[] => [
+  {
+    name: "driver_id",
+    label: "inspections.driver_name",
+    control: "select",
+    source: "drivers",
+    description: "Auto: the current driver when left empty",
+  },
+  { name: "vehicle_id", label: "inspections.vehicle", control: "select", source: "vehicles", required: true },
+  { name: "inspection_date", label: "inspections.date", control: "date", required: true },
+  { name: "mileage_km", label: "inspections.mileage", control: "number", min: 0, unit: "km", required: true },
+  ...anomalyFields(childFk),
   { name: "scan", label: "inspections.scanned_report", control: "file", bucket: "inspection-scans", labels: ["inspections.scanned_report"] },
 ];
 
@@ -129,7 +143,7 @@ export const dailyInspections: ModuleDef = {
       { key: "driver.full_name", header: "inspections.driver" },
       { key: "remark", header: "inspections.remark", type: "label", options: REMARK_OPTIONS },
       { key: "anomaly_description", header: "inspections.col.description", type: "multiline", sortable: false },
-      { key: "actions", header: "inspections.col.action", type: "actions", sortable: false },
+      ...actionColumns,
       { key: "docs", header: "docs.column", type: "docs", sortable: false },
     ],
     detailColumns: [
@@ -191,6 +205,9 @@ export const thirdPartyInspections: ModuleDef = {
       { key: "inspection_date", header: "inspections.date", type: "date" },
       { key: "vehicle.registration", header: "inspections.vehicle" },
       { key: "inspector", header: "inspections.inspector" },
+      { key: "remark", header: "inspections.remark", type: "label", options: REMARK_OPTIONS },
+      { key: "anomaly_description", header: "inspections.col.description", type: "multiline", sortable: false },
+      ...actionColumns,
       { key: "previous_date", header: "inspections.previous_date", type: "date" },
       { key: "renewal_date", header: "inspections.next_date", type: "reminder_date" },
       { key: "docs", header: "docs.column", type: "docs", sortable: false },
@@ -220,6 +237,7 @@ export const mobilizationInspections: ModuleDef = {
           { name: "vehicle_id", label: "inspections.vehicle", control: "select", source: "vehicles", required: true },
           { name: "inspection_date", label: "inspections.mobilization.date", control: "date", required: true },
           { name: "renewal_date", label: "inspections.mobilization.renewal", control: "date", description: "Reminder" },
+          ...anomalyFields("vehicle_inspection_id"),
           { name: "notes", label: "common.notes", control: "textarea" },
           { name: "report", label: "fleet.doc.internal_report", control: "file", bucket: "inspection-scans", labels: ["fleet.doc.internal_report"] },
         ],
@@ -227,8 +245,10 @@ export const mobilizationInspections: ModuleDef = {
     ],
   },
   list: {
-    select: "*, vehicle:vehicles(registration)",
+    select: `*, vehicle:vehicles(registration), ${ANOMALY_SELECT}`,
     eq: { kind: "internal" },
+    statusColumn: "remark",
+    derive: anomalyLines,
     vehicleDocLabel: "fleet.doc.internal_report",
     orderBy: { column: "inspection_date", ascending: false },
     searchKeys: ["vehicle.registration"],
@@ -238,6 +258,9 @@ export const mobilizationInspections: ModuleDef = {
       { key: "vehicle.registration", header: "inspections.vehicle" },
       { key: "previous_date", header: "inspections.previous_date", type: "date" },
       { key: "renewal_date", header: "inspections.mobilization.renewal", type: "reminder_date" },
+      { key: "remark", header: "inspections.remark", type: "label", options: REMARK_OPTIONS },
+      { key: "anomaly_description", header: "inspections.col.description", type: "multiline", sortable: false },
+      ...actionColumns,
       { key: "notes", header: "common.notes", type: "multiline", sortable: false },
       { key: "docs", header: "docs.column", type: "docs", sortable: false },
     ],

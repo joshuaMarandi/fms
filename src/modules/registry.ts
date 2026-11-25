@@ -67,7 +67,7 @@ const DOCS_COLUMN: ColumnSpec = { key: "docs", header: "docs.column", type: "doc
 const withDocs = (cols: ColumnSpec[] | undefined) => (cols && !cols.some((c) => c.type === "docs") ? [...cols, DOCS_COLUMN] : cols);
 
 export const MODULES: ModuleDef[] = DEFINED.map((m) =>
-  moduleFileField(m) ? { ...m, list: { ...m.list, columns: withDocs(m.list.columns)!, detailColumns: withDocs(m.list.detailColumns) } } : m,
+  moduleFileField(m) && m.listDocs !== false ? { ...m, list: { ...m.list, columns: withDocs(m.list.columns)!, detailColumns: withDocs(m.list.detailColumns) } } : m,
 );
 
 const byKey = new Map(MODULES.map((m) => [m.key, m]));

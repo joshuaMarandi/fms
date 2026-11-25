@@ -358,7 +358,7 @@ export async function WeeklyInspectionHub({ searchParams }: { searchParams?: Rec
     };
   });
 
-  const kinds: HubKind[] = [{ key: "weekly", label: t("inspections.weekly.title"), description: t("hub.kind.weekly"), icon: "calendar-days", path: "/inspections/weekly", monthly: true, table: "weekly_inspections" }];
+  const kinds: HubKind[] = [{ key: "weekly", label: t("inspections.weekly.title"), description: t("hub.kind.weekly"), icon: "calendar-days", path: "/inspections/weekly", monthly: true, weekly: true, table: "weekly_inspections" }];
 
   return (
     <>

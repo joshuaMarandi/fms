@@ -418,9 +418,9 @@ insert into public.driver_osha (company_id, driver_id, date_conducted, redo_date
   ('11111111-1111-1111-1111-111111111111', '66666666-6666-6666-6666-000000000004', current_date - 100, current_date + 265, 'Fit for work');
 
 insert into public.mandatory_trainings (company_id, driver_id, courses, date_completed, trainer, cost_tzs, refresher_date) values
-  ('11111111-1111-1111-1111-111111111111', '66666666-6666-6666-6666-000000000001', '{defensive_driving,four_wd,fatigue}', current_date - 200, 'SafeDrive Tanzania', 350000, current_date + 165),
-  ('11111111-1111-1111-1111-111111111111', '66666666-6666-6666-6666-000000000002', '{defensive_driving,night_driving}', current_date - 120, 'SafeDrive Tanzania', 250000, current_date + 245),
-  ('11111111-1111-1111-1111-111111111111', '66666666-6666-6666-6666-000000000003', '{defensive_driving,four_wd,fatigue,night_driving}', current_date - 380, 'Road Safety Institute', 450000, current_date - 15),
+  ('11111111-1111-1111-1111-111111111111', '66666666-6666-6666-6666-000000000001', '{defensive_driving,induction,off_road}', current_date - 200, 'SafeDrive Tanzania', 350000, current_date + 165),
+  ('11111111-1111-1111-1111-111111111111', '66666666-6666-6666-6666-000000000002', '{defensive_driving,first_aid}', current_date - 120, 'SafeDrive Tanzania', 250000, current_date + 245),
+  ('11111111-1111-1111-1111-111111111111', '66666666-6666-6666-6666-000000000003', '{defensive_driving,induction,first_aid,off_road}', current_date - 380, 'Road Safety Institute', 450000, current_date - 15),
   ('11111111-1111-1111-1111-111111111111', '66666666-6666-6666-6666-000000000004', '{defensive_driving}', current_date - 60, 'SafeDrive Tanzania', 150000, current_date + 305);
 
 insert into public.toolbox_plans (company_id, week_number, month, date_from, date_to, topics) values

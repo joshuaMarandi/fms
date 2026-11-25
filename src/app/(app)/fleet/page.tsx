@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/shell/page-header";
 import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { VehiclesTable, type VehicleRow } from "./vehicles-table";
+import { FleetTabs } from "@/components/hub/fleet-tabs";
 import { t } from "@/i18n";
 
 export default async function FleetPage() {
@@ -88,6 +89,7 @@ export default async function FleetPage() {
         title={t("fleet.title")}
         description={t("fleet.description")}
       />
+      <FleetTabs />
       {/* Only when the package is full (the Add vehicle button is in the top bar). */}
       {atLimit ? <div className="rounded-xl border border-warning/50 bg-warning-bg p-3 text-sm font-medium text-warning">{t("subscription.vehicle_limit_reached", { max })}</div> : null}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

@@ -2,7 +2,7 @@ import type { FormSchema, Option, OptionSource } from "@/lib/forms/schema";
 import type { LoadedOptions } from "@/lib/data/records";
 import type { ApprovalExtraField } from "@/components/patterns/approval-panel";
 
-export type ColumnType = "text" | "number" | "tzs" | "date" | "datetime" | "time" | "status" | "reminder" | "reminder_date" | "bool" | "tags" | "km" | "litres" | "hours" | "label" | "actions" | "multiline" | "docs" | "discrepancy";
+export type ColumnType = "text" | "number" | "tzs" | "date" | "datetime" | "time" | "status" | "reminder" | "reminder_date" | "bool" | "tags" | "km" | "litres" | "hours" | "label" | "actions" | "action_required" | "action_taken" | "multiline" | "docs" | "discrepancy";
 
 export type ColumnSpec = {
   /** Dot path into the row (joins come back nested, for example vehicle.registration) */
@@ -64,6 +64,10 @@ export type ModuleDef = {
   detailExtra?: string;
   /** A custom block under the decision card (requests), for example a button opening related records. */
   sideExtra?: string;
+  /** Data added to a loaded record on the server (for example documents for a table's rows). */
+  enrich?: string;
+  /** false: no Documents column in the list (one is added when the form has documents). */
+  listDocs?: false;
   /** Name of a custom block rendered above the list (see modules/extras.tsx) */
   listExtra?: string;
   /**

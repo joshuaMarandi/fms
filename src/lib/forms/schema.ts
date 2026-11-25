@@ -35,6 +35,8 @@ type Base = {
   prefill?: { deps: string[]; compute: (values: Record<string, unknown>, ctx: FormComputeContext, rowIndex?: number) => unknown };
   /** Inside rows: this field always equals the previous row's field of that name (rows after the first). */
   chainFrom?: string;
+  /** Inside rows: asked in the form, not shown as a column of the saved record's table. */
+  viewHidden?: boolean;
   /** Read only while this returns true, for example when the value was taken from earlier records. */
   lockWhen?: (values: Record<string, unknown>, ctx: FormComputeContext, rowIndex?: number) => boolean;
 };
@@ -66,7 +68,15 @@ export type Field =
       signer?: (values: Record<string, unknown>, ctx: FormComputeContext) => string | null;
     })
   | (Base & { control: "auto"; compute?: (values: Record<string, unknown>, ctx: FormComputeContext) => unknown; format?: "number" | "tzs" | "date" | "text" | "km" | "litres" | "hours"; digits?: number })
-  | (Base & { control: "file"; bucket: string; multiple?: boolean; labels?: string[]; sensitive?: boolean })
+  | (Base & {
+      control: "file";
+      bucket: string;
+      multiple?: boolean;
+      labels?: string[];
+      sensitive?: boolean;
+      /** Documents (label keys) that must be attached before a new record is saved, from its values. */
+      requiredLabels?: (values: Record<string, unknown>) => string[];
+    })
   | (Base & {
       control: "rows";
       fields: Field[];
@@ -79,6 +89,12 @@ export type Field =
       addLabel?: string;
       /** Rows show as a table; Add (and Edit on a row) opens a dialog with the row's fields. */
       dialog?: boolean;
+      /**
+       * The saved record's table has a Documents column: each row carries `_docs` (DocRef[]),
+       * `_missing` (labels still needed) and `_upload` (where they are attached, or null when they
+       * come from elsewhere), filled on the server.
+       */
+      docsColumn?: boolean;
       /** Dialog title for a new row (i18n key); defaults to the add label. */
       dialogTitle?: string;
       totals?: { label: string; compute: (rows: Record<string, unknown>[], values: Record<string, unknown>) => unknown; format?: "number" | "tzs" | "text" }[];

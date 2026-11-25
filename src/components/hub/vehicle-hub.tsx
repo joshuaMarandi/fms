@@ -60,6 +60,8 @@ export type HubKind = {
   yearly?: boolean;
   /** Table for the month counts (monthly kinds only). */
   table?: string;
+  /** Weekly records: each month card shows its four weeks with their dates. */
+  weekly?: boolean;
 };
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -227,10 +229,10 @@ export function VehicleHub({ vehicles, kinds, currentYear, currentMonth, columns
       )}
 
       <Dialog open={!!picked} onOpenChange={(o) => !o && setPicked(null)}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className={cn("max-h-[94svh] overflow-y-auto", kind?.weekly ? "sm:max-w-4xl" : "sm:max-w-lg")}>
           <DialogHeader>
             <DialogTitle className="text-xl">{picked?.registration}</DialogTitle>
-            <DialogDescription>{kind ? t(kind.yearly ? "hub.pick_year" : "hub.pick_month", { kind: kind.label }) : t("hub.pick_kind")}</DialogDescription>
+            <DialogDescription>{kind ? t(kind.yearly ? "hub.pick_year" : kind.weekly ? "hub.pick_week" : "hub.pick_month", { kind: kind.label }) : t("hub.pick_kind")}</DialogDescription>
           </DialogHeader>
           {picked && !kind ? (
             <div className="grid gap-2">
@@ -257,7 +259,17 @@ export function VehicleHub({ vehicles, kinds, currentYear, currentMonth, columns
               onPick={(year) => go(`${kind.path}?vehicle=${picked.id}${year ? `&year=${year}` : ""}`)}
             />
           ) : null}
-          {picked && kind && !kind.yearly ? (
+          {picked && kind?.weekly ? (
+            <WeekPicker
+              key={`${picked.id}-${kind.key}`}
+              vehicleId={picked.id}
+              currentYear={currentYear}
+              currentMonth={currentMonth}
+              onBack={kinds.length > 1 ? () => setKind(null) : undefined}
+              onPick={(when) => go(`${kind.path}?vehicle=${picked.id}${when ? `&${when}` : ""}`)}
+            />
+          ) : null}
+          {picked && kind && !kind.yearly && !kind.weekly ? (
             <MonthPicker
               key={`${picked.id}-${kind.key}`}
               vehicleId={picked.id}
@@ -316,6 +328,120 @@ function YearPicker({ years, currentYear, onBack, onPick }: { years: Record<numb
       </div>
       <Button type="button" variant="outline" className="w-full" onClick={() => onPick(null)}>
         <CalendarDays /> {t("hub.all_years")}
+      </Button>
+    </div>
+  );
+}
+
+/** The four weeks of a month: 1 to 7, 8 to 14, 15 to 21, and 22 to the month's last day. */
+function weeksOf(year: number, month: number) {
+  const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const mm = String(month).padStart(2, "0");
+  const day = (d: number) => `${year}-${mm}-${String(d).padStart(2, "0")}`;
+  return [1, 8, 15, 22].map((start, i) => ({ week: i + 1, from: day(start), to: day(i === 3 ? last : start + 6), startDay: start, endDay: i === 3 ? last : start + 6 }));
+}
+
+/**
+ * Weekly records: a card for each month of the year, each with its four weeks and their dates and
+ * how many inspections each holds. A week opens that week's records; the month name opens the month.
+ */
+function WeekPicker({ vehicleId, currentYear, currentMonth, onBack, onPick }: { vehicleId: string; currentYear: number; currentMonth: number; onBack?: () => void; onPick: (when: string | null) => void }) {
+  const [year, setYear] = React.useState(currentYear);
+  const [byYear, setByYear] = React.useState<Record<number, Record<string, number>>>({});
+  const counts = byYear[year] ?? null;
+  const today = new Date();
+  const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
+  React.useEffect(() => {
+    if (byYear[year]) return;
+    let live = true;
+    callRpc<{ month: number; week: number; records: number }[]>("vehicle_week_counts", { p_vehicle: vehicleId, p_year: year }).then((res) => {
+      if (!live) return;
+      const m: Record<string, number> = {};
+      if (res.ok) for (const r of res.data ?? []) m[`${r.month}-${r.week}`] = Number(r.records);
+      setByYear((prev) => ({ ...prev, [year]: m }));
+    });
+    return () => {
+      live = false;
+    };
+  }, [vehicleId, year, byYear]);
+
+  // Newest month first in the current year.
+  const months = MONTHS.map((name, i) => ({ name, m: i + 1 })).filter(({ m }) => !(year > currentYear || (year === currentYear && m > currentMonth)));
+  if (year === currentYear) months.reverse();
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <BackButton onBack={onBack} />
+        <div className="flex items-center gap-1">
+          <Button type="button" variant="outline" size="icon" className="size-9" onClick={() => setYear((y) => y - 1)} aria-label={t("hub.prev_year")}>
+            <ChevronLeft />
+          </Button>
+          <span className="w-16 text-center font-semibold tabular-nums" aria-live="polite">
+            {year}
+          </span>
+          <Button type="button" variant="outline" size="icon" className="size-9" onClick={() => setYear((y) => y + 1)} disabled={year >= currentYear} aria-label={t("hub.next_year")}>
+            <ChevronRight />
+          </Button>
+        </div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {months.map(({ name, m }) => {
+          const isCurrent = year === currentYear && m === currentMonth;
+          const short = name.slice(0, 3);
+          return (
+            <section key={name} className={cn("rounded-xl border p-3", isCurrent && "border-primary")}>
+              <button
+                type="button"
+                onClick={() => onPick(`month=${year}-${String(m).padStart(2, "0")}`)}
+                className="mb-2 flex w-full items-center justify-between rounded-md text-left text-sm font-semibold hover:text-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              >
+                <span>
+                  {name} {year}
+                </span>
+                <ChevronRight className="size-4 text-muted-foreground" aria-hidden="true" />
+              </button>
+              <ul className="grid gap-1.5">
+                {weeksOf(year, m).map((w) => {
+                  const n = counts?.[`${m}-${w.week}`] ?? 0;
+                  const future = w.from > todayISO;
+                  const current = w.from <= todayISO && todayISO <= w.to;
+                  const missed = !future && !current && counts !== null && n === 0;
+                  return (
+                    <li key={w.week}>
+                      <button
+                        type="button"
+                        disabled={future}
+                        onClick={() => onPick(`from=${w.from}&to=${w.to}`)}
+                        className={cn(
+                          "flex w-full items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                          future ? "cursor-not-allowed opacity-40" : "hover:border-primary hover:bg-primary/5",
+                          current && "border-primary",
+                          n > 0 && "bg-success-bg/60",
+                          missed && "border-danger/40 bg-danger-bg/50",
+                        )}
+                      >
+                        <span className="min-w-0">
+                          <span className="block font-medium">{t("hub.week_n", { n: w.week })}</span>
+                          <span className="block text-xs text-muted-foreground tabular-nums">
+                            {w.startDay}–{w.endDay} {short}
+                          </span>
+                        </span>
+                        <span className={cn("shrink-0 text-xs", n > 0 ? "font-medium text-success" : missed ? "font-medium text-danger" : "text-muted-foreground")}>
+                          {counts === null ? "…" : n > 0 ? (n === 1 ? t("hub.record_one") : t("hub.records", { count: n })) : future ? "" : current ? t("hub.week_in_progress") : t("hub.week_missed")}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          );
+        })}
+      </div>
+      <Button type="button" variant="outline" className="w-full" onClick={() => onPick(null)}>
+        <CalendarDays /> {t("hub.all_months")}
       </Button>
     </div>
   );

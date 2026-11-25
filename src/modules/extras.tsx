@@ -6,9 +6,14 @@ import { StatusChip } from "@/components/patterns/status-chip";
 import { SignatureSummary, type SignatureValue } from "@/components/patterns/signature-field";
 import { JmpReviewPanel, type JmpReview } from "@/components/modules/jmp-review-panel";
 import { AttachmentsBox } from "@/components/patterns/attachments-box";
+import type { DocRef } from "@/components/patterns/doc-button";
 import { WorkOrderEmail } from "@/components/modules/work-order-email";
 import { TravelNotify } from "@/components/modules/travel-notify";
 import { ViewAllDialog } from "@/components/modules/view-all-dialog";
+import { ExportMenu } from "@/components/patterns/export-menu";
+import { ToolboxCoverage, type CoverageTopic } from "@/components/modules/toolbox-coverage";
+import { PostCrashResponse, type PcrStepRow } from "@/components/modules/post-crash-response";
+import { toolboxCounts } from "@/modules/expenses";
 import { HubSummary } from "@/components/hub/vehicle-hub";
 import { loadDocs } from "@/lib/data/docs";
 import { SummaryDates } from "@/components/hub/daily-use-hub";
@@ -20,11 +25,89 @@ import type { LoadedOptions } from "@/lib/data/records";
 import { formatDate, formatNumber, formatTzs } from "@/lib/utils";
 import { t } from "@/i18n";
 
+/** Total topics and subtopics, and how many of each are covered. */
+function toolboxTiles(c: { topics: number; topicsCovered: number; subtopics: number; subtopicsCovered: number }) {
+  const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : "—");
+  return [
+    { label: t("toolbox.tile.topics"), value: formatNumber(c.topics) },
+    { label: t("toolbox.tile.subtopics"), value: formatNumber(c.subtopics) },
+    { label: t("toolbox.tile.topics_covered"), value: formatNumber(c.topicsCovered), sub: pct(c.topicsCovered, c.topics), tone: c.topicsCovered < c.topics ? ("warning" as const) : undefined },
+    { label: t("toolbox.tile.subtopics_covered"), value: formatNumber(c.subtopicsCovered), sub: pct(c.subtopicsCovered, c.subtopics), tone: c.subtopicsCovered < c.subtopics ? ("warning" as const) : undefined },
+  ];
+}
+
 /** The travellers' emails or phones, comma separated (null when none has one). */
 function contactsOf(record: Record<string, unknown>, key: "email" | "phone"): string | null {
   const list = Array.isArray(record.traveller_list) ? (record.traveller_list as Record<string, unknown>[]) : [];
   const values = list.map((r) => String(r[key] ?? "").trim()).filter(Boolean);
   return values.length ? values.join(", ") : null;
+}
+
+/**
+ * Data added to a loaded record on the server. incident_vehicle_docs: the documents of each vehicle
+ * involved. Our vehicles: the registration card and insurance policy from the fleet, and the licence of
+ * our driver (from the driver record, or attached to the incident when the driver is not in our
+ * records). Another road user's vehicle: its registration card and insurance policy, attached on it.
+ */
+export async function enrichRecord(name: string, record: Record<string, unknown>) {
+  if (name !== "incident_vehicle_docs") return;
+  const rows = Array.isArray(record.vehicles) ? (record.vehicles as Record<string, unknown>[]) : [];
+  if (rows.length === 0) return;
+  const supabase = await createClient();
+  const REG = t("fleet.doc.registration");
+  const INS = t("fleet.doc.insurance_policy");
+  const LIC = t("drivers.doc.licence");
+  const is = (label: string) => (d: DocRef) => d.label.trim().toLowerCase() === label.toLowerCase();
+
+  const fleetIds = [...new Set(rows.filter((r) => r.vehicle_source !== "other" && r.vehicle_id).map((r) => r.vehicle_id as string))];
+  const otherIds = rows.filter((r) => r.vehicle_source === "other" && r.id).map((r) => r.id as string);
+  const driverId = record.driver_source !== "other" ? ((record.driver_id as string | null) ?? null) : null;
+
+  const [{ data: insurance }, { data: licences }] = await Promise.all([
+    fleetIds.length ? supabase.from("vehicle_insurance").select("id, vehicle_id, end_date").in("vehicle_id", fleetIds).is("deleted_at", null).order("end_date", { ascending: false, nullsFirst: false }) : Promise.resolve({ data: [] }),
+    driverId ? supabase.from("driver_licences").select("id, expiry_date").eq("driver_id", driverId).is("deleted_at", null).order("expiry_date", { ascending: false, nullsFirst: false }) : Promise.resolve({ data: [] }),
+  ]);
+  const insRows = (insurance ?? []) as { id: string; vehicle_id: string }[];
+  const licRows = (licences ?? []) as { id: string }[];
+  const [vehicleDocs, insDocs, licDocs, incidentDocs, otherDocs] = await Promise.all([
+    loadDocs("vehicles", fleetIds),
+    loadDocs("vehicle_insurance", insRows.map((x) => x.id)),
+    loadDocs("driver_licences", licRows.map((x) => x.id)),
+    driverId ? Promise.resolve(new Map<string, DocRef[]>()) : loadDocs("incidents", [record.id as string]),
+    loadDocs("incident_vehicles", otherIds),
+  ]);
+  // The newest insurance (and licence) that has its document.
+  const policyOf = (vehicleId: string) => {
+    for (const ins of insRows.filter((x) => x.vehicle_id === vehicleId)) {
+      const d = (insDocs.get(ins.id) ?? []).find(is(INS)) ?? (insDocs.get(ins.id) ?? [])[0];
+      if (d) return d;
+    }
+    return (vehicleDocs.get(vehicleId) ?? []).find(is(INS)) ?? null;
+  };
+  let licence: DocRef | null = null;
+  for (const l of licRows) {
+    licence = (licDocs.get(l.id) ?? [])[0] ?? null;
+    if (licence) break;
+  }
+  if (!driverId) licence = (incidentDocs.get(record.id as string) ?? []).find(is(LIC)) ?? null;
+
+  for (const r of rows) {
+    if (r.vehicle_source === "other") {
+      const own = otherDocs.get(r.id as string) ?? [];
+      const reg = own.find(is(REG));
+      const ins = own.find(is(INS));
+      r._docs = own;
+      r._missing = [...(reg ? [] : [REG]), ...(ins ? [] : [INS])];
+      r._upload = { table: "incident_vehicles", rowId: r.id, resource: "expenses.safety.incidents", bucket: "incident-files" };
+    } else {
+      const vid = (r.vehicle_id as string | null) ?? "";
+      const reg = (vehicleDocs.get(vid) ?? []).find(is(REG)) ?? null;
+      const ins = vid ? policyOf(vid) : null;
+      r._docs = [reg, ins, licence].filter((d): d is DocRef => !!d);
+      r._missing = [...(reg ? [] : [REG]), ...(ins ? [] : [INS]), ...(licence ? [] : [LIC])];
+      r._upload = null;
+    }
+  }
 }
 
 /** Custom blocks rendered under a record form. */
@@ -35,12 +118,13 @@ export async function DetailExtra({ name, record }: { name: string; record: Reco
 
   switch (name) {
     case "outstation_driver": {
-      // Everything this driver was given: the same totals as the list, then each allowance.
+      // Under the decision: a button opening everything this driver was given (the same totals as the
+      // list, then each allowance).
       const driverId = record.driver_id as string | null;
       if (!driverId) return null;
       const { data } = await supabase
         .from("outstation_requests")
-        .select("id, date_from, date_to, location, total_days, allowance_tzs, other_total_tzs, total_cost_tzs, status")
+        .select("id, date_from, date_to, location, total_days, allowance_tzs, other_total_tzs, total_cost_tzs, status, driver:drivers(full_name)")
         .eq("driver_id", driverId)
         .is("deleted_at", null)
         .order("date_from", { ascending: false })
@@ -48,8 +132,14 @@ export async function DetailExtra({ name, record }: { name: string; record: Reco
       const rows = (data ?? []) as { id: string; date_from: string; date_to: string; location: string | null; total_days: number | null; allowance_tzs: number | null; other_total_tzs: number | null; total_cost_tzs: number | null; status: string }[];
       const counted = rows.filter((r) => r.status !== "rejected" && r.status !== "draft");
       const sum = (k: "allowance_tzs" | "other_total_tzs" | "total_cost_tzs") => counted.reduce((s, r) => s + Number(r[k] ?? 0), 0);
+      const driverName = ((data ?? [])[0] as { driver?: { full_name?: string } | null } | undefined)?.driver?.full_name;
       return (
-        <div className="mt-6 space-y-4">
+        <ViewAllDialog
+          label={t("admin.outstation.view_all_driver")}
+          title={driverName ? t("admin.outstation.driver_allowances_of", { name: driverName }) : t("admin.outstation.driver_allowances")}
+          description={t("admin.outstation.driver_allowances_hint")}
+        >
+        <div className="space-y-4">
           <HubSummary
             tiles={[
               { label: t("admin.outstation.tile.total_cost"), value: formatTzs(sum("total_cost_tzs")), sub: t("admin.outstation.tile.for_driver", { count: counted.length }) },
@@ -60,7 +150,6 @@ export async function DetailExtra({ name, record }: { name: string; record: Reco
           <Card>
             <CardHeader>
               <CardTitle className="text-base">{t("admin.outstation.driver_allowances")}</CardTitle>
-              <CardDescription>{t("admin.outstation.driver_allowances_hint")}</CardDescription>
             </CardHeader>
             <CardContent className="overflow-x-auto">
               <table className="w-full min-w-160 text-sm">
@@ -100,6 +189,7 @@ export async function DetailExtra({ name, record }: { name: string; record: Reco
             </CardContent>
           </Card>
         </div>
+        </ViewAllDialog>
       );
     }
     case "petty_cash_transactions": {
@@ -107,16 +197,39 @@ export async function DetailExtra({ name, record }: { name: string; record: Reco
       // recorded and verified one by one. Spending needs the proof of payment.
       const id = record.id as string;
       const [{ data: txns }, { data: proof }] = await Promise.all([
-        supabase.from("petty_cash_transactions").select("id, txn_date, description, quantity, unit, price_tzs, amount_tzs, status, approval_step").eq("petty_cash_request_id", id).is("deleted_at", null).order("txn_date", { ascending: false }),
+        supabase.from("petty_cash_transactions").select("id, txn_date, description, quantity, unit, price_tzs, amount_tzs, status, approval_step, verified_by").eq("petty_cash_request_id", id).is("deleted_at", null).order("txn_date", { ascending: false }),
         supabase.from("attachments").select("id").eq("table_name", "petty_cash_requests").eq("row_id", id).is("deleted_at", null).ilike("label", `${t("admin.petty_cash.doc.proof_of_payment")}%`).limit(1),
       ]);
-      const rows = (txns ?? []) as { id: string; txn_date: string; description: string; quantity: number; unit: string | null; price_tzs: number; amount_tzs: number; status: string }[];
+      const rows = (txns ?? []) as { id: string; txn_date: string; description: string; quantity: number; unit: string | null; price_tzs: number; amount_tzs: number; status: string; verified_by: string | null }[];
       const approved = record.status === "approved";
       const hasProof = (proof ?? []).length > 0;
       const canRecord = approved && hasProof && session.can("expenses.admin.petty_cash", "create");
       // A draft (or rejected) transaction can be changed by anyone who records petty cash.
       const canChangeDraft = session.can("expenses.admin.petty_cash", "create") || session.can("expenses.admin.petty_cash", "edit");
       const verifiedWord = (s: string) => (s === "approved" ? t("status.verified") : undefined);
+      const statusText = (s: string) => verifiedWord(s) ?? t(`status.${s}`);
+      // Export: the transactions as shown (with who verified each).
+      const exportColumns = [
+        { key: "date", header: t("common.date") },
+        { key: "description", header: t("admin.petty_cash.description_field") },
+        { key: "quantity", header: t("expenses.misc.quantity") },
+        { key: "unit", header: t("expenses.misc.unit") },
+        { key: "price", header: t("admin.petty_cash.price") },
+        { key: "amount", header: t("expenses.misc.amount") },
+        { key: "status", header: t("common.status") },
+        { key: "verified_by", header: t("admin.petty_cash.verified_by") },
+      ];
+      const exportRows = rows.map((r) => ({
+        date: formatDate(r.txn_date),
+        description: r.description,
+        quantity: Number(r.quantity),
+        unit: r.unit ?? "",
+        price: Number(r.price_tzs),
+        amount: Number(r.amount_tzs),
+        status: statusText(r.status),
+        verified_by: r.verified_by ?? "",
+      }));
+      const canExport = session.can("expenses.admin.petty_cash", "export");
       const spent = rows.filter((r) => r.status === "approved").reduce((s, r) => s + Number(r.amount_tzs ?? 0), 0);
       const pending = rows.filter((r) => r.status === "submitted").reduce((s, r) => s + Number(r.amount_tzs ?? 0), 0);
       const received = Number(record.amount_received_tzs ?? 0);
@@ -139,13 +252,24 @@ export async function DetailExtra({ name, record }: { name: string; record: Reco
                   {!approved ? t("admin.petty_cash.spend_after_approval") : !hasProof ? t("admin.petty_cash.spend_after_proof") : t("admin.petty_cash.transactions_hint_new")}
                 </CardDescription>
               </div>
-              {canRecord ? (
-                <Button asChild className="h-10">
-                  <Link href={`/administration/petty-cash/transactions/new?request=${id}`}>
-                    <Plus /> {t("admin.petty_cash.add_transaction")}
-                  </Link>
-                </Button>
-              ) : null}
+              <div className="flex flex-wrap gap-2">
+                {canExport ? (
+                  <ExportMenu
+                    columns={exportColumns}
+                    rows={exportRows}
+                    filename={`petty-cash-transactions-${String(record.requester_name ?? "").trim() || id.slice(0, 8)}`}
+                    title={t("admin.petty_cash.transactions")}
+                    subtitle={[record.requester_name, record.request_date ? formatDate(record.request_date as string) : null, record.purpose].filter(Boolean).join(" · ")}
+                  />
+                ) : null}
+                {canRecord ? (
+                  <Button asChild className="h-10">
+                    <Link href={`/administration/petty-cash/transactions/new?request=${id}`}>
+                      <Plus /> {t("admin.petty_cash.add_transaction")}
+                    </Link>
+                  </Button>
+                ) : null}
+              </div>
             </CardHeader>
             <CardContent className="overflow-x-auto">
               {rows.length === 0 ? (
@@ -160,6 +284,7 @@ export async function DetailExtra({ name, record }: { name: string; record: Reco
                       <th className="py-1 pr-3 text-right">{t("admin.petty_cash.price")}</th>
                       <th className="py-1 pr-3 text-right">{t("expenses.misc.amount")}</th>
                       <th className="py-1 pr-3">{t("common.status")}</th>
+                      <th className="py-1 pr-3">{t("admin.petty_cash.verified_by")}</th>
                       <th className="py-1">
                         <span className="sr-only">{t("common.actions")}</span>
                       </th>
@@ -182,6 +307,7 @@ export async function DetailExtra({ name, record }: { name: string; record: Reco
                         <td className="py-1.5 pr-3">
                           <StatusChip status={r.status} label={verifiedWord(r.status)} />
                         </td>
+                        <td className="py-1.5 pr-3 text-xs whitespace-pre-line">{r.verified_by || <span className="text-muted-foreground">—</span>}</td>
                         <td className="py-1.5 text-right">
                           {canChangeDraft && (r.status === "draft" || r.status === "rejected") ? (
                             <Button asChild variant="ghost" size="sm">
@@ -200,6 +326,74 @@ export async function DetailExtra({ name, record }: { name: string; record: Reco
           </Card>
         </div>
         </ViewAllDialog>
+      );
+    }
+    case "post_crash_response": {
+      // Steps I to V of the response; responses recorded before the steps stay listed below them.
+      const id = record.id as string;
+      if (!id) return null;
+      const [{ data: steps }, { data: earlier }] = await Promise.all([
+        supabase.from("incident_response_steps").select("id, step, status, details, opened_at, closed_at").eq("incident_id", id).is("deleted_at", null),
+        supabase.from("incident_responses").select("id, response_date, response, responsible").eq("incident_id", id).is("deleted_at", null).order("response_date"),
+      ]);
+      const older = (earlier ?? []) as { id: string; response_date: string; response: string; responsible: string | null }[];
+      const canWork = session.can("expenses.safety.incidents", "create") || session.can("expenses.safety.incidents", "edit");
+      return (
+        <>
+          <PostCrashResponse
+            incidentId={id}
+            injuries={Number(record.injuries_count ?? 0)}
+            fatalities={Number(record.fatalities_count ?? 0)}
+            steps={(steps ?? []) as PcrStepRow[]}
+            canWork={canWork}
+            path="/expenses/safety/incidents"
+          />
+          {older.length ? (
+            <Card className="mt-4">
+              <CardHeader>
+                <CardTitle className="text-base">{t("pcr.earlier")}</CardTitle>
+                <CardDescription>{t("pcr.earlier_hint")}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2 text-sm">
+                  {older.map((r) => (
+                    <li key={r.id} className="rounded-lg border p-2">
+                      <span className="font-medium tabular-nums">{formatDate(r.response_date)}</span>: <span className="whitespace-pre-line">{r.response}</span>
+                      {r.responsible ? <span className="text-muted-foreground"> ({r.responsible})</span> : null}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          ) : null}
+        </>
+      );
+    }
+    case "toolbox_coverage": {
+      // The talk's totals, then each topic with its subtopics to tick and its proof.
+      const id = record.id as string;
+      if (!id) return null;
+      const { data } = await supabase
+        .from("toolbox_topics")
+        .select("id, title, covered, line_no, subtopics:toolbox_subtopics(id, title, covered, line_no, deleted_at)")
+        .eq("plan_id", id)
+        .is("deleted_at", null)
+        .order("line_no");
+      const raw = (data ?? []) as { id: string; title: string; covered: boolean; subtopics: { id: string; title: string; covered: boolean; line_no: number; deleted_at: string | null }[] | null }[];
+      const topics: CoverageTopic[] = raw.map((x) => ({
+        id: x.id,
+        title: x.title,
+        covered: x.covered,
+        subtopics: (x.subtopics ?? []).filter((s) => !s.deleted_at).sort((a, b) => a.line_no - b.line_no).map((s) => ({ id: s.id, title: s.title, covered: s.covered })),
+      }));
+      const docs = await loadDocs("toolbox_topics", topics.map((x) => x.id));
+      const c = toolboxCounts([{ topic_rows: topics.map((x) => ({ covered: x.covered, deleted_at: null, subtopics: x.subtopics.map((s) => ({ covered: s.covered, deleted_at: null })) })) }]);
+      const canTick = session.can("expenses.trainings.toolbox", "create") || session.can("expenses.trainings.toolbox", "edit");
+      return (
+        <div className="mt-6 space-y-4">
+          <HubSummary tiles={toolboxTiles(c)} />
+          <ToolboxCoverage planId={id} topics={topics} docs={Object.fromEntries(docs)} canTick={canTick} canAttach={canTick} />
+        </div>
       );
     }
     case "fuel_issue": {
@@ -423,6 +617,41 @@ export async function ListExtra({ name, searchParams, landOn }: { name: string; 
               { label: t("trips.summary.waiting"), value: formatNumber(waiting), tone: waiting ? "warning" : undefined },
               { label: t("trips.summary.approved"), value: formatNumber(count((r) => r.status === "approved" || r.status === "completed")) },
               { label: t("trips.summary.rejected"), value: formatNumber(rejected), tone: rejected ? "danger" : undefined },
+            ]}
+          />
+        </>
+      );
+    }
+    case "toolbox_summary": {
+      // Topics and subtopics of the talks in the chosen dates, and how many are covered.
+      let q = supabase.from("toolbox_plans").select("id, topic_rows:toolbox_topics(covered, deleted_at, subtopics:toolbox_subtopics(covered, deleted_at))").is("deleted_at", null).limit(2000);
+      if (range) q = q.gte("date_from", range.from).lte("date_from", range.to);
+      const { data } = await q;
+      const c = toolboxCounts((data ?? []) as Parameters<typeof toolboxCounts>[0]);
+      return (
+        <>
+          <SummaryDates label={when} />
+          <HubSummary tiles={toolboxTiles(c)} />
+        </>
+      );
+    }
+    case "incident_summary": {
+      // Accidents and near misses, injuries and fatalities in the chosen dates.
+      let q = supabase.from("incidents").select("incident_type, injuries_count, fatalities_count").is("deleted_at", null).limit(5000);
+      if (range) q = q.gte("occurred_at", `${range.from}T00:00:00+03:00`).lte("occurred_at", `${range.to}T23:59:59+03:00`);
+      const { data } = await q;
+      const rows = (data ?? []) as { incident_type: string | null; injuries_count: number | null; fatalities_count: number | null }[];
+      const nearMisses = rows.filter((r) => r.incident_type === "near_miss").length;
+      const sum = (k: "injuries_count" | "fatalities_count") => rows.reduce((s, r) => s + Number(r[k] ?? 0), 0);
+      const fatalities = sum("fatalities_count");
+      return (
+        <>
+          <SummaryDates label={when} />
+          <HubSummary
+            tiles={[
+              { label: t("expenses.safety.tile.total"), value: formatNumber(rows.length), sub: t("expenses.safety.tile.total_sub", { accidents: rows.length - nearMisses, near_misses: nearMisses }) },
+              { label: t("expenses.safety.tile.injuries"), value: formatNumber(sum("injuries_count")), sub: t("expenses.safety.tile.in_records", { count: rows.length }) },
+              { label: t("expenses.safety.tile.fatalities"), value: formatNumber(fatalities), sub: t("expenses.safety.tile.in_records", { count: rows.length }), tone: fatalities ? "danger" : undefined },
             ]}
           />
         </>

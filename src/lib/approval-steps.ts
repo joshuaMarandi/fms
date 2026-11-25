@@ -12,7 +12,8 @@ export const STAGED_STEPS: Record<string, ApprovalStep[]> = {
   ],
   outstation_requests: [
     { step: "approval", label: "approval.step.fleet_manager", resource: "expenses.admin.outstation" },
-    { step: "hod_verify", label: "approval.step.hod_verify", resource: "expenses.admin.outstation.hod" },
+    // The HOD approves the outstation allowance (the final approval), then it goes to finance.
+    { step: "hod_verify", label: "approval.step.hod_final", resource: "expenses.admin.outstation.hod" },
   ],
   petty_cash_requests: [
     { step: "approval", label: "approval.step.fleet_manager_verify_amount", resource: "expenses.admin.petty_cash" },

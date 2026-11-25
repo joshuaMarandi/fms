@@ -81,12 +81,22 @@ export function AppSidebar({ counts }: { counts: SidebarCounts; companies?: { id
     // Removed from the system: never shown, even where the database still lists them.
     // Old groups kept only for their permissions (no page, nothing under them) stay out of the menu.
     const prune = (nodes: ResourceNode[]): ResourceNode[] => nodes.filter((n) => !REMOVED_KEYS.has(n.key)).map((n) => ({ ...n, children: prune(n.children) })).filter((n) => n.path || n.children.length > 0);
-    if (!session.isOwner) return prune(visible);
+    // Fleet database drops down to its two tabs: Vehicle fleet and Drivers (the driver details).
+    const fleetGroup = (nodes: ResourceNode[]): ResourceNode[] => {
+      const fleet = nodes.find((n) => n.key === "fleet");
+      const drivers = nodes.find((n) => n.key === "drivers");
+      if (!fleet || !drivers) return nodes;
+      const tab = (key: string, path: string | null, order: number): ResourceNode => ({ ...fleet, key, parent_key: "fleet", path, sort_order: fleet.sort_order * 10 + order, children: [] });
+      return nodes
+        .filter((n) => n.key !== "drivers")
+        .map((n) => (n.key === "fleet" ? { ...n, children: [tab("fleet.tab.vehicles", fleet.path, 1), { ...tab("fleet.tab.drivers", drivers.path, 2), icon: drivers.icon }] } : n));
+    };
+    if (!session.isOwner) return fleetGroup(prune(visible));
     // Owner inside a company: show exactly the modules in that company's package.
     // A group such as Fleet safety stays when any page under it is in the package.
     const keep = (nodes: ResourceNode[]): ResourceNode[] =>
       nodes.map((n) => ({ ...n, children: keep(n.children) })).filter((n) => packageAllows(permissions.packageKeys, n.key) || n.children.length > 0);
-    return prune(keep(visible));
+    return fleetGroup(prune(keep(visible)));
   }, [permissions, session.platformMode, session.isOwner]);
 
   const isActive = (path: string | null) => {

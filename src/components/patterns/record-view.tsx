@@ -4,6 +4,8 @@ import * as React from "react";
 import { Check, Pencil, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AttachmentsBox } from "./attachments-box";
+import { RowDocs, type RowDocsUpload } from "./row-docs";
+import type { DocRef } from "./doc-button";
 import { useFileFallback } from "./file-fallback";
 import type { SignatureValue } from "./signature-field";
 import { conditionMet, type Field, type FormComputeContext, type FormSchema, type FormSection } from "@/lib/forms/schema";
@@ -148,7 +150,7 @@ function RowsView({ f, values, ctx }: { f: Extract<Field, { control: "rows" }>; 
   const rows = (Array.isArray(values[f.name]) ? (values[f.name] as Values[]) : []).filter((r) => r && !r.deleted_at);
   if (rows.length === 0) return null;
   // Only the columns that have a value in at least one row.
-  const cols = f.fields.filter((s) => s.control !== "hidden" && s.control !== "file" && rows.some((r) => display(s, r[s.name], r, ctx) !== null));
+  const cols = f.fields.filter((s) => s.control !== "hidden" && s.control !== "file" && !s.viewHidden && rows.some((r) => display(s, r[s.name], r, ctx) !== null));
   return (
     <div className="min-w-0 sm:col-span-2 lg:col-span-3">
       <dt className="mb-1.5 text-xs font-medium text-muted-foreground">
@@ -164,6 +166,11 @@ function RowsView({ f, values, ctx }: { f: Extract<Field, { control: "rows" }>; 
                   {shortLabel(c.label)}
                 </th>
               ))}
+              {f.docsColumn ? (
+                <th scope="col" className="px-3 py-2 font-medium">
+                  {t("docs.column")}
+                </th>
+              ) : null}
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -175,6 +182,11 @@ function RowsView({ f, values, ctx }: { f: Extract<Field, { control: "rows" }>; 
                     {display(c, r[c.name], r, ctx) ?? <span className="text-muted-foreground">—</span>}
                   </td>
                 ))}
+                {f.docsColumn ? (
+                  <td className="px-3 py-2">
+                    <RowDocs docs={(r._docs as DocRef[] | undefined) ?? []} missing={(r._missing as string[] | undefined) ?? []} upload={(r._upload as RowDocsUpload | null | undefined) ?? null} />
+                  </td>
+                ) : null}
               </tr>
             ))}
           </tbody>

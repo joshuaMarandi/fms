@@ -184,6 +184,18 @@ function SchemaFormInner({ schemaKey, record, options = {}, afterSavePath, cance
   );
 
   async function onSubmit(values: FieldValues) {
+    // A new record: the documents it needs must be chosen first (they upload once it is saved).
+    if (!saved) {
+      const chosen = new Set([...staged.current.values()].flatMap((e) => e.files.map((f) => f.label)));
+      const missing = allFields(schema)
+        .flatMap((f) => (f.control === "file" && f.requiredLabels ? f.requiredLabels(values) : []))
+        .map((k) => tl(k))
+        .filter((l) => !chosen.has(l));
+      if (missing.length) {
+        toast.error(t("attachments.required_missing", { labels: missing.join(", ") }));
+        return;
+      }
+    }
     setBusy(true);
     const { payload, children: rows } = toPayload(schema, values);
     const res = await saveRecord({ table: schema.table, id: (record?.id as string) ?? null, values: { ...payload, ...(extra ?? {}) }, children: rows, revalidate });

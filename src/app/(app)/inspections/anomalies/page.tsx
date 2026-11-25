@@ -20,11 +20,16 @@ export default async function AnomaliesPage({ searchParams }: PageProps<"/inspec
     driver: (a.driver as { full_name?: string } | null)?.full_name ?? "",
     description: a.description as string,
     action_required: (a.action_required as string) ?? "",
+    action_taken: (a.action_taken as string) ?? "",
     when_to_act: a.when_to_act as string,
     status: a.status as string,
     date_opened: a.date_opened as string,
     date_closed: (a.date_closed as string) ?? null,
-    inspection_href: a.daily_inspection_id ? `/inspections/daily/${a.daily_inspection_id}` : `/inspections/third-party/${a.third_party_inspection_id}`,
+    inspection_href: a.daily_inspection_id
+      ? `/inspections/daily/${a.daily_inspection_id}`
+      : a.vehicle_inspection_id
+        ? `/inspections/mobilization/${a.vehicle_inspection_id}`
+        : `/inspections/third-party/${a.third_party_inspection_id}`,
   }));
 
   return (

@@ -48,12 +48,23 @@ export function MandatoryTrainings({ driverId, rows, docs, canAdd, canAttach }: 
                   </td>
                   <td className="py-2.5 pr-3">{r.trainer || <span className="text-muted-foreground">—</span>}</td>
                   <td className="py-2.5 pr-3 tabular-nums">{formatDate(r.date_completed)}</td>
-                  <td className="py-2.5 pr-3">{r.no_expiry ? <span className="text-muted-foreground">{t("common.not_applicable")}</span> : r.refresher_date ? <ReminderChip date={r.refresher_date} showDate /> : <span className="text-muted-foreground">—</span>}</td>
+                  <td className="py-2.5 pr-3">{r.refresher_date ? <ReminderChip date={r.refresher_date} showDate /> : <span className="text-muted-foreground">—</span>}</td>
                   <td className="py-2.5">
                     <DocButton
                       docs={docs.get(r.id) ?? []}
                       compact
-                      upload={canAttach ? { table: "mandatory_trainings", rowId: r.id, resource: "expenses.trainings.mandatory", bucket: "driver-docs", label: t("drivers.doc.course_certificates") } : null}
+                      upload={
+                        canAttach
+                          ? {
+                              table: "mandatory_trainings",
+                              rowId: r.id,
+                              resource: "expenses.trainings.mandatory",
+                              bucket: "driver-docs",
+                              label: t("drivers.doc.course_certificates"),
+                              labels: (r.courses ?? []).map((c) => t(`expenses.trainings.doc.cert.${c}`)),
+                            }
+                          : null
+                      }
                     />
                   </td>
                 </tr>

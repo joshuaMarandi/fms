@@ -13,7 +13,7 @@ import { createClient } from "@/lib/supabase/server";
 import { loadOptions } from "@/lib/data/records";
 import { getModule } from "@/modules/registry";
 import { allFields } from "@/lib/forms/schema";
-import { DetailExtra } from "@/modules/extras";
+import { DetailExtra, enrichRecord } from "@/modules/extras";
 import { DriverConfirmationCard } from "./driver-confirmation";
 import { t } from "@/i18n";
 
@@ -51,6 +51,7 @@ export async function ModuleRecordPage({ moduleKey, id, preset }: { moduleKey: s
     id && isRequestDoc ? supabase.rpc("log_record_view", { p_table: def.table, p_id: id }) : Promise.resolve(null),
   ]);
   if (id && !record) notFound();
+  if (record && def.enrich) await enrichRecord(def.enrich, record);
 
   const status = (record?.status as string | undefined) ?? undefined;
   const locked = !!record && !!def.isRequest && !!def.editableStatuses && !def.editableStatuses.includes(status ?? "");

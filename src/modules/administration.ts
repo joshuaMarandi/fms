@@ -68,9 +68,10 @@ export const outstationAllowances: ModuleDef = {
   optionSources: ["vehicles", "drivers"],
   isRequest: true,
   editableStatuses: ["draft", "rejected"],
-  // Approved by the fleet manager, verified by the HOD, then emailed to finance.
+  // Approved by the fleet manager, finally approved by the HOD, then emailed to finance.
   listExtra: "outstation_summary",
-  detailExtra: "outstation_driver",
+  // Under the decision: View all driver allowances (this driver's totals and every allowance).
+  sideExtra: "outstation_driver",
   titleOf: (r) => `${(r.driver as { full_name?: string } | undefined)?.full_name ?? ""} ${r.location ?? ""}`.trim(),
   schema: {
     table: "outstation_requests",
@@ -412,6 +413,8 @@ export const pettyCashTransactions: ModuleDef = {
       { key: "price_tzs", header: "admin.petty_cash.price", type: "tzs" },
       { key: "amount_tzs", header: "expenses.misc.amount", type: "tzs" },
       { key: "status", header: "common.status", type: "status" },
+      // Who verified it: the fleet manager, then the HOD (kept by the database).
+      { key: "verified_by", header: "admin.petty_cash.verified_by", type: "multiline" },
     ],
   },
 };

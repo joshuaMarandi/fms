@@ -13,6 +13,8 @@ import { deleteRecord } from "@/lib/data/records";
 import { getModule, moduleFileField } from "@/modules/registry";
 import type { ColumnSpec } from "@/modules/types";
 import { draftEditable } from "@/lib/forms/schema";
+import { ActionRequiredCell, ActionTakenCell, actionsText } from "@/components/inspections/anomaly-cells";
+import { CloseAnomalyDialog, type OpenAnomaly } from "@/components/inspections/close-anomaly-dialog";
 import { formatDate, formatNumber, formatTzs } from "@/lib/utils";
 import { hasKey, t } from "@/i18n";
 
@@ -49,6 +51,10 @@ export function renderCell(spec: ColumnSpec, value: unknown): React.ReactNode {
       return value === "N/A" ? <span className="text-muted-foreground">{t("common.not_applicable")}</span> : <ReminderChip date={value as string} />;
     case "reminder_date":
       return value === "N/A" ? <span className="text-muted-foreground">{t("common.not_applicable")}</span> : <ReminderChip date={value as string} showDate />;
+    case "action_required":
+      return <ActionRequiredCell value={value} />;
+    case "action_taken":
+      return <ActionTakenCell value={value} />;
     case "actions": {
       const list = (Array.isArray(value) ? (value as { action_required?: string; status?: string; deleted_at?: string | null }[]) : []).filter((a) => !a.deleted_at);
       if (list.length === 0) return <span className="text-muted-foreground">{"—"}</span>;
@@ -119,6 +125,8 @@ export function exportValue(spec: ColumnSpec, value: unknown): unknown {
       .filter((a) => !a.deleted_at)
       .map((a) => `${a.action_required ?? ""} (${hasKey(`status.${a.status}`) ? t(`status.${a.status}`) : a.status})`)
       .join("; ");
+  if (spec.type === "action_required") return actionsText(value, "required");
+  if (spec.type === "action_taken") return actionsText(value, "taken");
   if (spec.type === "datetime") return formatDate(value as string, true);
   if (spec.type === "docs") return Array.isArray(value) ? (value as DocRef[]).map((d) => d.file_name).join(", ") : "";
   return value;
@@ -129,6 +137,9 @@ export function ModuleTable({ moduleKey, rows, pathPrefix, hiddenColumns, varian
   const router = useRouter();
   const { can, session } = usePermissions();
   const [pendingDelete, setPendingDelete] = React.useState<Row | null>(null);
+  // Open anomaly being closed from the Action required column (approve on Inspections).
+  const [closingAnomaly, setClosingAnomaly] = React.useState<OpenAnomaly | null>(null);
+  const canCloseAnomaly = can("inspections", "approve");
   const base = pathPrefix ?? def.recordPath ?? def.path;
   const hiddenKey = (hiddenColumns ?? []).join(",");
   const fileField = moduleFileField(def);
@@ -147,6 +158,8 @@ export function ModuleTable({ moduleKey, rows, pathPrefix, hiddenColumns, varian
               compact
               upload={{ table: def.table, rowId: row.original.id, resource: def.resource, bucket: fileField.bucket ?? "forms", label: tl(fileField.label), labels: (fileField.labels ?? [fileField.label]).map((l) => tl(l)), sensitive: fileField.sensitive }}
             />
+          ) : spec.type === "action_required" ? (
+            <ActionRequiredCell value={getPath(row.original, spec.key)} onClose={canCloseAnomaly ? setClosingAnomaly : undefined} />
           ) : spec.type === "status" && def.statusLabels?.[String(getPath(row.original, spec.key))] ? (
             <StatusChip status={String(getPath(row.original, spec.key))} label={tl(def.statusLabels[String(getPath(row.original, spec.key))])} />
           ) : (
@@ -159,7 +172,7 @@ export function ModuleTable({ moduleKey, rows, pathPrefix, hiddenColumns, varian
         // Date columns feed the table's From and To filter.
         meta: { hidden: spec.hidden, ...(spec.type === "date" || spec.type === "datetime" || spec.type === "reminder_date" ? { dateOf: (row: Row) => getPath(row, spec.key) } : {}) },
       })),
-    [def, hiddenKey, variant, fileField, mayAttach, rows],
+    [def, hiddenKey, variant, fileField, mayAttach, rows, canCloseAnomaly, setClosingAnomaly],
   );
 
   const canEdit = can(def.resource, "edit");
@@ -191,6 +204,7 @@ export function ModuleTable({ moduleKey, rows, pathPrefix, hiddenColumns, varian
           { label: t("common.delete"), destructive: true, onSelect: (r) => setPendingDelete(r), hidden: () => !canDelete },
         ]}
       />
+      <CloseAnomalyDialog anomaly={closingAnomaly} onOpenChange={(o) => !o && setClosingAnomaly(null)} onClosed={() => router.refresh()} revalidate={[base]} />
       <ConfirmDialog
         open={!!pendingDelete}
         onOpenChange={(o) => !o && setPendingDelete(null)}

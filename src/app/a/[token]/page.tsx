@@ -43,6 +43,11 @@ const STEP_LABEL: Record<string, string> = {
 const PETTY = new Set(["petty_cash_requests", "petty_cash_transactions"]);
 const PETTY_STEP_LABEL: Record<string, string> = { approval: "Fleet manager verification", hod_approval: "HOD verification", hod_verify: "HOD verification" };
 
+// Outstation allowance: the HOD gives the final approval.
+const OUTSTATION_STEP_LABEL: Record<string, string> = { hod_verify: "HOD final approval" };
+const stepLabelOf = (table: string | undefined, step: string) =>
+  (PETTY.has(table ?? "") ? PETTY_STEP_LABEL[step] : table === "outstation_requests" ? OUTSTATION_STEP_LABEL[step] : undefined);
+
 const PETTY_ACTION: Record<string, string> = { submitted: "Sent for verification", approved: "Verified" };
 
 const ACTION: Record<string, { label: string; icon: typeof CheckCircle2; tone: string }> = {
@@ -100,7 +105,7 @@ export default async function ApprovalLinkPage({ params }: PageProps<"/a/[token]
           <p className="text-sm text-muted-foreground">{cap(link.request_label)}</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">{link.summary?.summary ?? cap(link.request_label)}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Step: <span className="font-medium text-foreground">{(PETTY.has(link.table ?? "") && link.step ? PETTY_STEP_LABEL[link.step] : undefined) ?? link.step_label}</span>
+            Step: <span className="font-medium text-foreground">{(link.step ? stepLabelOf(link.table, link.step) : undefined) ?? link.step_label}</span>
           </p>
         </div>
 
@@ -131,7 +136,7 @@ export default async function ApprovalLinkPage({ params }: PageProps<"/a/[token]
                       <Icon className={`size-4 ${a.tone}`} aria-hidden="true" />
                     </span>
                     <span className="font-medium">{a.label}</span>
-                    {e.action !== "submitted" && e.action !== "resubmitted" ? <span className="text-muted-foreground"> · {(PETTY.has(link.table ?? "") ? PETTY_STEP_LABEL[e.step] : undefined) ?? STEP_LABEL[e.step] ?? e.step}</span> : null}
+                    {e.action !== "submitted" && e.action !== "resubmitted" ? <span className="text-muted-foreground"> · {stepLabelOf(link.table, e.step) ?? STEP_LABEL[e.step] ?? e.step}</span> : null}
                     <span className="block text-xs text-muted-foreground">
                       {[e.actor_name, formatDate(e.created_at, true), e.via === "link" ? "from the email or SMS link" : null].filter(Boolean).join(" · ")}
                     </span>

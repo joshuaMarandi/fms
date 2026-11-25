@@ -1,7 +1,7 @@
 import type { ModuleDef } from "./types";
 import type { Field, Option } from "@/lib/forms/schema";
 import { MONTH_OPTIONS } from "@/lib/forms/schema";
-import { toISODate, todayISO } from "@/lib/utils";
+import { toISODate } from "@/lib/utils";
 import { SHIFT_TIMES, splitHours, type Shift } from "@/lib/timesheet-hours";
 
 export const TZ_REGIONS = [
@@ -528,7 +528,10 @@ export const washRequests: ModuleDef = {
   },
 };
 
-const COURSES: Option[] = ["defensive_driving", "four_wd", "fatigue", "night_driving"].map((k) => ({ value: k, label: `expenses.trainings.course.${k}` }));
+/** The four mandatory courses, each with its own certificate. */
+export const MANDATORY_COURSES = ["defensive_driving", "induction", "first_aid", "off_road"] as const;
+const COURSES: Option[] = MANDATORY_COURSES.map((k) => ({ value: k, label: `expenses.trainings.course.${k}` }));
+const courseCertificate = (k: string) => `expenses.trainings.doc.cert.${k}`;
 
 export const mandatoryTrainings: ModuleDef = {
   key: "expenses.trainings.mandatory",
@@ -551,22 +554,29 @@ export const mandatoryTrainings: ModuleDef = {
           { name: "courses", label: "expenses.trainings.courses", control: "checkbox_group", options: COURSES, required: true },
           { name: "date_completed", label: "expenses.trainings.date_completed", control: "date", required: true },
           { name: "trainer", label: "expenses.trainings.trainer", control: "text" },
-          { name: "cost_tzs", label: "expenses.trainings.cost", control: "number", min: 0, unit: "TZS" },
-          // Some trainings never expire: tick N/A and no expiry date (or reminder) is kept.
-          { name: "no_expiry", label: "expenses.trainings.no_expiry", control: "checkbox" },
-          { name: "refresher_date", label: "expenses.trainings.refresher", control: "date", description: "Reminder", required: true, showWhen: { field: "no_expiry", truthy: false } },
+          { name: "refresher_date", label: "expenses.trainings.refresher", control: "date", description: "Reminder", required: true },
         ],
       },
       {
+        // One certificate per course done (a driver with all four courses has four documents).
         title: "common.documents",
-        description: "common.documents_hint",
-        fields: [{ name: "documents", label: "common.attachments", control: "file", bucket: "driver-docs", labels: ["drivers.doc.course_certificates", "expenses.trainings.doc.attendance", "expenses.trainings.doc.invoice"] }],
+        description: "expenses.trainings.documents_hint",
+        fields: [
+          {
+            name: "documents",
+            label: "common.attachments",
+            control: "file",
+            bucket: "driver-docs",
+            multiple: true,
+            labels: [...MANDATORY_COURSES.map(courseCertificate), "expenses.trainings.doc.attendance"],
+            requiredLabels: (v) => (Array.isArray(v.courses) ? (v.courses as string[]) : []).filter((c) => (MANDATORY_COURSES as readonly string[]).includes(c)).map(courseCertificate),
+          },
+        ],
       }
     ],
   },
   list: {
     select: "*, driver:drivers(full_name)",
-    derive: (r) => ({ expiry: r.no_expiry ? "N/A" : r.refresher_date }),
     orderBy: { column: "date_completed", ascending: false },
     searchKeys: ["driver.full_name", "trainer"],
     columns: [
@@ -574,11 +584,21 @@ export const mandatoryTrainings: ModuleDef = {
       { key: "courses", header: "expenses.trainings.courses", type: "tags", options: COURSES },
       { key: "date_completed", header: "expenses.trainings.date_completed", type: "date" },
       { key: "trainer", header: "expenses.trainings.trainer" },
-      { key: "cost_tzs", header: "expenses.trainings.cost", type: "tzs" },
-      { key: "expiry", header: "expenses.trainings.refresher", type: "reminder" },
+      { key: "refresher_date", header: "expenses.trainings.refresher", type: "reminder_date" },
+      // The eye lists the certificates (one per course) to choose which to view.
+      { key: "docs", header: "docs.column", type: "docs", sortable: false },
     ],
   },
 };
+
+type ToolboxRow = Record<string, unknown> & { topic_rows?: { covered: boolean; deleted_at: string | null; subtopics?: { covered: boolean; deleted_at: string | null }[] | null }[] | null };
+
+/** Topics and subtopics of toolbox talks, and how many are covered. */
+export function toolboxCounts(rows: ToolboxRow[]) {
+  const topics = rows.flatMap((r) => (r.topic_rows ?? []).filter((x) => !x.deleted_at));
+  const subs = topics.flatMap((x) => (x.subtopics ?? []).filter((s) => !s.deleted_at));
+  return { topics: topics.length, topicsCovered: topics.filter((x) => x.covered).length, subtopics: subs.length, subtopicsCovered: subs.filter((s) => s.covered).length };
+}
 
 export const toolboxPlans: ModuleDef = {
   key: "expenses.trainings.toolbox",
@@ -591,6 +611,9 @@ export const toolboxPlans: ModuleDef = {
   newLabel: "expenses.trainings.toolbox.new",
   exportName: "toolbox-talks",
   optionSources: [],
+  // Topics, each with its subtopics, ticked as they are covered with the proof on each topic.
+  listExtra: "toolbox_summary",
+  detailExtra: "toolbox_coverage",
   titleOf: (r) => `${r.week_number ? `W${r.week_number} ` : ""}${r.date_from ?? ""}`,
   schema: {
     table: "toolbox_plans",
@@ -602,21 +625,46 @@ export const toolboxPlans: ModuleDef = {
           { name: "month", label: "expenses.trainings.month", control: "select", options: MONTH_OPTIONS, required: true },
           { name: "date_from", label: "expenses.trainings.date_from", control: "date", required: true },
           { name: "date_to", label: "expenses.trainings.date_to", control: "date", required: true },
-          { name: "topics", label: "expenses.trainings.topics", control: "textarea", required: true },
+        ],
+      },
+      {
+        title: "expenses.trainings.topics",
+        fields: [
+          {
+            name: "topic_list",
+            label: "expenses.trainings.topics",
+            control: "rows",
+            childTable: "toolbox_topics",
+            fk: "plan_id",
+            dialog: true,
+            minRows: 1,
+            addLabel: "toolbox.add_topic",
+            description: "toolbox.topics_hint",
+            fields: [
+              { name: "title", label: "toolbox.topic", control: "text", required: true },
+              { name: "subtopics_text", label: "toolbox.subtopics", control: "textarea", description: "toolbox.subtopics_hint" },
+            ],
+            defaultRow: () => ({ title: "", subtopics_text: "" }),
+          },
         ],
       },
     ],
   },
   list: {
-    select: "*",
+    select: "*, topic_rows:toolbox_topics(covered, deleted_at, subtopics:toolbox_subtopics(covered, deleted_at))",
     orderBy: { column: "date_from", ascending: false },
     searchKeys: ["topics"],
+    derive: (r) => {
+      const c = toolboxCounts([r]);
+      return { coverage: `${c.topicsCovered} / ${c.topics} · ${c.subtopicsCovered} / ${c.subtopics}` };
+    },
     columns: [
       { key: "week_number", header: "expenses.trainings.week", type: "number", digits: 0 },
       { key: "month", header: "expenses.trainings.month", type: "label", options: MONTH_OPTIONS },
       { key: "date_from", header: "expenses.trainings.date_from", type: "date" },
       { key: "date_to", header: "expenses.trainings.date_to", type: "date" },
-      { key: "topics", header: "expenses.trainings.topics" },
+      { key: "topics", header: "expenses.trainings.topics", type: "multiline" },
+      { key: "coverage", header: "toolbox.coverage_column", sortable: false },
     ],
   },
 };
@@ -1007,6 +1055,17 @@ export const incidents: ModuleDef = {
         fields: [
           { name: "occurred_at", label: "expenses.safety.occurred_at", control: "datetime", required: true },
           {
+            name: "incident_type",
+            label: "expenses.safety.incident_type",
+            control: "radio",
+            inline: true,
+            required: true,
+            options: [
+              { value: "accident", label: "expenses.safety.type.accident" },
+              { value: "near_miss", label: "expenses.safety.type.near_miss" },
+            ],
+          },
+          {
             name: "status",
             label: "expenses.safety.status",
             control: "select",
@@ -1037,23 +1096,23 @@ export const incidents: ModuleDef = {
             childTable: "incident_vehicles",
             addLabel: "expenses.safety.add_vehicle",
             fk: "incident_id",
+            // Documents per vehicle: pulled from the fleet (registration card, insurance policy) and the
+            // driver record (licence) for our vehicles; attached here for another road user's vehicle.
+            docsColumn: true,
             fields: [
-              { name: "vehicle_source", label: "expenses.safety.vehicle_source", control: "radio", inline: true, required: true, options: [
+              { name: "vehicle_source", label: "expenses.safety.vehicle_source", control: "radio", inline: true, required: true, viewHidden: true, options: [
               { value: "fleet", label: "expenses.safety.source.fleet" },
               { value: "other", label: "expenses.safety.source.other" },
             ] },
-              { name: "vehicle_id", label: "expenses.safety.vehicle", control: "select", source: "vehicles", required: true, showWhen: { field: "vehicle_source", equals: "fleet" }, description: "expenses.safety.fleet_vehicle_hint" },
+              { name: "vehicle_id", label: "expenses.safety.vehicle", control: "select", source: "vehicles", required: true, viewHidden: true, showWhen: { field: "vehicle_source", equals: "fleet" }, description: "expenses.safety.fleet_vehicle_hint" },
               { name: "registration", label: "expenses.safety.vehicle_registration", control: "text", required: true, showWhen: { field: "vehicle_source", equals: "other" } },
               { name: "make", label: "expenses.safety.vehicle_make", control: "text", showWhen: { field: "vehicle_source", equals: "other" } },
               { name: "model", label: "expenses.safety.vehicle_model", control: "text", showWhen: { field: "vehicle_source", equals: "other" } },
               { name: "yom", label: "expenses.safety.vehicle_yom", control: "year", from: 1980, showWhen: { field: "vehicle_source", equals: "other" } },
               { name: "owner_name", label: "expenses.safety.vehicle_owner", control: "text", showWhen: { field: "vehicle_source", equals: "other" } },
               { name: "insurance_policy_number", label: "expenses.safety.vehicle_policy", control: "text", showWhen: { field: "vehicle_source", equals: "other" } },
-              { name: "driver_name", label: "expenses.safety.other_driver_name", control: "text", showWhen: { field: "vehicle_source", equals: "other" } },
-              { name: "driver_contact", label: "expenses.safety.other_driver_contact", control: "tel", showWhen: { field: "vehicle_source", equals: "other" } },
-              { name: "driver_licence_number", label: "expenses.safety.driver_licence_number", control: "text", showWhen: { field: "vehicle_source", equals: "other" } },
             ],
-            defaultRow: () => ({ vehicle_source: "fleet", vehicle_id: "", registration: "", make: "", model: "", yom: "", owner_name: "", insurance_policy_number: "", driver_name: "", driver_contact: "", driver_licence_number: "" }),
+            defaultRow: () => ({ vehicle_source: "fleet", vehicle_id: "", registration: "", make: "", model: "", yom: "", owner_name: "", insurance_policy_number: "" }),
           },
         ],
       },
@@ -1093,47 +1152,30 @@ export const incidents: ModuleDef = {
         ],
       },
       {
-        title: "expenses.safety.response",
-        collapsible: true,
-        fields: [
-          // Many responses, added one by one (Add response opens a dialog): date, response, who is responsible.
-          {
-            name: "responses",
-            label: "expenses.safety.response",
-            control: "rows",
-            childTable: "incident_responses",
-            fk: "incident_id",
-            dialog: true,
-            addLabel: "expenses.safety.add_response",
-            fields: [
-              { name: "response_date", label: "expenses.safety.response_date", control: "date", required: true },
-              { name: "response", label: "expenses.safety.response_text", control: "textarea", required: true, placeholder: "expenses.safety.response_placeholder" },
-              { name: "responsible", label: "expenses.safety.response_responsible", control: "text", required: true },
-            ],
-            defaultRow: () => ({ response_date: todayISO(), response: "", responsible: "" }),
-          },
-        ],
-      },
-      {
         title: "common.documents",
         description: "common.documents_hint",
         collapsible: true,
-        fields: [{ name: "files", label: "common.attachments", control: "file", bucket: "incident-files", labels: ["expenses.safety.doc.police_report", "expenses.safety.doc.photos", "expenses.safety.doc.insurance_claim"] }],
+        // The licence of a driver who is not in our records is attached here.
+        fields: [{ name: "files", label: "common.attachments", control: "file", bucket: "incident-files", labels: ["expenses.safety.doc.police_report", "expenses.safety.doc.photos", "expenses.safety.doc.insurance_claim", "drivers.doc.licence"] }],
       },
     ],
   },
+  // Totals above the list: accidents and near misses, injuries, fatalities. No documents column.
+  listExtra: "incident_summary",
+  // On the saved record: the post-crash response, step by step (I to V), each opened and closed.
+  detailExtra: "post_crash_response",
+  listDocs: false,
+  enrich: "incident_vehicle_docs",
   list: {
     select: "*",
     orderBy: { column: "occurred_at", ascending: false },
-    searchKeys: ["region", "district", "road_name", "driver_name", "description", "status"],
+    searchKeys: ["region", "district", "road_name", "village_street", "location", "driver_name", "description", "status"],
     statusColumn: "status",
+    // Location: road name, street, district and region.
+    derive: (r) => ({ location: [r.road_name, r.village_street, r.district, r.region].map((x) => String(x ?? "").trim()).filter(Boolean).join(", ") }),
     columns: [
       { key: "occurred_at", header: "expenses.safety.occurred_at", type: "datetime" },
-      { key: "region", header: "expenses.safety.region" },
-      { key: "district", header: "expenses.safety.district" },
-      { key: "road_name", header: "expenses.safety.road_name" },
-      { key: "driver_name", header: "expenses.safety.driver" },
-      { key: "injuries_count", header: "expenses.safety.injuries", type: "number", digits: 0 },
+      { key: "location", header: "expenses.safety.location" },
       { key: "fatalities_count", header: "expenses.safety.fatalities", type: "number", digits: 0 },
       { key: "status", header: "common.status", type: "status" },
     ],
