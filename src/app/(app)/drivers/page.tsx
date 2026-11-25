@@ -3,7 +3,6 @@ import { requirePermission } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { DriversTable, type DriverRow } from "./drivers-table";
 import { HubSummary } from "@/components/hub/vehicle-hub";
-import { FleetTabs } from "@/components/hub/fleet-tabs";
 import { SummaryDates } from "@/components/hub/daily-use-hub";
 import { inRange, rangeFromParams } from "@/lib/date-range";
 import { daysFromNowISO, formatNumber, todayISO } from "@/lib/utils";
@@ -48,10 +47,9 @@ export default async function DriversPage({ searchParams }: PageProps<"/drivers"
   return (
     <>
       <PageHeader
-        title={t("fleet.title")}
+        title={t("drivers.title")}
         description={t("drivers.description")}
       />
-      <FleetTabs />
       <SummaryDates label={range ? t("drivers.summary.expiring_in", { when: range.label }) : t("drivers.summary.default")} />
       <HubSummary tiles={summaryTiles(rows, range)} />
       <DriversTable rows={rows} />

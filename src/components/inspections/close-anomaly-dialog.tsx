@@ -67,41 +67,49 @@ export function CloseAnomalyDialog({ anomaly, onOpenChange, onClosed, revalidate
 
   return (
     <Dialog open={!!anomaly} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
+      {/* Wide on a computer: the choices in two columns, Other and the date side by side. */}
+      <DialogContent className="flex max-h-[94svh] w-[96vw] max-w-[96vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl">
+        <DialogHeader className="border-b p-4 pr-12 md:px-6">
           <DialogTitle>{t("inspections.anomaly.close")}</DialogTitle>
-          <DialogDescription>{anomaly?.description ?? ""}</DialogDescription>
+          <DialogDescription className="whitespace-pre-line">{anomaly?.description ?? ""}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 md:p-6">
           {required ? (
             <p className="rounded-lg bg-danger-bg px-3 py-2 text-sm text-danger">
               <span className="font-medium">{t("inspections.col.action_required")}:</span> {required}
             </p>
           ) : null}
-          <fieldset className="space-y-2">
-            <legend className="mb-1 text-sm font-medium">{t("inspections.close.what_done")}</legend>
-            {options.map((o) => (
-              <label key={o.key} className="flex min-h-10 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm has-data-[state=checked]:border-success has-data-[state=checked]:bg-success-bg">
-                <Checkbox checked={picked.includes(o.key)} onCheckedChange={(c) => setPicked((p) => (c ? [...p, o.key] : p.filter((x) => x !== o.key)))} />
-                <span>{o.label}</span>
-              </label>
-            ))}
-            <div className="space-y-1 pt-1">
+          <fieldset>
+            <legend className="mb-2 text-sm font-medium">{t("inspections.close.what_done")}</legend>
+            <div className="grid gap-2 md:grid-cols-2">
+              {options.map((o) => (
+                <label
+                  key={o.key}
+                  className={`flex min-h-10 cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm has-data-[state=checked]:border-success has-data-[state=checked]:bg-success-bg ${o.key === "as_required" ? "md:col-span-2" : ""}`}
+                >
+                  <Checkbox checked={picked.includes(o.key)} onCheckedChange={(c) => setPicked((p) => (c ? [...p, o.key] : p.filter((x) => x !== o.key)))} />
+                  <span>{o.label}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <div className="grid gap-4 md:grid-cols-[1fr_260px]">
+            <div className="space-y-1">
               <label htmlFor="close-other" className="text-sm font-medium">
                 {t("inspections.close.other")}
               </label>
-              <Textarea id="close-other" rows={2} value={other} onChange={(e) => setOther(e.target.value)} placeholder={t("inspections.close.other_placeholder")} />
+              <Textarea id="close-other" rows={3} value={other} onChange={(e) => setOther(e.target.value)} placeholder={t("inspections.close.other_placeholder")} />
             </div>
-          </fieldset>
-          <div className="space-y-1">
-            <label htmlFor="close-date" className="text-sm font-medium">
-              {t("inspections.anomaly.date_closed")}
-            </label>
-            <DatePicker id="close-date" value={date} onChange={(v) => setDate(v || todayISO())} />
+            <div className="space-y-1">
+              <label htmlFor="close-date" className="text-sm font-medium">
+                {t("inspections.anomaly.date_closed")}
+              </label>
+              <DatePicker id="close-date" value={date} onChange={(v) => setDate(v || todayISO())} />
+            </div>
           </div>
           {error ? <p className="text-sm text-danger">{error}</p> : null}
         </div>
-        <DialogFooter>
+        <DialogFooter className="border-t p-4 md:px-6">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             {t("common.cancel")}
           </Button>
