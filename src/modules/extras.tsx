@@ -13,6 +13,8 @@ import { ViewAllDialog } from "@/components/modules/view-all-dialog";
 import { ExportMenu } from "@/components/patterns/export-menu";
 import { ToolboxCoverage, type CoverageTopic } from "@/components/modules/toolbox-coverage";
 import { PostCrashResponse, type PcrStepRow } from "@/components/modules/post-crash-response";
+import { TrainingMatrix, type MatrixDriver } from "@/components/modules/training-matrix";
+import { TRAINING_COURSES, expiryOf, isRequired, needFor } from "@/lib/training-matrix";
 import { toolboxCounts } from "@/modules/expenses";
 import { HubSummary } from "@/components/hub/vehicle-hub";
 import { loadDocs } from "@/lib/data/docs";
@@ -22,7 +24,7 @@ import { rangeFromParams } from "@/lib/date-range";
 import { getSession } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import type { LoadedOptions } from "@/lib/data/records";
-import { formatDate, formatNumber, formatTzs } from "@/lib/utils";
+import { daysFromNowISO, formatDate, formatNumber, formatTzs, todayISO } from "@/lib/utils";
 import { t } from "@/i18n";
 
 /** Total topics and subtopics, and how many of each are covered. */
@@ -635,15 +637,72 @@ export async function ListExtra({ name, searchParams, landOn }: { name: string; 
         </>
       );
     }
+    case "training_compliance": {
+      // Every active driver against the training matrix: what their categories need and its state.
+      const [{ data: drivers }, { data: trainings }] = await Promise.all([
+        supabase.from("drivers").select("id, full_name, driver_categories").is("deleted_at", null).eq("is_active", true).order("full_name"),
+        supabase.from("mandatory_trainings").select("driver_id, courses, date_completed").is("deleted_at", null).not("date_completed", "is", null),
+      ]);
+      const latest = new Map<string, string>();
+      for (const tr of (trainings ?? []) as { driver_id: string; courses: string[] | null; date_completed: string }[]) {
+        for (const c of tr.courses ?? []) {
+          const k = `${tr.driver_id}|${c}`;
+          if (!latest.has(k) || tr.date_completed > latest.get(k)!) latest.set(k, tr.date_completed);
+        }
+      }
+      const today = todayISO();
+      const soon = daysFromNowISO(30);
+      let compliant = 0;
+      let gaps = 0;
+      let noCategory = 0;
+      const rows: MatrixDriver[] = ((drivers ?? []) as { id: string; full_name: string; driver_categories: string[] | null }[]).map((d) => {
+        const cats = d.driver_categories ?? [];
+        if (!cats.length) noCategory++;
+        let missing = 0;
+        const cells = TRAINING_COURSES.map((course) => {
+          const need = needFor(course, cats);
+          const done = latest.get(`${d.id}|${course}`) ?? null;
+          const until = done ? expiryOf(course, done) : null;
+          const state = !done ? "missing" : until && until < today ? "expired" : until && until <= soon ? "due" : "valid";
+          if (isRequired(need) && (state === "missing" || state === "expired")) missing++;
+          return { course, need, done, until, state } as MatrixDriver["cells"][number];
+        });
+        if (cats.length && missing === 0) compliant++;
+        if (missing) gaps++;
+        return { id: d.id, name: d.full_name, categories: cats, cells, missing };
+      });
+      return (
+        <div className="space-y-4">
+          <HubSummary
+            tiles={[
+              { label: t("training.tile.drivers"), value: formatNumber(rows.length), sub: noCategory ? t("training.tile.no_category", { count: noCategory }) : undefined, tone: noCategory ? "warning" : undefined },
+              { label: t("training.tile.compliant"), value: formatNumber(compliant), sub: t("training.tile.compliant_sub") },
+              { label: t("training.tile.gaps"), value: formatNumber(gaps), sub: t("training.tile.gaps_sub"), tone: gaps ? "danger" : undefined },
+            ]}
+          />
+          <TrainingMatrix drivers={rows} canAdd={session.can("expenses.trainings.mandatory", "create")} />
+        </div>
+      );
+    }
     case "incident_summary": {
-      // Accidents and near misses, injuries and fatalities in the chosen dates.
-      let q = supabase.from("incidents").select("incident_type, injuries_count, fatalities_count").is("deleted_at", null).limit(5000);
+      // Accidents and near misses, injuries and fatalities, crashes by category, and the crash rates
+      // (per 1,000,000 km driven, from the km logs) in the chosen dates.
+      let q = supabase.from("incidents").select("incident_type, crash_category, injuries_count, fatalities_count").is("deleted_at", null).limit(5000);
       if (range) q = q.gte("occurred_at", `${range.from}T00:00:00+03:00`).lte("occurred_at", `${range.to}T23:59:59+03:00`);
-      const { data } = await q;
-      const rows = (data ?? []) as { incident_type: string | null; injuries_count: number | null; fatalities_count: number | null }[];
+      let kq = supabase.from("km_logs").select("total_km").is("deleted_at", null).limit(100000);
+      if (range) kq = kq.gte("log_date", range.from).lte("log_date", range.to);
+      const [{ data }, { data: kmRows }] = await Promise.all([q, kq]);
+      const rows = (data ?? []) as { incident_type: string | null; crash_category: string | null; injuries_count: number | null; fatalities_count: number | null }[];
       const nearMisses = rows.filter((r) => r.incident_type === "near_miss").length;
       const sum = (k: "injuries_count" | "fatalities_count") => rows.reduce((s, r) => s + Number(r[k] ?? 0), 0);
       const fatalities = sum("fatalities_count");
+      const crashes = rows.filter((r) => r.incident_type !== "near_miss");
+      const byCat = (c: string) => crashes.filter((r) => r.crash_category === c).length;
+      const severe = byCat("C") + byCat("M") + byCat("S");
+      const total = severe + byCat("O");
+      const km = ((kmRows ?? []) as { total_km: number | null }[]).reduce((s, r) => s + Number(r.total_km ?? 0), 0);
+      const rate = (n: number) => (km > 0 ? formatNumber((n * 1_000_000) / km, 2) : "—");
+      const unset = crashes.filter((r) => !r.crash_category).length;
       return (
         <>
           <SummaryDates label={when} />
@@ -652,6 +711,18 @@ export async function ListExtra({ name, searchParams, landOn }: { name: string; 
               { label: t("expenses.safety.tile.total"), value: formatNumber(rows.length), sub: t("expenses.safety.tile.total_sub", { accidents: rows.length - nearMisses, near_misses: nearMisses }) },
               { label: t("expenses.safety.tile.injuries"), value: formatNumber(sum("injuries_count")), sub: t("expenses.safety.tile.in_records", { count: rows.length }) },
               { label: t("expenses.safety.tile.fatalities"), value: formatNumber(fatalities), sub: t("expenses.safety.tile.in_records", { count: rows.length }), tone: fatalities ? "danger" : undefined },
+            ]}
+          />
+          <HubSummary
+            tiles={[
+              {
+                label: t("expenses.safety.tile.categories"),
+                value: `${byCat("C")} · ${byCat("M")} · ${byCat("S")} · ${byCat("O")}`,
+                sub: unset ? t("expenses.safety.tile.categories_unset", { count: unset }) : t("expenses.safety.tile.categories_sub"),
+                tone: byCat("C") ? "danger" : unset ? "warning" : undefined,
+              },
+              { label: t("expenses.safety.tile.severe_mvcr"), value: rate(severe), sub: t("expenses.safety.tile.mvcr_sub", { count: severe, km: formatNumber(km) }), tone: severe ? "warning" : undefined },
+              { label: t("expenses.safety.tile.total_mvcr"), value: rate(total), sub: t("expenses.safety.tile.mvcr_sub", { count: total, km: formatNumber(km) }) },
             ]}
           />
         </>

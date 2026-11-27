@@ -1,7 +1,9 @@
 import type { ModuleDef } from "./types";
 import type { Field, Option } from "@/lib/forms/schema";
 import { MONTH_OPTIONS } from "@/lib/forms/schema";
-import { toISODate } from "@/lib/utils";
+import { formatDate, toISODate } from "@/lib/utils";
+import { TRAINING_COURSES, COURSE_OPTIONS, courseCertificate, expiryOf, type TrainingCourse } from "@/lib/training-matrix";
+import { t } from "@/i18n";
 import { SHIFT_TIMES, splitHours, type Shift } from "@/lib/timesheet-hours";
 
 export const TZ_REGIONS = [
@@ -528,10 +530,9 @@ export const washRequests: ModuleDef = {
   },
 };
 
-/** The four mandatory courses, each with its own certificate. */
-export const MANDATORY_COURSES = ["defensive_driving", "induction", "first_aid", "off_road"] as const;
-const COURSES: Option[] = MANDATORY_COURSES.map((k) => ({ value: k, label: `expenses.trainings.course.${k}` }));
-const courseCertificate = (k: string) => `expenses.trainings.doc.cert.${k}`;
+/** The trainings of the driver training matrix (plus first aid), each with its own certificate. */
+const COURSES: Option[] = COURSE_OPTIONS;
+const isCourse = (c: string): c is TrainingCourse => (TRAINING_COURSES as readonly string[]).includes(c);
 
 export const mandatoryTrainings: ModuleDef = {
   key: "expenses.trainings.mandatory",
@@ -543,6 +544,8 @@ export const mandatoryTrainings: ModuleDef = {
   newLabel: "expenses.trainings.mandatory.new",
   exportName: "mandatory-trainings",
   optionSources: ["drivers"],
+  // Above the list: the training matrix of every driver (what their category requires and its state).
+  listExtra: "training_compliance",
   titleOf: (r) => `${(r.driver as { full_name?: string } | undefined)?.full_name ?? ""}`,
   schema: {
     table: "mandatory_trainings",
@@ -554,7 +557,19 @@ export const mandatoryTrainings: ModuleDef = {
           { name: "courses", label: "expenses.trainings.courses", control: "checkbox_group", options: COURSES, required: true },
           { name: "date_completed", label: "expenses.trainings.date_completed", control: "date", required: true },
           { name: "trainer", label: "expenses.trainings.trainer", control: "text" },
-          { name: "refresher_date", label: "expenses.trainings.refresher", control: "date", description: "Reminder", required: true },
+          // From each course's validity (the soonest one); a course done once has no refresher.
+          {
+            name: "refresher_date",
+            label: "expenses.trainings.refresher",
+            control: "auto",
+            format: "text",
+            description: "expenses.trainings.refresher_hint",
+            compute: (v) => {
+              const courses = (Array.isArray(v.courses) ? (v.courses as string[]) : []).filter(isCourse);
+              const dates = courses.map((c) => expiryOf(c, v.date_completed as string)).filter((d): d is string => !!d).sort();
+              return dates[0] ? formatDate(dates[0]) : courses.length && v.date_completed ? t("expenses.trainings.done_once") : null;
+            },
+          },
         ],
       },
       {
@@ -568,8 +583,8 @@ export const mandatoryTrainings: ModuleDef = {
             control: "file",
             bucket: "driver-docs",
             multiple: true,
-            labels: [...MANDATORY_COURSES.map(courseCertificate), "expenses.trainings.doc.attendance"],
-            requiredLabels: (v) => (Array.isArray(v.courses) ? (v.courses as string[]) : []).filter((c) => (MANDATORY_COURSES as readonly string[]).includes(c)).map(courseCertificate),
+            labels: [...TRAINING_COURSES.map(courseCertificate), "expenses.trainings.doc.attendance"],
+            requiredLabels: (v) => (Array.isArray(v.courses) ? (v.courses as string[]) : []).filter(isCourse).map(courseCertificate),
           },
         ],
       }
@@ -1012,6 +1027,10 @@ export const leaveBalances: ModuleDef = {
   },
 };
 
+/** Crash subcategories; the first letter is the category (C, M, S, O). */
+export const CRASH_SUBCATEGORIES = ["c_fatality", "c_permanent_impairment", "c_third_party_fatality", "m_lost_workday", "m_rollover", "s_recordable", "o_first_aid", "o_disabling_damage", "o_other"] as const;
+export const CRASH_CATEGORY_OPTIONS: Option[] = ["C", "M", "S", "O"].map((k) => ({ value: k, label: `expenses.safety.category.${k}` }));
+
 const SEX: Option[] = [
   { value: "male", label: "drivers.sex.male" },
   { value: "female", label: "drivers.sex.female" },
@@ -1064,6 +1083,16 @@ export const incidents: ModuleDef = {
               { value: "accident", label: "expenses.safety.type.accident" },
               { value: "near_miss", label: "expenses.safety.type.near_miss" },
             ],
+          },
+          // Crash category (C, M, S or O) by its subcategory, from the company HSE document.
+          {
+            name: "crash_subcategory",
+            label: "expenses.safety.crash_category",
+            control: "select",
+            required: true,
+            description: "expenses.safety.crash_category_hint",
+            showWhen: { field: "incident_type", equals: "accident" },
+            options: CRASH_SUBCATEGORIES.map((k) => ({ value: k, label: `expenses.safety.crash.${k}` })),
           },
           {
             name: "status",
@@ -1172,10 +1201,14 @@ export const incidents: ModuleDef = {
     searchKeys: ["region", "district", "road_name", "village_street", "location", "driver_name", "description", "status"],
     statusColumn: "status",
     // Location: road name, street, district and region.
-    derive: (r) => ({ location: [r.road_name, r.village_street, r.district, r.region].map((x) => String(x ?? "").trim()).filter(Boolean).join(", ") }),
+    derive: (r) => ({
+      location: [r.road_name, r.village_street, r.district, r.region].map((x) => String(x ?? "").trim()).filter(Boolean).join(", "),
+      category_label: r.incident_type === "near_miss" ? t("expenses.safety.type.near_miss") : r.crash_category ? t(`expenses.safety.category.${r.crash_category}`) : t("expenses.safety.category.not_set"),
+    }),
     columns: [
       { key: "occurred_at", header: "expenses.safety.occurred_at", type: "datetime" },
       { key: "location", header: "expenses.safety.location" },
+      { key: "category_label", header: "expenses.safety.crash_category" },
       { key: "fatalities_count", header: "expenses.safety.fatalities", type: "number", digits: 0 },
       { key: "status", header: "common.status", type: "status" },
     ],

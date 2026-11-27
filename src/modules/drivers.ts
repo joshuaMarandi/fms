@@ -1,4 +1,5 @@
 import type { FormSchema } from "@/lib/forms/schema";
+import { DRIVER_CATEGORY_OPTIONS } from "@/lib/training-matrix";
 
 /** Module 2. Driver details: one profile page per driver with tabs. */
 export const driverPersonalSchema: FormSchema = {
@@ -7,7 +8,7 @@ export const driverPersonalSchema: FormSchema = {
   titleField: "full_name",
   viewGroups: [
     { title: "drivers.view.contact", fields: ["full_name", "phone", "phone_alt", "email"] },
-    { title: "drivers.view.employment", fields: ["employer", "job_title", "department", "employment_number", "joining_date", "years_driving", "is_active", "profile_id"] },
+    { title: "drivers.view.employment", fields: ["employer", "job_title", "department", "employment_number", "joining_date", "years_driving", "driver_categories", "is_active", "profile_id"] },
     { title: "drivers.view.personal", fields: ["date_of_birth", "sex"] },
   ],
   sections: [
@@ -35,6 +36,8 @@ export const driverPersonalSchema: FormSchema = {
           ],
         },
         { name: "years_driving", label: "drivers.years_driving", control: "number", min: 0, integer: true },
+        // What the driver drives: it sets the trainings they need (training matrix).
+        { name: "driver_categories", label: "drivers.categories", control: "checkbox_group", options: DRIVER_CATEGORY_OPTIONS, description: "drivers.categories_hint" },
         { name: "profile_id", label: "drivers.linked_user", control: "select", source: "profiles", description: "Links this driver to a user account so they see their own data" },
         { name: "is_active", label: "drivers.active", control: "switch" },
       ],
