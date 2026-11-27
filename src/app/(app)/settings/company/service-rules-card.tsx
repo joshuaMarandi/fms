@@ -50,7 +50,10 @@ export function ServiceRulesCard({ companyId, rules, vehicles, canEdit, canDelet
 
   async function remove(r: ServiceRule) {
     const { error } = await createClient().from("service_interval_rules").update({ deleted_at: new Date().toISOString() }).eq("id", r.id);
-    if (error) return toast.error(error.message);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     toast.success(t("settings.service_rules.deleted"));
     router.refresh();
   }
@@ -166,7 +169,10 @@ function RuleDialog({ rule, companyId, makes, models, onClose }: { rule: Service
     const supabase = createClient();
     const { error } = r ? await supabase.from("service_interval_rules").update(values).eq("id", r.id) : await supabase.from("service_interval_rules").insert({ ...values, company_id: companyId });
     setBusy(false);
-    if (error) return toast.error(error.message);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     toast.success(t("settings.service_rules.saved"));
     onClose();
     router.refresh();
