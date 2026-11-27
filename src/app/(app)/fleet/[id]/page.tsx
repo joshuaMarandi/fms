@@ -41,8 +41,21 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
   const safe = safety as { not_safe_for_use: boolean; open_anomalies: number } | null;
   const history = (schedules ?? []) as Record<string, unknown>[];
   const schedule = history[0] ?? null;
-  // A new service row, prefilled with today, the current odometer and the last interval.
-  const nextService = { last_service_date: todayISO(), last_service_km: v.odometer_km ?? "", interval_km: schedule?.interval_km ?? "" };
+  // A new service row, prefilled with today and the current odometer. The interval follows the
+  // company rule for this vehicle; with no rule (or a vehicle with its own interval) it is typed.
+  const { data: ruleRows } = await supabase.rpc("service_rule_for", { p_vehicle: id });
+  const rule = ((ruleRows ?? []) as { rule_id: string; interval_km: number | null; interval_months: number | null; label: string }[])[0] ?? null;
+  const ownInterval = !rule || !!schedule?.interval_custom;
+  const nextService = {
+    last_service_date: todayISO(),
+    last_service_km: v.odometer_km ?? "",
+    interval_custom: ownInterval,
+    interval_km: ownInterval ? (schedule?.interval_km ?? "") : "",
+    interval_months: ownInterval ? (schedule?.interval_months ?? "") : "",
+    rule_label: rule?.label || (rule ? t("fleet.service.company_rule") : null),
+    rule_km: rule?.interval_km ?? null,
+    rule_months: rule?.interval_months ?? null,
+  };
   const title = `${v.registration}`;
   const extra = { vehicle_id: id };
   const paths = [`/fleet/${id}`, "/fleet"];
@@ -161,7 +174,13 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
             {schedule ? (
               <>
                 <span>{t("fleet.service.next", { km: formatNumber(schedule.next_service_km as number) })}</span>
-                <span className="text-muted-foreground">{t("fleet.service.interval", { km: formatNumber(schedule.interval_km as number) })}</span>
+                {schedule.next_service_date ? <ReminderChip date={schedule.next_service_date as string} showDate /> : null}
+                <span className="text-muted-foreground">
+                  {t("fleet.service.interval", { km: formatNumber(schedule.interval_km as number) })}
+                  {schedule.interval_months ? ` ${t("fleet.service.or")} ${t("fleet.service.months", { count: Number(schedule.interval_months) })}` : ""}
+                  {" · "}
+                  {schedule.interval_custom ? t("fleet.service.own") : schedule.rule_id && rule ? `${t("fleet.service.company_rule")}${rule.label ? `: ${rule.label}` : ""}` : t("fleet.service.typed")}
+                </span>
                 <KmReminderChip dueKm={(schedule.next_service_km as number) ?? null} currentKm={v.odometer_km as number} />
               </>
             ) : (
@@ -184,7 +203,8 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
                     <tr className="border-b text-left text-muted-foreground">
                       <th className="py-2 pr-3 font-medium">{t("fleet.last_service_date")}</th>
                       <th className="py-2 pr-3 text-right font-medium">{t("fleet.last_service_km")}</th>
-                      <th className="py-2 text-right font-medium">{t("fleet.next_service_km")}</th>
+                      <th className="py-2 pr-3 text-right font-medium">{t("fleet.next_service_km")}</th>
+                      <th className="py-2 text-right font-medium">{t("fleet.next_service_date")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -195,7 +215,8 @@ export default async function VehiclePage({ params, searchParams }: PageProps<"/
                           {i === 0 ? <span className="status-chip status-chip-success ml-2">{t("fleet.service.current")}</span> : null}
                         </td>
                         <td className="py-2 pr-3 text-right tabular-nums">{formatNumber(h.last_service_km as number)}</td>
-                        <td className="py-2 text-right tabular-nums">{formatNumber(h.next_service_km as number)}</td>
+                        <td className="py-2 pr-3 text-right tabular-nums">{formatNumber(h.next_service_km as number)}</td>
+                        <td className="py-2 text-right tabular-nums">{h.next_service_date ? formatDate(h.next_service_date as string) : "—"}</td>
                       </tr>
                     ))}
                   </tbody>

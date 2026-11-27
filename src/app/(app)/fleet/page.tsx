@@ -38,6 +38,7 @@ export default async function FleetPage() {
   const rows: VehicleRow[] = ((vehicles ?? []) as Record<string, unknown>[]).map((v) => ({
     id: v.id as string,
     registration: v.registration as string,
+    vehicle_type: (v.vehicle_type as string | null) ?? null,
     make: v.make as string,
     model: v.model as string,
     yom: v.yom as number | null,

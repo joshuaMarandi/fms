@@ -12,6 +12,7 @@ import { t } from "@/i18n";
 export type VehicleRow = {
   id: string;
   registration: string;
+  vehicle_type: string | null;
   make: string;
   model: string;
   yom: number | null;
@@ -31,6 +32,12 @@ export function VehiclesTable({ rows }: { rows: VehicleRow[] }) {
   const columns = React.useMemo<ColumnDef<VehicleRow, unknown>[]>(
     () => [
       { id: "registration", header: t("fleet.reg"), accessorKey: "registration", cell: ({ row }) => <span className="font-medium">{row.original.registration}</span> },
+      {
+        id: "vehicle_type",
+        header: t("fleet.vehicle_type"),
+        accessorFn: (r) => (r.vehicle_type ? t(`vehicle_type.${r.vehicle_type}`) : ""),
+        cell: ({ row }) => (row.original.vehicle_type ? t(`vehicle_type.${row.original.vehicle_type}`) : <span className="text-xs font-medium text-warning">{t("fleet.vehicle_type_missing")}</span>),
+      },
       { id: "make", header: t("fleet.make_model"), accessorFn: (r) => `${r.make} ${r.model}` },
       { id: "yom", header: t("fleet.yom"), accessorKey: "yom" },
       { id: "owner_name", header: t("fleet.owner"), accessorKey: "owner_name" },
@@ -54,7 +61,7 @@ export function VehiclesTable({ rows }: { rows: VehicleRow[] }) {
       columns={columns}
       data={rows}
       getRowId={(r) => r.id}
-      searchKeys={["registration", "make", "model", "location", "owner_name"]}
+      searchKeys={["registration", "vehicle_type", "make", "model", "location", "owner_name"]}
       statusColumn="status"
       statusOptions={["in_service", "out_of_service", "not_safe"]}
       rowHref={(r) => `/fleet/${r.id}`}
